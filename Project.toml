@@ -4,9 +4,12 @@ authors = ["Brendan Lyons <lyonsbc@fusion.gat.com> and contributors"]
 version = "0.1.0"
 
 [deps]
+EFIT = "cda752c5-6b03-55a3-9e33-132a441b0c17"
+Equilibrium = "187daef3-cca3-527a-8725-7379bc760182"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Trapz = "592b5752-818d-11e9-1e9a-2b8ca4a44cd1"
 Unzip = "41fe7b60-77ed-43a1-b4f0-825fd5a5650d"
 
