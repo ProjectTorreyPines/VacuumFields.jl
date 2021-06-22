@@ -2,7 +2,6 @@ __precompile__()
 
 module AD_GS
 
-using EFIT
 using Equilibrium
 using Plots
 using Trapz
