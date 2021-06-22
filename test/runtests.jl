@@ -28,8 +28,11 @@ function get_coils()
     return Rc, Zc
 end
 
+const fixed_geqdsk = (@__DIR__)*"/g163303.03170_CHEASE"
+const free_geqdsk = (@__DIR__)*"/g163303.03170_EFIT"
+
 @testset "coil_current" begin
-    gfixed = transform_cocos(readg("g163303.03170_CHEASE"), 5, 1)
+    gfixed = transform_cocos(readg(fixed_geqdsk), 5, 1)
     Gfixed = efit(gfixed, clockwise_phi=false)
     
     Rc, Zc = get_coils()
@@ -37,7 +40,7 @@ end
     currents = fixed_eq_currents(Gfixed,coils)
     println(currents*1e-3)
 
-    gfree = transform_cocos(readg("g163303.03170_EFIT"), 5, 1)
+    gfree = transform_cocos(readg(free_geqdsk), 5, 1)
     Gfree = efit(gfree,clockwise_phi=false)
 
     check_fixed_eq_currents(Gfixed,coils,currents,Gfree)
