@@ -21,40 +21,50 @@ function cumlength(R,Z)
     return L
 end
 
-function fixed_eq_currents(Gfixed, coils, skip=1)
+function fixed_eq_currents(Gfixed, coils; skip=1, minimize_currents=false)
 
     # boundary of fixed gEQDSK (radius, height, cumulative length)
     Rb, Zb = fixed_boundary(Gfixed,skip)
-    
+
     Lb = cumlength(Rb,Zb)
     Bpol = poloidal_Bfield.(Gfixed, Rb, Zb) # Bpol = (1/R)*dPsi/dn
-    
+
     # Calculate ψ from image currents on boundary at surface p near boundary
     ψ0,_ = psi_limits(Gfixed)
     Sp = flux_surface(Gfixed,1e-3*ψ0)
     Rp, Zp = Sp.r[1:end-1], Sp.z[1:end-1]
     Np = length(Rp)
-    ψp = [@inbounds -trapz(Lb,Bpol.*Green.(Rb, Zb, Rp[j], Zp[j])) for j in 1:Np]
+    ψp = zeros(Np)
+    @threads for i=1:Np
+        ψp[i] = -trapz(Lb, Bpol .* Green.(Rb, Zb, Rp[i], Zp[i]))
+    end
 
     # Compute coil currents needed to recreate ψ from image currents
     # Should use full coil geometry instead of singular currents
     Rc, Zc = unzip(coils)
     Nc = length(Rc)
-    Gcp = μ₀.*[@inbounds Green(Rc[j], Zc[j], Rp[i], Zp[i]) for i in 1:Np, j in 1:Nc]
+    Gcp = zeros(Np, Nc)
+    @threads for j = 1:Nc
+        for i=1:Np
+            Gcp[i,j] = μ₀ * Green(Rc[j], Zc[j], Rp[i], Zp[i])
+        end
+    end
     Ic0 = (Gcp \ ψp)
 
-    minimize_currents = false
     if minimize_currents
         λ₀ = sum((Gcp*Ic0 .- ψp).^2)*sum(Gcp*Ic0.^2)
-        println(λ₀)
+        #println(λ₀)
         function cost(Ic, λ=1000.)
             return sum((Gcp*Ic .- ψp).^2) + λ₀*λ*maximum(Ic.^2)
         end
         #println(cost(Ic0), Ic0*1e-3)
         Ic = Optim.minimizer(optimize(cost,Ic0))
         #println(cost(Ic), Ic*1e-3)
+    else
+        Ic = Ic0
     end
-    return Ic0
+
+    return Ic
 end
 
 #******************************************
@@ -75,8 +85,8 @@ function check_fixed_eq_currents(Gfixed,coils,currents,Gfree,KE::Union{Base.RefV
     ψ0, _ = psi_limits(Gfixed)
     ψmax = abs(ψ0)*0.999
     lvls = -2ψmax:0.2*ψmax:2ψmax
-    
-    # ψ from free-boundary gEQDSK 
+
+    # ψ from free-boundary gEQDSK
     _, ψb = psi_limits(Gfree)
     ψfree = [Gfree.psi_rz(r,z) for z in Z, r in R] .- ψb
 
@@ -87,7 +97,7 @@ function check_fixed_eq_currents(Gfixed,coils,currents,Gfree,KE::Union{Base.RefV
     Bpol = poloidal_Bfield.(Gfixed, Rb, Zb) # Bpol = (1/R)*dPsi/dn
 
     ψm = -[@inbounds trapz(Lb, Bpol.*Green.(Rb, Zb, r, z)) for z in Z, r in R]
-        
+
     # ψ from coil currents
     # faster to do loop; I don't know why
     ψc = μ₀*[@inbounds sum(currents.*Green.(Rc, Zc, r, z)) for z in Z, r in R]
