@@ -11,6 +11,7 @@ using Optim
 using Base.Threads
 
 const μ₀ = 4e-7*π
+const inv2π = 1.0/(2π)
 
 include("coil_currents.jl")
 export fixed_eq_currents, check_fixed_eq_currents

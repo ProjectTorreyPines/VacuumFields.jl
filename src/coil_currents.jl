@@ -2,7 +2,7 @@ function Green(X::Real, Y::Real, R::Real, Z::Real)
     XR = X*R
     m = 4.0*XR/((X+R)^2 + (Y-Z)^2) # this is k^2
     Km, Em = ellipk(m), ellipe(m)
-    return (2.0*Em - (2.0 - m)*Km)*sqrt(XR/m)/(2π)
+    return inv2π*(2.0*Em - (2.0 - m)*Km)*sqrt(XR/m)
 end
 
 function fixed_boundary(Gfixed,skip=1)
@@ -22,7 +22,6 @@ function cumlength(R,Z)
 end
 
 function fixed_eq_currents(Gfixed, coils; skip=1, minimize_currents=false)
-
     # boundary of fixed gEQDSK (radius, height, cumulative length)
     Rb, Zb = fixed_boundary(Gfixed,skip)
 
@@ -133,5 +132,5 @@ function check_fixed_eq_currents(Gfixed,coils,currents,Gfree,KE::Union{Base.RefV
 
     p  = plot(p1, p2, p3, p4, layout=(2,2), size=(500,550))
     display(p)
-    return
+    return p
 end
