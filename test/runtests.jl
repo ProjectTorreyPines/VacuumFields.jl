@@ -17,5 +17,5 @@ const good_currents = [-197968.56551716285, -175313.42410039817, -52907.88075466
     gfree = transform_cocos(readg(free_geqdsk), 5, 1)
     Gfree = efit(gfree,clockwise_phi=false)
 
-    check_fixed_eq_currents(Gfixed,coils,currents,Gfree)
+    check_fixed_eq_currents(Gfixed,coils_D3D,currents,Gfree)
 end
