@@ -202,31 +202,40 @@ function check_fixed_eq_currents(EQfixed, coils, currents,
     ψmax = 2.0*abs(ψb_fix - ψ0_fix)*0.99
     lvls = collect(-ψmax:0.1*ψmax:ψmax) .+ ψb_fix
 
-    pfix = heatmap(R, Z, ψ_fix, clim=(-ψmax,ψmax), c=:diverging,
-                   aspect_ratio=:equal,linecolor=:black,
-                   title="Fixed Boundary",
-                   xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
     # ψ_fix=0 doesn't plot properly since it's all zero outside boundary
-    # this takes care of that
+    # this corrects for this in plotting
     σ_Bp = EQfixed.cocos.sigma_Bp
     ψtmp = [EQfixed(r,z) for z in Z, r in R] .- ψb_fix
     ψtmp = ifelse.(σ₀*ψtmp.> 0, ψtmp, 1e-6*ψtmp) .+ ψb_fix
-    contour!(R, Z, ψtmp, levels=lvls, linecolor=:black)
 
-    pf2f = heatmap(R, Z, ψ_f2f, clim=(-ψmax,ψmax), c=:diverging,
-                   aspect_ratio=:equal,linecolor=:black,
-                   title="Calculated", xlabel="R (m)", ylabel="Z (m)",
-                   xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
-    contour!(R, Z, ψ_f2f, levels=lvls, linecolor=:black)
-
+    # Plot
     if isnothing(EQfree)
-        p  = plot(pfix, pf2f, layout=(1,2), size=(550,250))
+        # Overlay contours
+        p = contour(R, Z, ψtmp, levels=lvls, aspect_ratio=:equal,
+                    clim=(-ψmax,ψmax), colorbar=false,
+                    linewidth=3, linecolor=:black,
+                    title="Fixed Boundary",
+                    xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
+        contour!(R, Z, ψ_f2f, levels=lvls, colorbar=false,
+                 linewidth=1, linecolor=:red)
     else
-        # ψ from free-boundary gEQDSK
-         _, ψb_free = psi_limits(EQfree)
-         ψ_free = [EQfree(r,z) for z in Z, r in R] .- ψb_free .+ ψb_fix
+        # Heat maps for fix, free, fix->free, and difference
+        pfix = heatmap(R, Z, ψ_fix, clim=(-ψmax,ψmax), c=:diverging,
+                    aspect_ratio=:equal,linecolor=:black,
+                    title="Fixed Boundary",
+                    xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
+        contour!(R, Z, ψtmp, levels=lvls, linecolor=:black)
 
-        # Plot
+        pf2f = heatmap(R, Z, ψ_f2f, clim=(-ψmax,ψmax), c=:diverging,
+                    aspect_ratio=:equal,linecolor=:black,
+                    title="Calculated", xlabel="R (m)", ylabel="Z (m)",
+                    xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
+        contour!(R, Z, ψ_f2f, levels=lvls, linecolor=:black)
+
+        # ψ from free-boundary gEQDSK
+        _, ψb_free = psi_limits(EQfree)
+        ψ_free = [EQfree(r,z) for z in Z, r in R] .- ψb_free .+ ψb_fix
+
         pfree = heatmap(R, Z, ψ_free, clim=(-ψmax,ψmax), c=:diverging,
                         aspect_ratio=:equal,linecolor=:black,
                         title="Free Boundary", ylabel="Z (m)",
