@@ -10,12 +10,14 @@ using Unzip
 using SpecialFunctions
 using Optim
 using Base.Threads
+using LinearAlgebra
+using Statistics
 
 const μ₀ = 4e-7*π
 const inv2π = 1.0/(2π)
 
 include("coil_currents.jl")
-export fixed_eq_currents, check_fixed_eq_currents, plot_fixed2free
+export fixed_eq_currents, check_fixed_eq_currents, fixed2free
 export Coil, coil, plot_coils
 
 const coils_D3D_matrix = [[ 8.6080e-01  1.6830e-01  5.0800e-02  3.2110e-01  0.0000e+00  9.0000e+01]
