@@ -1,3 +1,71 @@
+struct Coil{T <: AbstractVector, Q <: Integer}
+    R :: T
+    Z :: T
+    Nr :: Q
+    Nz :: Q
+end
+
+function coil(Rc::T,Zc::T,ΔR::T,ΔZ::T,θ₁::T,θ₂::T; spacing=0.01) where {T<:Real}
+    dR = LinRange(-0.5*ΔR, 0.5*ΔR, Int(floor(1.0 + ΔR/spacing)))
+    dZ = LinRange(-0.5*ΔZ, 0.5*ΔZ, Int(floor(1.0 + ΔZ/spacing)))
+    α₁ = tan(π*θ₁/180.0)
+    α₂ = tan(π*(θ₂+90.0)/180.0)
+
+    Nr = length(dR)
+    Nz = length(dZ)
+    N = Nr*Nz
+    R, Z = zeros(N), zeros(N)
+    for i in 1:Nr
+        for j in 1:Nz
+            k = j + (i-1)*Nz
+            R[k] = Rc + dR[i] - α₂*dZ[j]
+            Z[k] = Zc + dZ[j] + α₁*dR[i]
+        end
+    end
+    return Coil(R, Z, Nr, Nz)
+end
+
+function endpoints(C::Coil)
+    idx = [1, C.Nz, C.Nr*C.Nz, (C.Nr-1)*C.Nz + 1, 1]
+    return C.R[idx], C.Z[idx]
+end
+
+function bounds(Cs::AbstractVector{T}) where {T<:Coil}
+    R,Z = endpoints(Cs[1])
+    Rmin = minimum(R)
+    Rmax = maximum(R)
+    Zmin = minimum(Z)
+    Zmax = maximum(Z)
+    for C in Cs
+        R, Z = endpoints(C)
+        Rmin = min(Rmin,minimum(R))
+        Rmax = max(Rmax,maximum(R))
+        Zmin = min(Zmin,minimum(Z))
+        Zmax = max(Zmax,maximum(Z))
+    end
+    return Rmin,Rmax,Zmin,Zmax
+end
+
+function plot_coils(Cs::AbstractVector{T}) where {T<:Coil}
+    p = plot(aspect_ratio=:equal,legend=false)
+    for C in Cs
+        R,Z = endpoints(C)
+        plot!(R,Z,linecolor=:black)
+    end
+    Rmin, Rmax, Zmin, Zmax = bounds(Cs)
+    plot!(xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
+    display(p)
+end
+
+function Green(C::Coil, R::Real, Z::Real)
+    return sum(Green(x, y, R, Z) for (x,y) in zip(C.R,C.Z))/(C.Nr*C.Nz)
+end
+
+function Green(C::Tuple{T,T}, R::Real, Z::Real) where {T<:Real}
+    X, Y = C
+    return Green(X, Y, R, Z)
+end
+
 function Green(X::Real, Y::Real, R::Real, Z::Real)
     XR = X*R
     m = 4.0*XR/((X+R)^2 + (Y-Z)^2) # this is k^2
@@ -13,6 +81,19 @@ function cumlength(R,Z)
         @inbounds L[i] = L[i-1] + sqrt((R[i] - R[i-1])^2 + (Z[i] - Z[i-1])^2)
     end
     return L
+end
+
+function bounds(Cs::Vector{Tuple{T,T}}) where {T<:Real}
+    Rmin, Zmin = Cs[1]
+    Rmax, Zmax = Cs[1]
+    for i in 2:length(Cs)
+        R,Z = Cs[i]
+        Rmin = min(Rmin,R)
+        Rmax = max(Rmax,R)
+        Zmin = min(Zmin,Z)
+        Zmax = max(Zmax,Z)
+    end
+    return Rmin, Rmax, Zmin, Zmax
 end
 
 function fixed_boundary(EQfixed)
@@ -45,13 +126,12 @@ function fixed_eq_currents(EQfixed, coils; minimize_currents=false)
 
     # Compute coil currents needed to recreate ψ from image currents
     # Should use full coil geometry instead of singular currents
-    Rc, Zc = unzip(coils)
-    Nc = length(Rc)
+    Nc = length(coils)
     Gcp = zeros(Np, Nc)
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
     @threads for j = 1:Nc
         for i=1:Np
-            Gcp[i,j] = μ₀ * Bp_fac * Green(Rc[j], Zc[j], Rp[i], Zp[i])
+            Gcp[i,j] = μ₀ * Bp_fac * Green(coils[j], Rp[i], Zp[i])
         end
     end
     Ic0 = (Gcp \ ψp)
@@ -76,7 +156,6 @@ end
 function fixed2free(EQfixed, coils, currents, R, Z)
     
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
-    Rc, Zc = unzip(coils)
 
     ψ0, ψb = psi_limits(EQfixed)
     σ₀ = sign(ψ0-ψb)
@@ -94,7 +173,7 @@ function fixed2free(EQfixed, coils, currents, R, Z)
             # subtract image ψ
             @inbounds ψ_f2f[j,i] -= -trapz(Lb,dψdn_R.*Green.(Rb, Zb, r, z))
             # add coil ψ
-            @inbounds ψ_f2f[j,i] += μ₀*Bp_fac*sum(currents.*Green.(Rc, Zc, r, z))
+            @inbounds ψ_f2f[j,i] += μ₀*Bp_fac*sum(currents.*Green.(coils, r, z))
         end
     end
 
@@ -108,10 +187,7 @@ function check_fixed_eq_currents(EQfixed, coils, currents,
                                  EQfree::Union{AbstractEquilibrium,Nothing}=nothing;
                                  resolution=257)
 
-    Rc, Zc = unzip(coils)
-
-    Rmin, Rmax = minimum(Rc), maximum(Rc)
-    Zmin, Zmax = minimum(Zc), maximum(Zc)
+    Rmin, Rmax, Zmin, Zmax = bounds(coils)
     R = range(Rmin,Rmax,length=resolution)
     Z = range(Zmin,Zmax,length=resolution)
 
@@ -166,5 +242,5 @@ function check_fixed_eq_currents(EQfixed, coils, currents,
     end
 
     display(p)
-    return 0.
+    return p
 end
