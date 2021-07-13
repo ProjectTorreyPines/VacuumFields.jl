@@ -11,7 +11,6 @@ using SpecialFunctions
 using Optim
 using Base.Threads
 using LinearAlgebra
-using Statistics
 
 const μ₀ = 4e-7*π
 const inv2π = 1.0/(2π)

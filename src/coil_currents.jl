@@ -110,7 +110,8 @@ function fixed_boundary(EQfixed)
     return (Rb, Zb, Lb, dψdn_R)
 end
 
-function fixed_eq_currents(EQfixed, coils; minimize_currents=false)
+function fixed_eq_currents(EQfixed, coils, ψbound=0.0;
+                           λ_minimize=0.0, λ_zerosum=0.0, λ_d3d_innersum=0.0)
 
     # Calculate ψ from image currents on boundary at surface p near boundary
     ψ0, ψb = psi_limits(EQfixed)
@@ -124,8 +125,11 @@ function fixed_eq_currents(EQfixed, coils; minimize_currents=false)
         ψp[i] = -trapz(Lb, dψdn_R .* Green.(Rb, Zb, Rp[i], Zp[i]))
     end
 
+    # add in desired boundary flux
+    ψbound != 0.0 && (ψp .+= ψbound)
+
     # Compute coil currents needed to recreate ψ from image currents
-    # Should use full coil geometry instead of singular currents
+    # Build matrix relating coil Green's functions to boundary points
     Nc = length(coils)
     Gcp = zeros(Np, Nc)
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
@@ -134,31 +138,36 @@ function fixed_eq_currents(EQfixed, coils; minimize_currents=false)
             Gcp[i,j] = μ₀ * Bp_fac * Green(coils[j], Rp[i], Zp[i])
         end
     end
+
+    # Least-squares solve for coil currents
     Ic0 = (Gcp \ ψp)
 
-    if minimize_currents
-        #λ₀ = sum((Gcp*Ic0 .- ψp).^2)*sum(Gcp*Ic0.^2)
-        function cost(Ic, λ=0.001)
-            return sum((Gcp*Ic .- ψp).^2) + λ*sum((μ₀*Ic).^2)
+    # Optional optimization:
+    #    Total amplitude minimization
+    #    Currents sum to zero
+    if (λ_minimize>0.0 || λ_zerosum>0.0) || λ_d3d_innersum>0.0
+        function cost(Ic)
+            C = norm((Gcp*Ic .- ψp))/length(ψp)     +
+                λ_minimize*(μ₀*norm(Ic)/length(Ic)) +
+                λ_zerosum*(μ₀*abs(sum(Ic))/length(Ic))   +
+                λ_d3d_innersum*(μ₀*abs(sum(Ic[1:5])+sum(Ic[10:14]) + Ic[8] + Ic[17])/12.0)
         end
-        Ic = Optim.minimizer(optimize(cost,Ic0))
+        return Optim.minimizer(optimize(cost,Ic0))
     else
-        Ic = Ic0
+        return Ic0
     end
 
-    return Ic
 end
 
 #***************************************************
 # Transform fixed-boundary ψ to free-boundary ψ
-#
 #***************************************************
 function fixed2free(EQfixed, coils, currents, R, Z)
     
-    Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
-
     ψ0, ψb = psi_limits(EQfixed)
     σ₀ = sign(ψ0-ψb)
+    Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
+
     ψ_f2f = [EQfixed(r,z) for z in Z, r in R] .- ψb
     ψ_f2f = ifelse.(σ₀*ψ_f2f.>0, ψ_f2f, 0) .+ ψb
 
@@ -192,64 +201,73 @@ function check_fixed_eq_currents(EQfixed, coils, currents,
     Z = range(Zmin,Zmax,length=resolution)
 
     # ψ from fixed-boundary gEQDSK
+    # make ψ at boundary zero, and very small value outside for plotting
     ψ0_fix, ψb_fix = psi_limits(EQfixed)
     σ₀ = sign(ψ0_fix-ψb_fix)
     ψ_fix = [EQfixed(r,z) for z in Z, r in R] .- ψb_fix
-    ψ_fix = ifelse.(σ₀*ψ_fix.>0, ψ_fix, 0) .+ ψb_fix
+    ψ_fix = ifelse.(σ₀*ψ_fix.>0, ψ_fix, 1e-6*ψ_fix)
     
+    # ψ at the boundary is determined by the value of the currents
+    # calculated in fixed_eq_currents
     ψ_f2f = fixed2free(EQfixed,coils,currents,R,Z)
 
+    # scale for plotting
+    # this may get shifted boundary flux stays at the midpoint
     ψmax = 2.0*abs(ψb_fix - ψ0_fix)*0.99
-    lvls = collect(-ψmax:0.1*ψmax:ψmax) .+ ψb_fix
-
-    # ψ_fix=0 doesn't plot properly since it's all zero outside boundary
-    # this corrects for this in plotting
-    σ_Bp = EQfixed.cocos.sigma_Bp
-    ψtmp = [EQfixed(r,z) for z in Z, r in R] .- ψb_fix
-    ψtmp = ifelse.(σ₀*ψtmp.> 0, ψtmp, 1e-6*ψtmp) .+ ψb_fix
+    lvls = collect(-ψmax:0.1*ψmax:ψmax)
+    clim = (-ψmax,ψmax)
 
     # Plot
     if isnothing(EQfree)
         # Overlay contours
-        p = contour(R, Z, ψtmp, levels=lvls, aspect_ratio=:equal,
+        p = contour(R, Z, ψ_fix, levels=lvls, aspect_ratio=:equal,
                     clim=(-ψmax,ψmax), colorbar=false,
                     linewidth=3, linecolor=:black,
                     title="Fixed Boundary",
                     xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
-        contour!(R, Z, ψ_f2f, levels=lvls, colorbar=false,
+
+        # subtract ψ_f2f value at ψ_fix boundary to lineup contours
+        ψtmp = ifelse.(σ₀*ψ_fix.>0, ψ_f2f, 0.0)
+        offset = (σ₀>0 ? minimum(ψtmp) : maximum(ψtmp))
+        contour!(R, Z, ψ_f2f .- offset, levels=lvls, colorbar=false,
                  linewidth=1, linecolor=:red)
     else
-        # Heat maps for fix, free, fix->free, and difference
-        pfix = heatmap(R, Z, ψ_fix, clim=(-ψmax,ψmax), c=:diverging,
-                    aspect_ratio=:equal,linecolor=:black,
-                    title="Fixed Boundary",
-                    xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
-        contour!(R, Z, ψtmp, levels=lvls, linecolor=:black)
-
-        pf2f = heatmap(R, Z, ψ_f2f, clim=(-ψmax,ψmax), c=:diverging,
-                    aspect_ratio=:equal,linecolor=:black,
-                    title="Calculated", xlabel="R (m)", ylabel="Z (m)",
-                    xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
-        contour!(R, Z, ψ_f2f, levels=lvls, linecolor=:black)
-
+        # Heat maps for free, fix, fix->free, and difference
         # ψ from free-boundary gEQDSK
         _, ψb_free = psi_limits(EQfree)
-        ψ_free = [EQfree(r,z) for z in Z, r in R] .- ψb_free .+ ψb_fix
+        ψ_free = [EQfree(r,z) for z in Z, r in R]
+        offset = ψb_free - ψb_fix
 
-        pfree = heatmap(R, Z, ψ_free, clim=(-ψmax,ψmax), c=:diverging,
+        lvls_off = lvls .+ offset
+        clim_off = (minimum(lvls_off), maximum(lvls_off))
+
+        pfree = heatmap(R, Z, ψ_free, clim=clim_off, c=:diverging,
                         aspect_ratio=:equal,linecolor=:black,
                         title="Free Boundary", ylabel="Z (m)",
                         xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
-        contour!(R, Z, ψ_free, levels=lvls, linecolor=:black)
+        contour!(R, Z, ψ_free, levels=lvls_off, linecolor=:black)
 
-        pdiff = heatmap(R, Z, ψ_f2f - ψ_free, clim=(-ψmax,ψmax), c=:diverging,
+
+        pfix = heatmap(R, Z, ψ_fix, clim=clim, c=:diverging,
+                    aspect_ratio=:equal,linecolor=:black,
+                    title="Fixed Boundary",
+                    xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
+        contour!(R, Z, ψ_fix, levels=lvls, linecolor=:black)
+
+        pf2f = heatmap(R, Z, ψ_f2f, clim=clim_off, c=:diverging,
+                    aspect_ratio=:equal,linecolor=:black,
+                    title="Calculated", xlabel="R (m)", ylabel="Z (m)",
+                    xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
+        contour!(R, Z, ψ_f2f, levels=lvls_off, linecolor=:black)
+
+        pdiff = heatmap(R, Z, ψ_f2f - ψ_free, clim=clim, c=:diverging,
                     aspect_ratio=:equal,linecolor=:black,
                     title="Difference", xlabel="R (m)",
                     xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
+
         contour!(R, Z, ψ_f2f - ψ_free, levels=lvls, linecolor=:black)
         p  = plot(pfree, pfix, pf2f, pdiff, layout=(2,2), size=(500,550))
     end
 
-    display(p)
     return p
 end
