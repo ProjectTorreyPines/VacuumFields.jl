@@ -24,6 +24,6 @@ jobs:
           julia -e '
             using Pkg
             Pkg.activate(".")
-            Pkg.add(url="git@github.com:JuliaFusion/Equilibrium.jl.git")'
+            Pkg.add(url="https://github.com/JuliaFusion/Equilibrium.jl.git")'
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
