@@ -20,5 +20,10 @@ jobs:
         with:
           version: ${{ matrix.julia-version }}
           arch: ${{ matrix.julia-arch }}
+      - run: |
+          julia -e '
+            using Pkg
+            Pkg.activate(".")
+            Pkg.add(url="git@github.com:JuliaFusion/Equilibrium.jl.git")'
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
