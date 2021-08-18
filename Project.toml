@@ -4,6 +4,7 @@ authors = ["Brendan Lyons <lyonsbc@fusion.gat.com> and contributors"]
 version = "0.1.0"
 
 [deps]
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 EFIT = "cda752c5-6b03-55a3-9e33-132a441b0c17"
 Equilibrium = "187daef3-cca3-527a-8725-7379bc760182"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
