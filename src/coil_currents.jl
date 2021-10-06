@@ -111,7 +111,9 @@ function fixed_boundary(EQfixed)
 end
 
 function fixed_eq_currents(EQfixed, coils, ψbound=0.0;
-                           λ_minimize=0.0, λ_zerosum=0.0, λ_d3d_innersum=0.0)
+                           λ_minimize=0.0, λ_zerosum=0.0, λ_d3d_innersum=0.0,
+                           λ_regularize=1E-16,
+                           verbose=false)
 
     # Calculate ψ from image currents on boundary at surface p near boundary
     ψ0, ψb = psi_limits(EQfixed)
@@ -140,23 +142,34 @@ function fixed_eq_currents(EQfixed, coils, ψbound=0.0;
     end
 
     # Least-squares solve for coil currents
-    Ic0 = (Gcp \ ψp)
+    if λ_regularize>0
+        # Least-squares with regularization
+        # https://www.youtube.com/watch?v=9BckeGN0sF0
+        reg_solve(A,b,λ) = inv(A'*A+λ*I)*A'*b
+        Ic0 = reg_solve(Gcp, ψp, λ_regularize)
+    else
+        Ic0 = (Gcp \ ψp)
+    end
+
+    # use the least-squares regularized error as normalization for ψp part of optimization cost
+    normalization = norm(Gcp*Ic0 .- ψp)
 
     # Optional optimization:
     #    Total amplitude minimization
     #    Currents sum to zero
     if (λ_minimize>0.0 || λ_zerosum>0.0) || λ_d3d_innersum>0.0
         function cost(Ic)
-            C = norm((Gcp*Ic .- ψp))/length(ψp)     +
-                λ_minimize*(μ₀*norm(Ic)/length(Ic)) +
+            norm((Gcp*Ic .- ψp))/normalization +
+                λ_minimize*(μ₀*sqrt(norm(Ic.^2))/length(Ic)) +
                 λ_zerosum*(μ₀*abs(sum(Ic))/length(Ic))   +
                 λ_d3d_innersum*(μ₀*abs(sum(Ic[1:5])+sum(Ic[10:14]) + Ic[8] + Ic[17])/12.0)
         end
-        return Optim.minimizer(optimize(cost,Ic0))
-    else
-        return Ic0
+        res = Optim.optimize(cost,Ic0, Optim.Newton(); autodiff=:forward)
+        if verbose println(res) end
+        Ic0 = Optim.minimizer(res)
     end
-
+    
+    return Ic0
 end
 
 #***************************************************
@@ -221,7 +234,7 @@ function check_fixed_eq_currents(EQfixed, coils, currents,
     if isnothing(EQfree)
         # Overlay contours
         p = contour(R, Z, ψ_fix, levels=lvls, aspect_ratio=:equal,
-                    clim=(-ψmax,ψmax), colorbar=false,
+                    clim=clim, colorbar=false,
                     linewidth=3, linecolor=:black,
                     title="Fixed Boundary",
                     xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))

@@ -2,7 +2,7 @@ using AD_GS
 using Test
 using EFIT
 using Equilibrium
-using DelimitedFiles
+import DelimitedFiles
 using Plots
 
 const active = [
@@ -86,7 +86,7 @@ if "current_BtIp" in active
         fixed_mm = (@__DIR__)*"/equilibria/g153298.04400_fix"
         free_mm  = (@__DIR__)*"/equilibria/g153298.04400_free"
 
-        C = readdlm((@__DIR__)*"/equilibria/currents.txt")
+        C = DelimitedFiles.readdlm((@__DIR__)*"/equilibria/currents.txt")
 
         EQs_fixed = [fixed_pp,fixed_pm,fixed_mp,fixed_mm]
         EQs_free  = [free_pp, free_pm, free_mp, free_mm]
