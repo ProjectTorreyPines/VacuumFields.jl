@@ -68,15 +68,15 @@ end
 
 function Green(X::Real, Y::Real, R::Real, Z::Real)
     XR = X*R
-    m = 4.0*XR/((X+R)^2 + (Y-Z)^2 + 1E-16) # this is k^2
-    if true
-        Km, Em = SpecialFunctions.ellipk(m), SpecialFunctions.ellipe(m)
-        return inv2π*(2.0*Em - (2.0 - m)*Km)*sqrt(XR/m)
+    m = 4.0*XR/((X+R)^2 + (Y-Z)^2) # this is k^2
+    if true # Use our own `Real` version of the elliptic functions to allow for ForwardDiff to work (copied from SpecialFunctions)
+        Km = ellipk(m)
+        Em = ellipe(m)
     else
-        K,E = Elliptic.ellipke(m)
-        g = 2.0*E - (2.0 - m)*K
-        g *= sqrt(XR/m)/(2π)
+        Km = SpecialFunctions.ellipk(m)
+        Em = SpecialFunctions.ellipe(m)
     end
+    return inv2π*(2.0*Em - (2.0 - m)*Km)*sqrt(XR/m)
 end
 
 function cumlength(R,Z)
@@ -137,7 +137,7 @@ function ψp_on_fixed_eq_boundary(EQfixed, ψbound=0.0)
 end
 
 function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, ψbound, coils;
-    λ_minimize=0.0, λ_zerosum=0.0, λ_d3d_innersum=0.0,
+    λ_minimize=0.0, λ_zerosum=0.0,
     λ_regularize=1E-16,
     return_cost=false,
     verbose=false)
@@ -163,21 +163,22 @@ function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, ψbound, coils;
         Ic0 = (Gcp \ ψp)
     end
 
-    # use the least-squares regularized error as normalization for λ's part of optimization cost
-    normalization = norm(Gcp*Ic0 .- ψp)/μ₀/length(ψp)
-
     function cost(Ic)
-        (norm(Gcp*Ic .- ψp)/μ₀/length(ψp)
-            + (λ_minimize*(μ₀*norm(Ic)/length(Ic))
+        c = norm(Gcp*Ic .- ψp)/μ₀/length(ψp)
+        if (λ_minimize>0.0 || λ_zerosum>0.0)
+            c += (λ_minimize*(μ₀*norm(Ic)/length(Ic))
                + λ_zerosum*(μ₀*abs(sum(Ic))/length(Ic))
-              #+ λ_d3d_innersum*(μ₀*abs(sum(Ic[1:5])+sum(Ic[10:14]) + Ic[8] + Ic[17])/12.0)
-              ) * normalization)
+              ) * normalization
+        end
+        return c
     end
 
     # Optional optimization:
     #    Total amplitude minimization
     #    Currents sum to zero
-    if (λ_minimize>0.0 || λ_zerosum>0.0) || λ_d3d_innersum>0.0
+    if (λ_minimize>0.0 || λ_zerosum>0.0)
+        # use the least-squares regularized error as normalization for λ's part of optimization cost
+        normalization = norm(Gcp*Ic0 .- ψp)/μ₀/length(ψp)
         res = Optim.optimize(cost, Ic0, Optim.Newton(); autodiff=:forward)
         if verbose println(res) end
         Ic0 = Optim.minimizer(res)
@@ -191,7 +192,7 @@ function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, ψbound, coils;
 end
 
 function fixed_eq_currents(EQfixed, coils, ψbound=0.0;
-                           λ_minimize=0.0, λ_zerosum=0.0, λ_d3d_innersum=0.0,
+                           λ_minimize=0.0, λ_zerosum=0.0,
                            λ_regularize=1E-16,
                            return_cost=false,
                            verbose=false)
@@ -199,7 +200,7 @@ function fixed_eq_currents(EQfixed, coils, ψbound=0.0;
     Bp_fac, ψp, Rp, Zp, ψbound = ψp_on_fixed_eq_boundary(EQfixed, ψbound)
 
     return currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, ψbound, coils;
-                                λ_minimize=λ_minimize, λ_zerosum=λ_zerosum, λ_d3d_innersum=λ_d3d_innersum,
+                                λ_minimize=λ_minimize, λ_zerosum=λ_zerosum,
                                 λ_regularize=λ_regularize,
                                 return_cost=return_cost, verbose=verbose)
 end

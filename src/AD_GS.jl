@@ -16,6 +16,9 @@ const μ₀ = 4e-7*π
 const inv2π = 1.0/(2π)
 
 include("coil_currents.jl")
+
+include("elliptic.jl")
+
 export check_fixed_eq_currents, fixed2free
 export fixed_eq_currents, ψp_on_fixed_eq_boundary, currents_to_match_ψp
 export Coil, coil, plot_coils
