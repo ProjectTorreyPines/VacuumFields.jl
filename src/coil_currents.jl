@@ -68,9 +68,15 @@ end
 
 function Green(X::Real, Y::Real, R::Real, Z::Real)
     XR = X*R
-    m = 4.0*XR/((X+R)^2 + (Y-Z)^2) # this is k^2
-    Km, Em = ellipk(m), ellipe(m)
-    return inv2π*(2.0*Em - (2.0 - m)*Km)*sqrt(XR/m)
+    m = 4.0*XR/((X+R)^2 + (Y-Z)^2 + 1E-16) # this is k^2
+    if true
+        Km, Em = SpecialFunctions.ellipk(m), SpecialFunctions.ellipe(m)
+        return inv2π*(2.0*Em - (2.0 - m)*Km)*sqrt(XR/m)
+    else
+        K,E = Elliptic.ellipke(m)
+        g = 2.0*E - (2.0 - m)*K
+        g *= sqrt(XR/m)/(2π)
+    end
 end
 
 function cumlength(R,Z)
@@ -110,33 +116,39 @@ function fixed_boundary(EQfixed)
     return (Rb, Zb, Lb, dψdn_R)
 end
 
-function fixed_eq_currents(EQfixed, coils, ψbound=0.0;
-                           λ_minimize=0.0, λ_zerosum=0.0, λ_d3d_innersum=0.0,
-                           λ_regularize=1E-16,
-                           verbose=false)
-
+function ψp_on_fixed_eq_boundary(EQfixed, ψbound=0.0)
     # Calculate ψ from image currents on boundary at surface p near boundary
     ψ0, ψb = psi_limits(EQfixed)
     Sp = flux_surface(EQfixed, 0.999*(ψb-ψ0) + ψ0)
     Rp, Zp = Sp.r[1:end-1], Sp.z[1:end-1]
-    Np = length(Rp)
-    ψp = zeros(Np)
+    ψp = zeros(length(Rp))
 
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed)
-    @threads for i=1:Np
+    @threads for i=1:length(Rp)
         ψp[i] = -trapz(Lb, dψdn_R .* Green.(Rb, Zb, Rp[i], Zp[i]))
     end
 
     # add in desired boundary flux
     ψbound != 0.0 && (ψp .+= ψbound)
 
+    Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
+
+    return Bp_fac, ψp, Rp, Zp, ψbound
+end
+
+function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, ψbound, coils;
+    λ_minimize=0.0, λ_zerosum=0.0, λ_d3d_innersum=0.0,
+    λ_regularize=1E-16,
+    return_cost=false,
+    verbose=false)
+
     # Compute coil currents needed to recreate ψ from image currents
     # Build matrix relating coil Green's functions to boundary points
-    Nc = length(coils)
-    Gcp = zeros(Np, Nc)
-    Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
-    @threads for j = 1:Nc
-        for i=1:Np
+    tp = typeof(sum([c[1]+c[2] for c in coils]))
+    Gcp = zeros(tp, length(ψp), length(coils))
+    
+    @threads for j = 1:length(coils)
+        for i=1:length(ψp)
             Gcp[i,j] = μ₀ * Bp_fac * Green(coils[j], Rp[i], Zp[i])
         end
     end
@@ -151,25 +163,44 @@ function fixed_eq_currents(EQfixed, coils, ψbound=0.0;
         Ic0 = (Gcp \ ψp)
     end
 
-    # use the least-squares regularized error as normalization for ψp part of optimization cost
-    normalization = norm(Gcp*Ic0 .- ψp)
+    # use the least-squares regularized error as normalization for λ's part of optimization cost
+    normalization = norm(Gcp*Ic0 .- ψp)/μ₀/length(ψp)
+
+    function cost(Ic)
+        norm(Gcp*Ic .- ψp)/μ₀/length(ψp) + (
+            λ_minimize*(μ₀*norm(Ic)/length(Ic)) +
+            λ_zerosum*(μ₀*abs(sum(Ic))/length(Ic))   +
+            λ_d3d_innersum*(μ₀*abs(sum(Ic[1:5])+sum(Ic[10:14]) + Ic[8] + Ic[17])/12.0)) * normalization
+    end
 
     # Optional optimization:
     #    Total amplitude minimization
     #    Currents sum to zero
     if (λ_minimize>0.0 || λ_zerosum>0.0) || λ_d3d_innersum>0.0
-        function cost(Ic)
-            norm((Gcp*Ic .- ψp))/normalization +
-                λ_minimize*(μ₀*sqrt(norm(Ic.^2))/length(Ic)) +
-                λ_zerosum*(μ₀*abs(sum(Ic))/length(Ic))   +
-                λ_d3d_innersum*(μ₀*abs(sum(Ic[1:5])+sum(Ic[10:14]) + Ic[8] + Ic[17])/12.0)
-        end
-        res = Optim.optimize(cost,Ic0, Optim.Newton(); autodiff=:forward)
+        res = Optim.optimize(cost, Ic0, Optim.Newton(); autodiff=:forward)
         if verbose println(res) end
         Ic0 = Optim.minimizer(res)
     end
     
-    return Ic0
+    if return_cost
+        return Ic0, cost(Ic0)
+    else
+        return Ic0
+    end
+end
+
+function fixed_eq_currents(EQfixed, coils, ψbound=0.0;
+                           λ_minimize=0.0, λ_zerosum=0.0, λ_d3d_innersum=0.0,
+                           λ_regularize=1E-16,
+                           return_cost=false,
+                           verbose=false)
+
+    Bp_fac, ψp, Rp, Zp, ψbound = ψp_on_fixed_eq_boundary(EQfixed, ψbound)
+
+    return currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, ψbound, coils;
+                                λ_minimize=λ_minimize, λ_zerosum=λ_zerosum, λ_d3d_innersum=λ_d3d_innersum,
+                                λ_regularize=λ_regularize,
+                                return_cost=return_cost, verbose=verbose)
 end
 
 #***************************************************
