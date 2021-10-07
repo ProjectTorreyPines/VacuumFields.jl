@@ -167,10 +167,11 @@ function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, ψbound, coils;
     normalization = norm(Gcp*Ic0 .- ψp)/μ₀/length(ψp)
 
     function cost(Ic)
-        norm(Gcp*Ic .- ψp)/μ₀/length(ψp) + (
-            λ_minimize*(μ₀*norm(Ic)/length(Ic)) +
-            λ_zerosum*(μ₀*abs(sum(Ic))/length(Ic))   +
-            λ_d3d_innersum*(μ₀*abs(sum(Ic[1:5])+sum(Ic[10:14]) + Ic[8] + Ic[17])/12.0)) * normalization
+        (norm(Gcp*Ic .- ψp)/μ₀/length(ψp)
+            + (λ_minimize*(μ₀*norm(Ic)/length(Ic))
+               + λ_zerosum*(μ₀*abs(sum(Ic))/length(Ic))
+              #+ λ_d3d_innersum*(μ₀*abs(sum(Ic[1:5])+sum(Ic[10:14]) + Ic[8] + Ic[17])/12.0)
+              ) * normalization)
     end
 
     # Optional optimization:
@@ -238,9 +239,15 @@ end
 #******************************************
 function check_fixed_eq_currents(EQfixed, coils, currents,
                                  EQfree::Union{AbstractEquilibrium,Nothing}=nothing;
-                                 resolution=257)
+                                 resolution=257,
+                                 Rmin=nothing, Rmax=nothing, Zmin=nothing, Zmax=nothing)
 
-    Rmin, Rmax, Zmin, Zmax = bounds(coils)
+    Rmin0, Rmax0, Zmin0, Zmax0 = bounds(coils)
+    if Rmin === nothing Rmin = Rmin0 end
+    if Rmax === nothing Rmax = Rmax0 end
+    if Zmin === nothing Zmin = Zmin0 end
+    if Zmax === nothing Zmax = Zmax0 end
+
     R = range(Rmin,Rmax,length=resolution)
     Z = range(Zmin,Zmax,length=resolution)
 
@@ -267,7 +274,6 @@ function check_fixed_eq_currents(EQfixed, coils, currents,
         p = contour(R, Z, ψ_fix, levels=lvls, aspect_ratio=:equal,
                     clim=clim, colorbar=false,
                     linewidth=3, linecolor=:black,
-                    title="Fixed Boundary",
                     xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
 
         # subtract ψ_f2f value at ψ_fix boundary to lineup contours
