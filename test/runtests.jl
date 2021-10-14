@@ -6,13 +6,14 @@ import DelimitedFiles
 using Plots
 
 const active = [
-    "current_cocos",
-    "current_BtIp",
-    "current_Solovev"
+    #"current_cocos",
+    #"current_BtIp",
+    #"current_Solovev",
+    "current_breakdown"
 ]
 
 # Change to coils_D3D_points to run with singular coils
-const coils = coils_D3D
+const coils = coils_D3D_points
 
 if "current_cocos" in active
     @testset "current_cocos" begin
@@ -136,6 +137,56 @@ if "current_Solovev" in active
         alpha = -0.155
         S = solovev(B0, R0, ϵ, δ, κ, alpha, qstar,B0_dir=1,Ip_dir=1)
         currents = fixed_eq_currents(S,coils)
-        check_fixed_eq_currents(S,coils,currents)
+        p = check_fixed_eq_currents(S,coils,currents)
+        display(p)
+    end
+end
+
+if "current_breakdown" in active
+    @testset "current_breakdown" begin
+
+        # OH coils
+        Noh = 100
+        Roh = 0.8*ones(Noh)
+        Zoh = range(-1.0, 1.0, length=Noh)
+        coils_OH = collect(zip(Roh,Zoh))
+        currents_OH = 1000.0*ones(Noh)
+
+        # PF coils
+        # From DIII-D, but remove coils along CS
+        coils_PF = [(1.0041, 1.5169), (2.6124, 0.4376),
+                    (2.3733, 1.1171), (1.2518, 1.6019),
+                    (1.689, 1.5874), (1.0025, -1.5169),
+                    (2.6124, -0.4376), (2.3834, -1.1171),
+                    (1.2524, -1.6027), (1.6889, -1.578)]
+
+        # boundary of field null
+        # arbitrary ellipse
+        θ = range(-π,π,length=129)
+        R₀ = 1.4
+        Z₀ = 0.0
+        a₀ = 0.4
+        ϵ = 1.0
+        Rp = R₀ .+ a₀.*cos.(θ)
+        Zp = Z₀ .+ ϵ*a₀.*sin.(θ)
+
+        # ψ we want on this boundary
+        # HOW DOES THIS GET DETERMINED?
+        # Probably the highest \psi from the OH coils?
+        ψp = -0.015
+
+        # Find PF coil currents to make field null
+        currents_PF = currents_to_match_ψp(1.0, ψp, Rp, Zp, coils_PF,
+                                           fixed_coils=coils_OH,
+                                           fixed_currents=currents_OH)
+
+        println(1e-3*currents_PF)
+
+        # Plot flux from all coils
+        coils_all = [coils_PF; coils_OH]
+        currents_all = [currents_PF; currents_OH]
+        p = plot_coil_flux(1.0,coils_all,currents_all,ψp,clim=(-0.03,-0.00),resolution=1025,Rmin=0.5,Rmax=3.0,Zmin=-1.5,Zmax=1.5)
+        plot!(p,Rp,Zp)
+        display(p)
     end
 end

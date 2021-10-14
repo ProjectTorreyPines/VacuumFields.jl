@@ -133,23 +133,36 @@ function ψp_on_fixed_eq_boundary(EQfixed, ψbound=0.0)
 
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
 
-    return Bp_fac, ψp, Rp, Zp, ψbound
+    return Bp_fac, ψp, Rp, Zp
 end
 
-function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, ψbound, coils;
+function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
+    fixed_coils=[], fixed_currents=[],
     λ_minimize=0.0, λ_zerosum=0.0,
     λ_regularize=1E-16,
     return_cost=false,
     verbose=false)
 
-    # Compute coil currents needed to recreate ψ from image currents
+    Np = length(Rp)
+
+    # Compute flux from fixed coils and subtract from ψp to match
+    # This works whether ψp is a constant or a vector
+    ψfixed = zeros(Np)
+    @threads for j in 1:length(fixed_coils)
+        for i=1:Np
+            @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_currents[j]
+        end
+    end
+    ψp = ψp .- ψfixed
+
+    # Compute coil currents needed to recreate ψp at points (Rp,Zp)
     # Build matrix relating coil Green's functions to boundary points
     tp = typeof(sum([c[1]+c[2] for c in coils]))
-    Gcp = zeros(tp, length(ψp), length(coils))
+    Gcp = zeros(tp, Np, length(coils))
     
     @threads for j = 1:length(coils)
-        for i=1:length(ψp)
-            Gcp[i,j] = μ₀ * Bp_fac * Green(coils[j], Rp[i], Zp[i])
+        for i=1:Np
+            @inbounds Gcp[i,j] = μ₀ * Bp_fac * Green(coils[j], Rp[i], Zp[i])
         end
     end
 
@@ -164,7 +177,7 @@ function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, ψbound, coils;
     end
 
     function cost(Ic)
-        c = norm(Gcp*Ic .- ψp)/μ₀/length(ψp)
+        c = norm(Gcp*Ic .- ψp)/μ₀/Np
         if (λ_minimize>0.0 || λ_zerosum>0.0)
             c += (λ_minimize*(μ₀*norm(Ic)/length(Ic))
                + λ_zerosum*(μ₀*abs(sum(Ic))/length(Ic))
@@ -178,7 +191,7 @@ function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, ψbound, coils;
     #    Currents sum to zero
     if (λ_minimize>0.0 || λ_zerosum>0.0)
         # use the least-squares regularized error as normalization for λ's part of optimization cost
-        normalization = norm(Gcp*Ic0 .- ψp)/μ₀/length(ψp)
+        normalization = norm(Gcp*Ic0 .- ψp)/μ₀/Np
         res = Optim.optimize(cost, Ic0, Optim.Newton(); autodiff=:forward)
         if verbose println(res) end
         Ic0 = Optim.minimizer(res)
@@ -197,13 +210,14 @@ function fixed_eq_currents(EQfixed, coils, ψbound=0.0;
                            return_cost=false,
                            verbose=false)
 
-    Bp_fac, ψp, Rp, Zp, ψbound = ψp_on_fixed_eq_boundary(EQfixed, ψbound)
+    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, ψbound)
 
-    return currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, ψbound, coils;
+    return currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
                                 λ_minimize=λ_minimize, λ_zerosum=λ_zerosum,
                                 λ_regularize=λ_regularize,
                                 return_cost=return_cost, verbose=verbose)
 end
+
 
 #***************************************************
 # Transform fixed-boundary ψ to free-boundary ψ
@@ -319,6 +333,44 @@ function check_fixed_eq_currents(EQfixed, coils, currents,
         contour!(R, Z, ψ_f2f - ψ_free, levels=lvls, linecolor=:black)
         p  = plot(pfree, pfix, pf2f, pdiff, layout=(2,2), size=(500,550))
     end
+    return p
+end
+
+function plot_coil_flux(Bp_fac, coils, currents, ψbound=0.0;
+                        resolution=257, clim=nothing,
+                        Rmin=nothing, Rmax=nothing, Zmin=nothing, Zmax=nothing)
+
+    Rmin0, Rmax0, Zmin0, Zmax0 = bounds(coils)
+    if Rmin === nothing Rmin = Rmin0 end
+    if Rmax === nothing Rmax = Rmax0 end
+    if Zmin === nothing Zmin = Zmin0 end
+    if Zmax === nothing Zmax = Zmax0 end
+
+    R = range(Rmin,Rmax,length=resolution)
+    Z = range(Zmin,Zmax,length=resolution)
+
+    # ψ coil currents
+    ψ = zeros(resolution,resolution)
+    @threads for i in 1:resolution
+        r = R[i]
+        for j in 1:resolution
+            z = Z[j]
+            @inbounds ψ[j,i] += μ₀*Bp_fac*sum(currents.*Green.(coils, r, z))
+        end
+    end
+
+    if clim === nothing
+        ψmax = maximum(abs.(ψ))
+        clim = (ψbound-ψmax, ψbound+ψmax)
+    end
+    # Plot
+
+    # Heat maps for ψ from coil currents
+    p = heatmap(R, Z, ψ, clim=clim, c=:diverging,
+                aspect_ratio=:equal,linecolor=:black,
+                title="Coil Flux",
+                xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
+    contour!(R, Z, ψ, levels=ψbound*[0.99,1.00,1.01], linecolor=:black)
 
     return p
 end
