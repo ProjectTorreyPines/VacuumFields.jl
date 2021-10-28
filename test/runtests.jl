@@ -6,10 +6,11 @@ import DelimitedFiles
 using Plots
 
 const active = [
-    #"current_cocos",
-    #"current_BtIp",
-    #"current_Solovev",
-    "current_breakdown"
+    "current_cocos",
+    "current_BtIp",
+    "current_Solovev",
+    "current_breakdown",
+    "current_xpoint"
 ]
 
 # Change to coils_D3D_points to run with singular coils
@@ -193,6 +194,36 @@ if "current_breakdown" in active
         currents_all = [currents_PF; currents_OH]
         p = plot_coil_flux(1.0,coils_all,currents_all,ψp,clim=(-0.03,-0.00),resolution=1025,Rmin=0.5,Rmax=3.0,Zmin=-1.5,Zmax=1.5)
         plot!(p,Rp,Zp)
+        display(p)
+    end
+end
+
+if "current_xpoint" in active
+    @testset "current_xpoint" begin
+
+        fixed_geqdsk = (@__DIR__)*"/equilibria/g163303.03170_fix"
+        free_geqdsk  = (@__DIR__)*"/equilibria/g163303.03170_free"
+        gfixed = readg(fixed_geqdsk)
+        gfree = readg(free_geqdsk)
+        cc = cocos(gfixed,clockwise_phi=false).cocos
+        Gfixed = efit(gfixed, cc)
+        Gfree = efit(gfree, cc)
+        _,ψbound = psi_limits(Gfree)
+
+        Rx = [1.7]
+        Zx = [-1.5]
+        Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(Gfixed, ψbound, Rx=Rx, Zx=Zx)
+
+        weights = ones(length(Rp))
+        weights[end] = 1.0
+
+        # X points can't get added later
+        # Outside the LCFS, there's still a flux contribution
+        # from the image currents (IS THAT TRUE???)
+
+        currents = currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils, weights=weights, λ_regularize=1E-14)
+
+        p = check_fixed_eq_currents(Gfixed,coils,currents,Gfree,Rmin=0.5,Rmax=3.0,Zmin=-2.0,Zmax=2.0)
         display(p)
     end
 end

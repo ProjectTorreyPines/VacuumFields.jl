@@ -118,11 +118,15 @@ function fixed_boundary(EQfixed)
     return (Rb, Zb, Lb, dψdn_R)
 end
 
-function ψp_on_fixed_eq_boundary(EQfixed, ψbound=0.0)
+function ψp_on_fixed_eq_boundary(EQfixed, ψbound=0.0;
+                                 Rx=[], Zx=[])
     # Calculate ψ from image currents on boundary at surface p near boundary
     ψ0, ψb = psi_limits(EQfixed)
-    Sp = flux_surface(EQfixed, 0.999*(ψb-ψ0) + ψ0)
+
+    Sp = flux_surface(EQfixed, 0.999999*(ψb-ψ0) + ψ0)
     Rp, Zp = Sp.r[1:end-1], Sp.z[1:end-1]
+    append!(Rp,Rx)
+    append!(Zp,Zx)
     ψp = zeros(length(Rp))
 
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed)
@@ -130,6 +134,7 @@ function ψp_on_fixed_eq_boundary(EQfixed, ψbound=0.0)
         ψp[i] = -trapz(Lb, dψdn_R .* Green.(Rb, Zb, Rp[i], Zp[i]))
     end
 
+    ψp[1:end-length(Rx)] .-= 0.999999*(ψb-ψ0) + ψ0
     # add in desired boundary flux
     ψbound != 0.0 && (ψp .+= ψbound)
 
