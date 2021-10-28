@@ -150,8 +150,8 @@ function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
     # Compute flux from fixed coils and subtract from ψp to match
     # This works whether ψp is a constant or a vector
     ψfixed = zeros(Np)
-    @threads for j in 1:length(fixed_coils)
-        for i=1:Np
+    @threads for i=1:Np
+        for j in 1:length(fixed_coils)
             @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_currents[j]
         end
     end
