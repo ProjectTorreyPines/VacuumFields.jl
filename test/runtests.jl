@@ -13,7 +13,7 @@ const active = [
 ]
 
 # Change to coils_D3D_points to run with singular coils
-const coils = coils_D3D_points
+const coils = coils_D3D
 
 if "current_cocos" in active
     @testset "current_cocos" begin
@@ -36,12 +36,18 @@ if "current_cocos" in active
                               108238.61937784836, 159156.2152710073, -230654.60093398875,
                              -221695.36575228465, 89848.68347638033, 13032.984674759902]
         elseif coils == coils_D3D
-            good_currents = [-113885.7197764252, -105436.95737589894, 60341.419031375575,
-                             -340056.74903837184, 1.1179306735975991e6, -204783.63904252168,
-                             -146579.64500224337, -711735.8837820432, 115364.7725883161,
-                             -123685.36081361726, -47752.21100839885, -89037.91895772259,
-                              98446.71882299529, 211077.24485467927, -230247.60310567988,
-                             -223867.46897678653, 58818.18486954898, 18730.207514097914]
+            good_currents_sd = [-123635.83053274715, -101040.44981352903, -8692.175095363986,
+                                 99456.30564584397, 44148.55159103844, -212076.3721057026,
+                                -136048.95577378047, -41156.17734011926, 14409.220391036204,
+                                -131177.93090524126, -47934.92152827256, -93944.56599139964,
+                                 119624.81517763663, 164320.37132246612, -235830.7658811443,
+                                -221515.04511039687, 97744.20420786832, 11170.040045183569]
+            good_currents_dd = [-123796.43108312064, -101086.71033357759, 6330.115901381709,
+                                -55169.25566862989, 512296.8855078304, -211651.50879072546,
+                                -139010.09620696527, -359186.05410263385, 65945.91628320269,
+                                -131121.50001405698, -48038.765505325864, -92503.48058979367,
+                                 110876.6061240047, 186605.5564113924, -235893.39824374302,
+                                -221782.0227385224, 82690.44538168146, 14080.376817403361]
         end
 
         gfixed = readg(fixed_geqdsk)
@@ -52,10 +58,17 @@ if "current_cocos" in active
         ccp = rand(ccs)
 
         for cc in ccs
+            println("Testing for COCOS ", cc)
             Gfixed = efit(transform_cocos(gfixed, cc0, cc), cc)
             Gfree = efit(transform_cocos(gfree, cc0, cc), cc)
             _,ψbound = psi_limits(Gfree)
-            currents = fixed_eq_currents(Gfixed,coils,ψbound)
+            currents = fixed_eq_currents(Gfixed, coils, ψbound)
+            if cc < 10
+                good_currents = good_currents_sd
+            else
+                good_currents = good_currents_dd
+            end
+
             @test currents ≈ Gfixed.cocos.sigma_RpZ * good_currents
 
             if cc == cc0
@@ -146,34 +159,27 @@ if "current_breakdown" in active
     @testset "current_breakdown" begin
 
         # OH coils
-        Noh = 100
-        Roh = 0.8*ones(Noh)
-        Zoh = range(-1.0, 1.0, length=Noh)
-        coils_OH = collect(zip(Roh,Zoh))
-        currents_OH = 1000.0*ones(Noh)
+        coils_OH = coils_D3D[[1,2,3,4,10,11,12,13]]
+        currents_OH = 10000.0*ones(length(coils_OH))
 
         # PF coils
         # From DIII-D, but remove coils along CS
-        coils_PF = [(1.0041, 1.5169), (2.6124, 0.4376),
-                    (2.3733, 1.1171), (1.2518, 1.6019),
-                    (1.689, 1.5874), (1.0025, -1.5169),
-                    (2.6124, -0.4376), (2.3834, -1.1171),
-                    (1.2524, -1.6027), (1.6889, -1.578)]
+        coils_PF = coils_D3D[[5,6,7,8,9,14,15,16,17,18]]
 
         # boundary of field null
         # arbitrary ellipse
         θ = range(-π,π,length=129)
-        R₀ = 1.4
+        R₀ = 1.6
         Z₀ = 0.0
-        a₀ = 0.4
-        ϵ = 1.0
+        a₀ = 0.3
+        ϵ = 1.5
         Rp = R₀ .+ a₀.*cos.(θ)
         Zp = Z₀ .+ ϵ*a₀.*sin.(θ)
 
         # ψ we want on this boundary
         # HOW DOES THIS GET DETERMINED?
         # Probably the highest \psi from the OH coils?
-        ψp = -0.015
+        ψp = -0.012
 
         # Find PF coil currents to make field null
         currents_PF = currents_to_match_ψp(1.0, ψp, Rp, Zp, coils_PF,

@@ -1,11 +1,16 @@
-struct Coil{T <: AbstractVector, Q <: Integer}
+abstract type AbstractCoil end
+
+struct PointCoil{T <: Real} <: AbstractCoil
     R :: T
     Z :: T
-    Nr :: Q
-    Nz :: Q
 end
 
-function coil(Rc::T,Zc::T,ΔR::T,ΔZ::T,θ₁::T,θ₂::T; spacing=0.01) where {T<:Real}
+struct DistributedCoil{T <: AbstractVector} <: AbstractCoil
+    R :: T
+    Z :: T
+end
+
+function coil(Rc::T, Zc::T, ΔR::T, ΔZ::T, θ₁::T, θ₂::T; spacing=0.01) where {T <: Real}
     dR = LinRange(-0.5*ΔR, 0.5*ΔR, Int(floor(1.0 + ΔR/spacing)))
     dZ = LinRange(-0.5*ΔZ, 0.5*ΔZ, Int(floor(1.0 + ΔZ/spacing)))
     α₁ = tan(π*θ₁/180.0)
@@ -22,48 +27,58 @@ function coil(Rc::T,Zc::T,ΔR::T,ΔZ::T,θ₁::T,θ₂::T; spacing=0.01) where {
             Z[k] = Zc + dZ[j] + α₁*dR[i]
         end
     end
-    return Coil(R, Z, Nr, Nz)
+    return DistributedCoil(R, Z)
 end
 
-function endpoints(C::Coil)
-    idx = [1, C.Nz, C.Nr*C.Nz, (C.Nr-1)*C.Nz + 1, 1]
-    return C.R[idx], C.Z[idx]
-end
-
-function bounds(Cs::AbstractVector{T}) where {T<:Coil}
-    R,Z = endpoints(Cs[1])
-    Rmin = minimum(R)
-    Rmax = maximum(R)
-    Zmin = minimum(Z)
-    Zmax = maximum(Z)
+function bounds(Cs::AbstractVector{T}) where {T<:AbstractCoil}
+    Rmin = minimum(Cs[1].R)
+    Rmax = maximum(Cs[1].R)
+    Zmin = minimum(Cs[1].Z)
+    Zmax = maximum(Cs[1].Z)
     for C in Cs
-        R, Z = endpoints(C)
-        Rmin = min(Rmin,minimum(R))
-        Rmax = max(Rmax,maximum(R))
-        Zmin = min(Zmin,minimum(Z))
-        Zmax = max(Zmax,maximum(Z))
+        Rmin = min(Rmin,minimum(C.R))
+        Rmax = max(Rmax,maximum(C.R))
+        Zmin = min(Zmin,minimum(C.Z))
+        Zmax = max(Zmax,maximum(C.Z))
     end
     return Rmin,Rmax,Zmin,Zmax
 end
 
-function plot_coils(Cs::AbstractVector{T}) where {T<:Coil}
+function convex_hull(C::DistributedCoil)
+    pts = [[r,z] for (r,z) in zip(C.R, C.Z)]
+    return convex_hull(pts)
+end
+
+function plot_coil(C::DistributedCoil)
+    hull = convex_hull(C)
+    plot!(VPolygon(hull), fillcolor=:black, alpha=0.2)
+end
+
+function plot_coil(C::PointCoil)
+    plot!(Singleton([C.R,C.Z]), markercolor=:black)
+end
+
+function plot_coils(Cs::AbstractVector{T}) where {T<:AbstractCoil}
     p = plot(aspect_ratio=:equal,legend=false)
     for C in Cs
-        R,Z = endpoints(C)
-        plot!(R,Z,linecolor=:black)
+        plot_coil(C)
     end
     Rmin, Rmax, Zmin, Zmax = bounds(Cs)
-    plot!(xlim=(Rmin,Rmax),ylim=(Zmin,Zmax))
+    Rmin -= 0.05*(abs(Rmin) + abs(Rmax))
+    Rmax += 0.05*(abs(Rmin) + abs(Rmax))
+    Zmin -= 0.05*(abs(Zmin) + abs(Zmax))
+    Zmax += 0.05*(abs(Zmin) + abs(Zmax))
+    plot!(xlim=(Rmin,Rmax), ylim=(Zmin,Zmax))
     display(p)
 end
 
-function Green(C::Coil, R::Real, Z::Real)
-    return sum(Green(x, y, R, Z) for (x,y) in zip(C.R,C.Z))/(C.Nr*C.Nz)
+function Green(C::DistributedCoil, R::Real, Z::Real)
+    return sum(Green(x, y, R, Z) for (x,y) in zip(C.R,C.Z))/length(C.R)
 end
 
-function Green(C::Tuple{T,T}, R::Real, Z::Real) where {T<:Real}
-    X, Y = C
-    return Green(X, Y, R, Z)
+
+function Green(C::PointCoil, R::Real, Z::Real)
+    return Green(C.R, C.Z, R, Z)
 end
 
 function Green(X::Real, Y::Real, R::Real, Z::Real)
@@ -87,19 +102,6 @@ function cumlength(R,Z)
         @inbounds L[i] = L[i-1] + sqrt((R[i] - R[i-1])^2 + (Z[i] - Z[i-1])^2)
     end
     return L
-end
-
-function bounds(Cs::Vector{Tuple{T,T}}) where {T<:Real}
-    Rmin, Zmin = Cs[1]
-    Rmax, Zmax = Cs[1]
-    for i in 2:length(Cs)
-        R,Z = Cs[i]
-        Rmin = min(Rmin,R)
-        Rmax = max(Rmax,R)
-        Zmin = min(Zmin,Z)
-        Zmax = max(Zmax,Z)
-    end
-    return Rmin, Rmax, Zmin, Zmax
 end
 
 function fixed_boundary(EQfixed)
@@ -157,7 +159,7 @@ function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
 
     # Compute coil currents needed to recreate ψp at points (Rp,Zp)
     # Build matrix relating coil Green's functions to boundary points
-    tp = typeof(sum([c[1]+c[2] for c in coils]))
+    tp = typeof(sum([sum(c.R + c.Z) for c in coils]))
     Gcp = zeros(tp, Np, length(coils))
     
     @threads for j = 1:length(coils)
