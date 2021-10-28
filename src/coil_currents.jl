@@ -144,6 +144,7 @@ function ψp_on_fixed_eq_boundary(EQfixed, ψbound=0.0;
 end
 
 function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
+    weights=nothing,
     fixed_coils=[], fixed_currents=[],
     λ_minimize=0.0, λ_zerosum=0.0,
     λ_regularize=1E-16,
@@ -151,6 +152,9 @@ function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
     verbose=false)
 
     Np = length(Rp)
+
+    if weights === nothing weights=I end
+    if isa(weights,AbstractVector) weights = Diagonal(weights) end
 
     # Compute flux from fixed coils and subtract from ψp to match
     # This works whether ψp is a constant or a vector
@@ -172,6 +176,9 @@ function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
             @inbounds Gcp[i,j] = μ₀ * Bp_fac * Green(coils[j], Rp[i], Zp[i])
         end
     end
+
+    Gcp = weights*Gcp
+    ψp  = weights*ψp
 
     # Least-squares solve for coil currents
     if λ_regularize>0
