@@ -192,7 +192,10 @@ if "current_breakdown" in active
         # Plot flux from all coils
         coils_all = [coils_PF; coils_OH]
         currents_all = [currents_PF; currents_OH]
-        p = plot_coil_flux(1.0,coils_all,currents_all,ψp,clim=(-0.03,-0.00),resolution=1025,Rmin=0.5,Rmax=3.0,Zmin=-1.5,Zmax=1.5)
+        p = plot_coil_flux(1.0,coils_all,currents_all,ψp,clim=(2.0*ψp,0.0),Rmin=0.5,Rmax=3.0,Zmin=-1.8,Zmax=1.8)
+        for coil in coils_all
+           plot_coil(coil)
+        end
         plot!(p,Rp,Zp)
         display(p)
     end
