@@ -105,8 +105,7 @@ function cumlength(R,Z)
 end
 
 function fixed_boundary(EQfixed)
-    _,ψb = psi_limits(EQfixed)
-    Sb = flux_surface(EQfixed, ψb)
+    Sb = boundary(EQfixed)
     Rb, Zb = Sb.r, Sb.z
     Lb = cumlength(Rb,Zb)
 
