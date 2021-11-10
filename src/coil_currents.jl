@@ -247,10 +247,9 @@ function fixed2free(EQfixed, coils, currents, R, Z)
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed)
 
     # ψ from image and coil currents
-    N = length(R)
-    @threads for i in 1:N
+    @threads for i in 1:length(R)
         r = R[i]
-        for j in 1:N
+        for j in 1:length(Z)
             z = Z[j]
             # subtract image ψ
             @inbounds ψ_f2f[j,i] -= -trapz(Lb,dψdn_R.*Green.(Rb, Zb, r, z))
