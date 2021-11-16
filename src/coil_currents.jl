@@ -117,12 +117,16 @@ function fixed_boundary(EQfixed)
     return (Rb, Zb, Lb, dψdn_R)
 end
 
-function ψp_on_fixed_eq_boundary(EQfixed, ψbound=0.0;
+function ψp_on_fixed_eq_boundary(EQfixed,
+                                 fixed_coils=[],
+                                 fixed_currents=[],
+                                 ψbound=0.0;
                                  Rx=[], Zx=[])
     # Calculate ψ from image currents on boundary at surface p near boundary
     ψ0, ψb = psi_limits(EQfixed)
+    ψb = psi_boundary(EQfixed)
 
-    Sp = flux_surface(EQfixed, 0.999999*(ψb-ψ0) + ψ0)
+    Sp = flux_surface(EQfixed, 0.999*(ψb-ψ0) + ψ0)
     Rp, Zp = Sp.r[1:end-1], Sp.z[1:end-1]
     append!(Rp,Rx)
     append!(Zp,Zx)
@@ -139,96 +143,72 @@ function ψp_on_fixed_eq_boundary(EQfixed, ψbound=0.0;
 
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
 
-    return Bp_fac, ψp, Rp, Zp
-end
-
-function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
-    weights=nothing,
-    fixed_coils=[], fixed_currents=[],
-    λ_minimize=0.0, λ_zerosum=0.0,
-    λ_regularize=1E-16,
-    return_cost=false,
-    verbose=false)
-
-    Np = length(Rp)
-
-    if weights === nothing weights=I end
-    if isa(weights,AbstractVector) weights = Diagonal(weights) end
-
     # Compute flux from fixed coils and subtract from ψp to match
     # This works whether ψp is a constant or a vector
-    ψfixed = zeros(Np)
-    @threads for i=1:Np
+    ψfixed = zeros(length(Rp))
+    @threads for i=1:length(Rp)
         for j in 1:length(fixed_coils)
             @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_currents[j]
         end
     end
     ψp = ψp .- ψfixed
 
+    return Bp_fac, ψp, Rp, Zp
+end
+
+function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
+                              weights=nothing,
+                              λ_regularize=1E-16,
+                              return_cost=false)
+
     # Compute coil currents needed to recreate ψp at points (Rp,Zp)
     # Build matrix relating coil Green's functions to boundary points
     tp = typeof(sum([sum(c.R + c.Z) for c in coils]))
-    Gcp = zeros(tp, Np, length(coils))
-    
+    Gcp = zeros(tp, length(Rp), length(coils))
     @threads for j = 1:length(coils)
-        for i=1:Np
+        for i=1:length(Rp)
             @inbounds Gcp[i,j] = μ₀ * Bp_fac * Green(coils[j], Rp[i], Zp[i])
         end
     end
 
-    Gcp = weights*Gcp
-    ψp  = weights*ψp
+    # handle weights
+    if weights !== nothing
+        if isa(weights,AbstractVector) weights = Diagonal(weights) end
+        Gcp = weights*Gcp
+        ψp  = weights*ψp
+    end
 
     # Least-squares solve for coil currents
     if λ_regularize>0
         # Least-squares with regularization
         # https://www.youtube.com/watch?v=9BckeGN0sF0
-        reg_solve(A,b,λ) = inv(A'*A+λ*I)*A'*b
+        reg_solve(A, b, λ) = inv(A' * A + λ * I) * A' * b
         Ic0 = reg_solve(Gcp, ψp, λ_regularize)
     else
-        Ic0 = (Gcp \ ψp)
+        Ic0 = Gcp \ ψp
     end
 
-    function cost(Ic)
-        c = norm(Gcp*Ic .- ψp)/μ₀/Np
-        if (λ_minimize>0.0 || λ_zerosum>0.0)
-            c += (λ_minimize*(μ₀*norm(Ic)/length(Ic))
-               + λ_zerosum*(μ₀*abs(sum(Ic))/length(Ic))
-              ) * normalization
-        end
-        return c
-    end
-
-    # Optional optimization:
-    #    Total amplitude minimization
-    #    Currents sum to zero
-    if (λ_minimize>0.0 || λ_zerosum>0.0)
-        # use the least-squares regularized error as normalization for λ's part of optimization cost
-        normalization = norm(Gcp*Ic0 .- ψp)/μ₀/Np
-        res = Optim.optimize(cost, Ic0, Optim.Newton(); autodiff=:forward)
-        if verbose println(res) end
-        Ic0 = Optim.minimizer(res)
-    end
-    
     if return_cost
+        cost(Ic) = norm(Gcp * Ic .- ψp) / μ₀ / length(Rp)
         return Ic0, cost(Ic0)
     else
         return Ic0
     end
 end
 
-function fixed_eq_currents(EQfixed, coils, ψbound=0.0;
-                           λ_minimize=0.0, λ_zerosum=0.0,
+function fixed_eq_currents(EQfixed,
+                           coils,
+                           fixed_coils=[],
+                           fixed_currents=[],
+                           ψbound=0.0;
                            λ_regularize=1E-16,
-                           return_cost=false,
-                           verbose=false)
+                           return_cost=false)
 
-    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, ψbound)
+    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, fixed_coils, fixed_currents, ψbound)
 
     return currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
-                                λ_minimize=λ_minimize, λ_zerosum=λ_zerosum,
                                 λ_regularize=λ_regularize,
-                                return_cost=return_cost, verbose=verbose)
+                                return_cost=return_cost)
 end
 
 
@@ -238,10 +218,12 @@ end
 function fixed2free(EQfixed, coils, currents, R, Z)
     
     ψ0, ψb = psi_limits(EQfixed)
+    ψb = psi_boundary(EQfixed)
     σ₀ = sign(ψ0-ψb)
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
 
-    ψ_f2f = [EQfixed(r,z) for z in Z, r in R] .- ψb
+    tp = typeof(sum([sum(sum(coils[k].R) + sum(coils[k].Z) + sum(currents[k])) for k in 1:length(coils)]))
+    ψ_f2f = [tp(EQfixed(r,z)) for z in Z, r in R] .- ψb
     ψ_f2f = ifelse.(σ₀*ψ_f2f.>0, ψ_f2f, 0) .+ ψb
 
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed)
@@ -281,6 +263,7 @@ function check_fixed_eq_currents(EQfixed, coils, currents,
     # ψ from fixed-boundary gEQDSK
     # make ψ at boundary zero, and very small value outside for plotting
     ψ0_fix, ψb_fix = psi_limits(EQfixed)
+    ψb_fix = psi_boundary(EQfixed)
     σ₀ = sign(ψ0_fix-ψb_fix)
     ψ_fix = [EQfixed(r,z) for z in Z, r in R] .- ψb_fix
     ψ_fix = ifelse.(σ₀*ψ_fix.>0, ψ_fix, 1e-6*ψ_fix)
@@ -311,7 +294,7 @@ function check_fixed_eq_currents(EQfixed, coils, currents,
     else
         # Heat maps for free, fix, fix->free, and difference
         # ψ from free-boundary gEQDSK
-        _, ψb_free = psi_limits(EQfree)
+        ψb_free = psi_boundary(EQfree)
         ψ_free = [EQfree(r,z) for z in Z, r in R]
         offset = ψb_free - ψb_fix
 
