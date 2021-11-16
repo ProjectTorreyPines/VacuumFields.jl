@@ -154,7 +154,9 @@ function ψp_on_fixed_eq_boundary(EQfixed,
         ψp[i] = -trapz(Lb, dψdn_R .* Green.(Rb, Zb, Rp[i], Zp[i]))
     end
 
-    ψp[end-length(Rx)+1:end] .-= 0.999*(ψb-ψ0) + ψ0
+    # this is to account that the control points are inside of the LCFS
+    # applied only to the plasma points
+    ψp[1:end - length(Rx)] .-= (1.0 - fraction_inside) * (ψb - ψ0)
 
     # add in desired boundary flux
     ψbound != 0.0 && (ψp .+= ψbound)
