@@ -137,7 +137,8 @@ function ψp_on_fixed_eq_boundary(EQfixed,
         ψp[i] = -trapz(Lb, dψdn_R .* Green.(Rb, Zb, Rp[i], Zp[i]))
     end
 
-    ψp[1:end-length(Rx)] .-= 0.999999*(ψb-ψ0) + ψ0
+    ψp[end-length(Rx)+1:end] .-= 0.999*(ψb-ψ0) + ψ0
+
     # add in desired boundary flux
     ψbound != 0.0 && (ψp .+= ψbound)
 
