@@ -5,12 +5,32 @@ struct PointCoil{T <: Real} <: AbstractCoil
     Z::T
 end
 
+"""
+    ParallelogramCoil{T <: Real} <: AbstractCoil
+
+Parallelogram coil with the R, Z, ΔR, ΔZ, θ₁, θ₂ formalism (as used by EFIT, for example)
+Here θ₁ and θ₂ are the shear angles along the x- and y-axes, respectively, in degrees.
+"""
+struct ParallelogramCoil{T <: Real} <: AbstractCoil
+    R::T
+    Z::T
+    ΔR::T
+    ΔZ::T
+    θ₁::T
+    θ₂::T
+    spacing::T
+end
+
+function ParallelogramCoil(R::T, Z::T, ΔR::T, ΔZ::T, θ₁::T, θ₂::T; spacing=0.01) where {T <: Real}
+    ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing)
+end
+
 struct DistributedCoil{T <: AbstractVector} <: AbstractCoil
     R::T
     Z::T
 end
 
-function coil(Rc::T, Zc::T, ΔR::T, ΔZ::T, θ₁::T, θ₂::T; spacing=0.01) where {T <: Real}
+function DistributedCoil(Rc::T, Zc::T, ΔR::T, ΔZ::T, θ₁::T, θ₂::T; spacing=0.01) where {T <: Real}
     dR = LinRange(-0.5 * ΔR, 0.5 * ΔR, Int(floor(1.0 + ΔR / spacing)))
     dZ = LinRange(-0.5 * ΔZ, 0.5 * ΔZ, Int(floor(1.0 + ΔZ / spacing)))
     α₁ = tan(π * θ₁ / 180.0)
@@ -30,23 +50,27 @@ function coil(Rc::T, Zc::T, ΔR::T, ΔZ::T, θ₁::T, θ₂::T; spacing=0.01) wh
     return DistributedCoil(R, Z)
 end
 
-function bounds(Cs::AbstractVector{T}) where {T <: AbstractCoil}
-    Rmin = minimum(Cs[1].R)
-    Rmax = maximum(Cs[1].R)
-    Zmin = minimum(Cs[1].Z)
-    Zmax = maximum(Cs[1].Z)
-    for C in Cs
-        Rmin = min(Rmin, minimum(C.R))
-        Rmax = max(Rmax, maximum(C.R))
-        Zmin = min(Zmin, minimum(C.Z))
-        Zmax = max(Zmax, maximum(C.Z))
-    end
-    return Rmin, Rmax, Zmin, Zmax
+function DistributedCoil(C::ParallelogramCoil)
+    return DistributedCoil(C.R, C.Z, C.ΔR, C.ΔZ, C.θ₁, C.θ₂; spacing=C.spacing)
+end
+
+# ============== #
+#   Convex hull  #
+# ============== #
+function convex_hull(C::ParallelogramCoil)
+    return convex_hull(DistributedCoil(C))
 end
 
 function convex_hull(C::DistributedCoil)
     pts = [[r,z] for (r, z) in zip(C.R, C.Z)]
     return convex_hull(pts)
+end
+
+# ======== #
+#   Plot   #
+# ======== #
+function plot_coil(C::ParallelogramCoil)
+    return plot_coil(DistributedCoil(C))
 end
 
 function plot_coil(C::DistributedCoil)
@@ -72,10 +96,16 @@ function plot_coils(Cs::AbstractVector{T}) where {T <: AbstractCoil}
     display(p)
 end
 
+# ======== #
+#   Green  #
+# ======== #
+function Green(C::ParallelogramCoil, R::Real, Z::Real)
+    return Green(DistributedCoil(C), R, Z)
+end
+
 function Green(C::DistributedCoil, R::Real, Z::Real)
     return sum(Green(x, y, R, Z) for (x, y) in zip(C.R, C.Z)) / length(C.R)
 end
-
 
 function Green(C::PointCoil, R::Real, Z::Real)
     return Green(C.R, C.Z, R, Z)
@@ -94,6 +124,9 @@ function Green(X::Real, Y::Real, R::Real, Z::Real)
     return inv2π * (2.0 * Em - (2.0 - m) * Km) * sqrt(XR / m)
 end
 
+# ========= #
+#   Utiils  #
+# ========= #
 function cumlength(R, Z)
     # Length along boundary
     N = length(R)
@@ -104,6 +137,23 @@ function cumlength(R, Z)
     return L
 end
 
+function bounds(Cs::AbstractVector{T}) where {T <: AbstractCoil}
+    Rmin = minimum(Cs[1].R)
+    Rmax = maximum(Cs[1].R)
+    Zmin = minimum(Cs[1].Z)
+    Zmax = maximum(Cs[1].Z)
+    for C in Cs
+        Rmin = min(Rmin, minimum(C.R))
+        Rmax = max(Rmax, maximum(C.R))
+        Zmin = min(Zmin, minimum(C.Z))
+        Zmax = max(Zmax, maximum(C.Z))
+    end
+    return Rmin, Rmax, Zmin, Zmax
+end
+
+# ========== #
+#   Physics  #
+# ========== #
 function fixed_boundary(EQfixed)
     Sb = boundary(EQfixed)
     Rb, Zb = Sb.r, Sb.z
