@@ -31,8 +31,13 @@ struct DistributedCoil{T <: AbstractVector} <: AbstractCoil
 end
 
 function DistributedCoil(Rc::T, Zc::T, ΔR::T, ΔZ::T, θ₁::T, θ₂::T; spacing=0.01) where {T <: Real}
-    dR = LinRange(-0.5 * ΔR, 0.5 * ΔR, Int(floor(1.0 + ΔR / spacing)))
-    dZ = LinRange(-0.5 * ΔZ, 0.5 * ΔZ, Int(floor(1.0 + ΔZ / spacing)))
+    if spacing === nothing
+        dR = LinRange(-0.5 * ΔR, 0.5 * ΔR, 2)
+        dZ = LinRange(-0.5 * ΔZ, 0.5 * ΔZ, 2)
+    else
+        dR = LinRange(-0.5 * ΔR, 0.5 * ΔR, Int(floor(1.0 + ΔR / spacing)))
+        dZ = LinRange(-0.5 * ΔZ, 0.5 * ΔZ, Int(floor(1.0 + ΔZ / spacing)))
+    end
     α₁ = tan(π * θ₁ / 180.0)
     α₂ = tan(π * (θ₂ + 90.0) / 180.0)
 
@@ -58,7 +63,8 @@ end
 #   Convex hull  #
 # ============== #
 function convex_hull(C::ParallelogramCoil)
-    return convex_hull(DistributedCoil(C))
+    C = DistributedCoil(C.R, C.Z, C.ΔR, C.ΔZ, C.θ₁, C.θ₂; spacing=nothing)
+    return [[r,z] for (r, z) in zip(C.R, C.Z)]
 end
 
 function convex_hull(C::DistributedCoil)
