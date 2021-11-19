@@ -12,6 +12,7 @@ using Optim
 using Base.Threads
 using LinearAlgebra
 import LazySets: convex_hull, VPolygon, Singleton
+import Memoize
 
 const μ₀ = 4e-7*π
 const inv2π = 1.0/(2π)

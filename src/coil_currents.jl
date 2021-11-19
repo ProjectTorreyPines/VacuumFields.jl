@@ -30,7 +30,7 @@ struct DistributedCoil{T <: AbstractVector} <: AbstractCoil
     Z::T
 end
 
-function DistributedCoil(Rc::T, Zc::T, ΔR::T, ΔZ::T, θ₁::T, θ₂::T; spacing=0.01) where {T <: Real}
+@Memoize.memoize function DistributedCoil(Rc::T, Zc::T, ΔR::T, ΔZ::T, θ₁::T, θ₂::T; spacing=0.01) where {T <: Real}
     if spacing === nothing
         dR = LinRange(-0.5 * ΔR, 0.5 * ΔR, 2)
         dZ = LinRange(-0.5 * ΔZ, 0.5 * ΔZ, 2)
