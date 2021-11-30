@@ -1,36 +1,36 @@
 abstract type AbstractCoil end
 
-struct PointCoil{T <: Real} <: AbstractCoil
-    R::T
-    Z::T
+mutable struct PointCoil <: AbstractCoil
+    R::Real
+    Z::Real
 end
 
 """
-    ParallelogramCoil{T <: Real} <: AbstractCoil
+    ParallelogramCoil <: AbstractCoil
 
 Parallelogram coil with the R, Z, ΔR, ΔZ, θ₁, θ₂ formalism (as used by EFIT, for example)
 Here θ₁ and θ₂ are the shear angles along the x- and y-axes, respectively, in degrees.
 """
-struct ParallelogramCoil{T <: Real} <: AbstractCoil
-    R::T
-    Z::T
-    ΔR::T
-    ΔZ::T
-    θ₁::T
-    θ₂::T
-    spacing::T
+mutable struct ParallelogramCoil <: AbstractCoil
+    R::Real
+    Z::Real
+    ΔR::Real
+    ΔZ::Real
+    θ₁::Real
+    θ₂::Real
+    spacing::Real
 end
 
-function ParallelogramCoil(R::T, Z::T, ΔR::T, ΔZ::T, θ₁::T, θ₂::T; spacing=0.01) where {T <: Real}
+function ParallelogramCoil(R::Real, Z::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Real=0.01)
     ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing)
 end
 
-struct DistributedCoil{T <: AbstractVector} <: AbstractCoil
-    R::T
-    Z::T
+mutable struct DistributedCoil <: AbstractCoil
+    R::AbstractVector
+    Z::AbstractVector
 end
 
-@Memoize.memoize function DistributedCoil(Rc::T, Zc::T, ΔR::T, ΔZ::T, θ₁::T, θ₂::T; spacing=0.01) where {T <: Real}
+@Memoize.memoize function DistributedCoil(Rc::Real, Zc::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Real=0.01)
     if spacing === nothing
         dR = LinRange(-0.5 * ΔR, 0.5 * ΔR, 2)
         dZ = LinRange(-0.5 * ΔZ, 0.5 * ΔZ, 2)
@@ -130,9 +130,9 @@ function Green(X::Real, Y::Real, R::Real, Z::Real)
     return inv2π * (2.0 * Em - (2.0 - m) * Km) * sqrt(XR / m)
 end
 
-# ========= #
-#   Utiils  #
-# ========= #
+# ======== #
+#   Utils  #
+# ======== #
 function cumlength(R, Z)
     # Length along boundary
     N = length(R)
