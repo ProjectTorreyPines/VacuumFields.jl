@@ -235,11 +235,11 @@ end
 function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
                               weights=nothing,
                               λ_regularize=1E-16,
-                              return_cost=false)
+                              return_cost=false,
+                              tp=Float64)
 
     # Compute coil currents needed to recreate ψp at points (Rp,Zp)
     # Build matrix relating coil Green's functions to boundary points
-    tp = typeof(sum([sum(c.R + c.Z) for c in coils]))
     Gcp = zeros(tp, length(Rp), length(coils))
     @threads for j = 1:length(coils)
         for i = 1:length(Rp)
@@ -291,14 +291,13 @@ end
 # ***************************************************
 # Transform fixed-boundary ψ to free-boundary ψ
 # ***************************************************
-function fixed2free(EQfixed, coils, currents, R, Z)
+function fixed2free(EQfixed, coils, currents, R, Z; tp=Float64)
     
     ψ0, ψb = psi_limits(EQfixed)
     ψb = psi_boundary(EQfixed)
     σ₀ = sign(ψ0 - ψb)
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
 
-    tp = typeof(sum([sum(sum(coils[k].R) + sum(coils[k].Z) + sum(currents[k])) for k in 1:length(coils)]))
     ψ_f2f = [tp(EQfixed(r, z)) for z in Z, r in R] .- ψb
     ψ_f2f = ifelse.(σ₀ * ψ_f2f .> 0, ψ_f2f, 0) .+ ψb
 
