@@ -3,6 +3,8 @@ abstract type AbstractCoil end
 mutable struct PointCoil <: AbstractCoil
     R::Real
     Z::Real
+    current::Real
+    PointCoil(R, Z) = new(R, Z, 0.0)
 end
 
 """
@@ -19,6 +21,8 @@ mutable struct ParallelogramCoil <: AbstractCoil
     θ₁::Real
     θ₂::Real
     spacing::Real
+    current::Real
+    ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing) = new(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing, 0.0)
 end
 
 function ParallelogramCoil(R::Real, Z::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Real=0.01)
@@ -28,6 +32,8 @@ end
 mutable struct DistributedCoil <: AbstractCoil
     R::AbstractVector
     Z::AbstractVector
+    current::Real
+    DistributedCoil(R, Z) = new(R, Z, 0.0)
 end
 
 @Memoize.memoize function DistributedCoil(Rc::Real, Zc::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Real=0.01)
@@ -177,7 +183,6 @@ end
 """
     ψp_on_fixed_eq_boundary(EQfixed,
                             fixed_coils=[],
-                            fixed_currents=[],
                             ψbound=0.0;
                             Rx=[], Zx=[],
                             fraction_inside=0.999)
@@ -186,7 +191,6 @@ Calculate ψ from image currents on boundary at surface p near boundary
 """
 function ψp_on_fixed_eq_boundary(EQfixed,
                                  fixed_coils=[],
-                                 fixed_currents=[],
                                  ψbound=0.0;
                                  Rx=[], Zx=[],
                                  fraction_inside=0.999)
@@ -224,13 +228,14 @@ function ψp_on_fixed_eq_boundary(EQfixed,
     ψfixed = zeros(length(Rp))
     @threads for i = 1:length(Rp)
         for j in 1:length(fixed_coils)
-            @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_currents[j]
+            @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_coils[j].current
         end
     end
     ψp = ψp .- ψfixed
 
     return Bp_fac, ψp, Rp, Zp
 end
+
 
 function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
                               weights=nothing,
@@ -264,6 +269,11 @@ function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
         Ic0 = Gcp \ ψp
     end
 
+    # update values of coils current
+    for k in 1:length(coils)
+        coils[k].current = Ic0[k]
+    end
+
     if return_cost
         cost(Ic) = norm(Gcp * Ic .- ψp) / μ₀ / length(Rp)
         return Ic0, cost(Ic0)
@@ -275,12 +285,11 @@ end
 function fixed_eq_currents(EQfixed,
                            coils,
                            fixed_coils=[],
-                           fixed_currents=[],
                            ψbound=0.0;
                            λ_regularize=1E-16,
                            return_cost=false)
 
-    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, fixed_coils, fixed_currents, ψbound)
+    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, fixed_coils, ψbound)
 
     return currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
                                 λ_regularize=λ_regularize,
@@ -291,7 +300,7 @@ end
 # ***************************************************
 # Transform fixed-boundary ψ to free-boundary ψ
 # ***************************************************
-function fixed2free(EQfixed, coils, currents, R, Z; tp=Float64)
+function fixed2free(EQfixed, coils, R, Z; tp=Float64)
     
     ψ0, ψb = psi_limits(EQfixed)
     ψb = psi_boundary(EQfixed)
@@ -311,7 +320,7 @@ function fixed2free(EQfixed, coils, currents, R, Z; tp=Float64)
             # subtract image ψ
             @inbounds ψ_f2f[j,i] -= -trapz(Lb, dψdn_R .* Green.(Rb, Zb, r, z))
             # add coil ψ
-            @inbounds ψ_f2f[j,i] += μ₀ * Bp_fac * sum(currents .* Green.(coils, r, z))
+            @inbounds ψ_f2f[j,i] += μ₀ * Bp_fac * sum([coil.current for coil in coils] .* Green.(coils, r, z))
         end
     end
 
@@ -321,7 +330,7 @@ end
 # ******************************************
 # Plots to check solution
 # ******************************************
-function check_fixed_eq_currents(EQfixed, coils, currents,
+function check_fixed_eq_currents(EQfixed, coils,
                                  EQfree::Union{AbstractEquilibrium,Nothing}=nothing;
                                  resolution=257,
                                  Rmin=nothing, Rmax=nothing, Zmin=nothing, Zmax=nothing)
@@ -345,7 +354,7 @@ function check_fixed_eq_currents(EQfixed, coils, currents,
     
     # ψ at the boundary is determined by the value of the currents
     # calculated in fixed_eq_currents
-    ψ_f2f = fixed2free(EQfixed, coils, currents, R, Z)
+    ψ_f2f = fixed2free(EQfixed, coils, R, Z)
 
     # scale for plotting
     # this may get shifted boundary flux stays at the midpoint
@@ -406,7 +415,7 @@ function check_fixed_eq_currents(EQfixed, coils, currents,
     return p
 end
 
-function plot_coil_flux(Bp_fac, coils, currents, ψbound=0.0;
+function plot_coil_flux(Bp_fac, coils, ψbound=0.0;
                         resolution=257, clim=nothing,
                         Rmin=nothing, Rmax=nothing, Zmin=nothing, Zmax=nothing)
 
@@ -425,7 +434,7 @@ function plot_coil_flux(Bp_fac, coils, currents, ψbound=0.0;
         r = R[i]
         for j in 1:resolution
             z = Z[j]
-            @inbounds ψ[j,i] += μ₀ * Bp_fac * sum(currents .* Green.(coils, r, z))
+            @inbounds ψ[j,i] += μ₀ * Bp_fac * sum([coil.current for coil in coils] .* Green.(coils, r, z))
         end
     end
 
