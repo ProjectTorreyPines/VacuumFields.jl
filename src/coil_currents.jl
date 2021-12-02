@@ -20,13 +20,13 @@ mutable struct ParallelogramCoil <: AbstractCoil
     ΔZ::Real
     θ₁::Real
     θ₂::Real
-    spacing::Real
+    spacing::Union{Nothing,Real}
     current::Real
     ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing) = new(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing, 0.0)
 end
 
-function ParallelogramCoil(R::Real, Z::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Real=0.01)
-    ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing)
+function ParallelogramCoil(R::Real, Z::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Union{Nothing,Real}=0.01)
+    return ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing)
 end
 
 mutable struct DistributedCoil <: AbstractCoil
@@ -36,14 +36,18 @@ mutable struct DistributedCoil <: AbstractCoil
     DistributedCoil(R, Z) = new(R, Z, 0.0)
 end
 
-@Memoize.memoize function DistributedCoil(Rc::Real, Zc::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Real=0.01)
+@Memoize.memoize function DistributedParallelogramCoil(ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real, spacing::Union{Nothing,Real})
+    Rc = 0.0
+    Zc = 0.0
+    
     if spacing === nothing
-        dR = LinRange(-0.5 * ΔR, 0.5 * ΔR, 2)
-        dZ = LinRange(-0.5 * ΔZ, 0.5 * ΔZ, 2)
+        dR = [-0.5 * ΔR, 0.5 * ΔR]
+        dZ = [-0.5 * ΔZ, 0.5 * ΔZ]
     else
-        dR = LinRange(-0.5 * ΔR, 0.5 * ΔR, Int(floor(1.0 + ΔR / spacing)))
-        dZ = LinRange(-0.5 * ΔZ, 0.5 * ΔZ, Int(floor(1.0 + ΔZ / spacing)))
+        dR = LinRange(-0.5 * ΔR, 0.5 * ΔR, Int(ceil(1.0 + ΔR / spacing)))
+        dZ = LinRange(-0.5 * ΔZ, 0.5 * ΔZ, Int(ceil(1.0 + ΔZ / spacing)))
     end
+
     α₁ = tan(π * θ₁ / 180.0)
     α₂ = tan(π * (θ₂ + 90.0) / 180.0)
 
@@ -61,15 +65,22 @@ end
     return DistributedCoil(R, Z)
 end
 
+function DistributedParallelogramCoil(Rc::Real, Zc::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Union{Nothing,Real}=0.01)
+    C = deepcopy(DistributedParallelogramCoil(ΔR, ΔZ, θ₁, θ₂, spacing))
+    C.R = C.R .+ Rc
+    C.Z = C.Z .+ Zc
+    return C
+end
+
 function DistributedCoil(C::ParallelogramCoil)
-    return DistributedCoil(C.R, C.Z, C.ΔR, C.ΔZ, C.θ₁, C.θ₂; spacing=C.spacing)
+    return DistributedParallelogramCoil(C.R, C.Z, C.ΔR, C.ΔZ, C.θ₁, C.θ₂; spacing=C.spacing)
 end
 
 # ============== #
 #   Convex hull  #
 # ============== #
 function convex_hull(C::ParallelogramCoil)
-    C = DistributedCoil(C.R, C.Z, C.ΔR, C.ΔZ, C.θ₁, C.θ₂; spacing=nothing)
+    C = DistributedParallelogramCoil(C.R, C.Z, C.ΔR, C.ΔZ, C.θ₁, C.θ₂; spacing=nothing)
     return [[r,z] for (r, z) in zip(C.R, C.Z)]
 end
 
