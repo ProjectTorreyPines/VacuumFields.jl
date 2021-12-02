@@ -2,7 +2,6 @@ __precompile__()
 
 module AD_GS
 
-using Base: Real, Integer
 using Equilibrium
 using Plots
 using Trapz
