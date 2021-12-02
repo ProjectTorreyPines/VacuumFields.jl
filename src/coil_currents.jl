@@ -122,19 +122,19 @@ end
 # ======== #
 #   Green  #
 # ======== #
-function Green(C::ParallelogramCoil, R::Real, Z::Real)
-    return Green(DistributedCoil(C), R, Z)
+function Green(C::ParallelogramCoil, R::Real, Z::Real, scale_factor::Real=1.0)
+    return Green(DistributedCoil(C), R, Z, scale_factor)
 end
 
-function Green(C::DistributedCoil, R::Real, Z::Real)
-    return sum(Green(x, y, R, Z) for (x, y) in zip(C.R, C.Z)) / length(C.R)
+function Green(C::DistributedCoil, R::Real, Z::Real, scale_factor::Real=1.0)
+    return sum(Green(x, y, R, Z, scale_factor) for (x, y) in zip(C.R, C.Z)) / length(C.R)
 end
 
-function Green(C::PointCoil, R::Real, Z::Real)
-    return Green(C.R, C.Z, R, Z)
+function Green(C::PointCoil, R::Real, Z::Real, scale_factor::Real=1.0)
+    return Green(C.R, C.Z, R, Z, scale_factor)
 end
 
-function Green(X::Real, Y::Real, R::Real, Z::Real)
+function Green(X::Real, Y::Real, R::Real, Z::Real, scale_factor::Real=1.0)
     XR = X * R
     m = 4.0 * XR / ((X + R)^2 + (Y - Z)^2) # this is k^2
     if true # Use our own `Real` version of the elliptic functions to allow for ForwardDiff to work (copied from SpecialFunctions)
@@ -144,7 +144,7 @@ function Green(X::Real, Y::Real, R::Real, Z::Real)
         Km = SpecialFunctions.ellipk(m)
         Em = SpecialFunctions.ellipe(m)
     end
-    return inv2π * (2.0 * Em - (2.0 - m) * Km) * sqrt(XR / m)
+    return inv2π * (2.0 * Em - (2.0 - m) * Km) * sqrt(XR / m) * scale_factor
 end
 
 # ======== #
