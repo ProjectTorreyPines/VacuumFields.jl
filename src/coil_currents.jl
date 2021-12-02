@@ -36,7 +36,8 @@ mutable struct DistributedCoil <: AbstractCoil
     DistributedCoil(R, Z) = new(R, Z, 0.0)
 end
 
-@Memoize.memoize function DistributedParallelogramCoil(ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real, spacing::Union{Nothing,Real})
+#@Memoize.memoize
+function DistributedParallelogramCoil(ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real, spacing::Union{Nothing,Real})
     Rc = 0.0
     Zc = 0.0
     
@@ -247,6 +248,35 @@ function ψp_on_fixed_eq_boundary(EQfixed,
     return Bp_fac, ψp, Rp, Zp
 end
 
+"""
+    field_null_on_boundary(ψp_constant, Rp, Zp,
+                           fixed_coils=[],
+                           ψbound=0.0,
+                           cocos=11)
+
+Account for effect of fixed coils on ψp_constant
+"""
+function field_null_on_boundary(ψp_constant, Rp, Zp,
+                                fixed_coils=[],
+                                ψbound=0.0,
+                                cocos=11)
+
+    # add in desired boundary flux
+    ψbound != 0.0 && (ψp_constant .+= ψbound)
+
+    Bp_fac = Equilibrium.cocos(cocos).sigma_Bp * (2π)^Equilibrium.cocos(cocos).exp_Bp
+
+    # Compute flux from fixed coils and subtract from ψp to match
+    ψfixed = zeros(length(Rp))
+    @threads for i = 1:length(Rp)
+        for j in 1:length(fixed_coils)
+            @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_coils[j].current
+        end
+    end
+    ψp = ψp_constant .- ψfixed
+
+    return Bp_fac, ψp, Rp, Zp
+end
 
 function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
                               weights=nothing,
@@ -460,7 +490,9 @@ function plot_coil_flux(Bp_fac, coils, ψbound=0.0;
     # Plot
 
     # Heat maps for ψ from coil currents
-    p = heatmap(R, Z, ψ, clim=clim, c=:diverging,
+    p = heatmap(R, Z, ψ,
+                clim=clim,
+                c=:diverging,
                 aspect_ratio=:equal,linecolor=:black,
                 title="Coil Flux",
                 xlim=(Rmin, Rmax),ylim=(Zmin, Zmax))

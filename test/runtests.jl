@@ -6,10 +6,10 @@ import DelimitedFiles
 using Plots
 
 const active = [
-    #"current_cocos",
-    #"current_BtIp",
-    #"current_Solovev",
-    #"current_breakdown",
+    "current_cocos",
+    "current_BtIp",
+    "current_Solovev",
+    "current_breakdown",
     "current_xpoint"
 ]
 
@@ -182,15 +182,17 @@ if "current_breakdown" in active
         # ψ we want on this boundary
         # HOW DOES THIS GET DETERMINED?
         # Probably the highest \psi from the OH coils?
-        ψp = -0.012
+        ψp_constant = -0.012
+
+        # account for effect of fixed coils on ψp_constant
+        Bp_fac, ψp, Rp, Zp = field_null_on_boundary(ψp_constant, Rp, Zp, coils_OH)
 
         # Find PF coil currents to make field null
-        currents_PF = currents_to_match_ψp(1.0, ψp, Rp, Zp, coils_PF,
-                                           fixed_coils=coils_OH)
+        currents_PF = currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils_PF)
 
         # Plot flux from all coils
-        coils_all = [coils_PF; coils_OH]
-        p = plot_coil_flux(1.0,coils_all,ψp,clim=(2.0*ψp,0.0),Rmin=0.5,Rmax=3.0,Zmin=-1.8,Zmax=1.8)
+        coils_all = vcat(coils_PF, coils_OH)
+        p = plot_coil_flux(Bp_fac,coils_all,ψp_constant,clim=(2.0*ψp_constant,0.0),Rmin=0.5,Rmax=3.0,Zmin=-1.8,Zmax=1.8)
         for coil in coils_all
            plot_coil(coil)
         end
