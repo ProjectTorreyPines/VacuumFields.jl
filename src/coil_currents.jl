@@ -36,8 +36,7 @@ mutable struct DistributedCoil <: AbstractCoil
     DistributedCoil(R, Z) = new(R, Z, 0.0)
 end
 
-#@Memoize.memoize
-function DistributedParallelogramCoil(ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real, spacing::Union{Nothing,Real})
+@Memoize.memoize function DistributedParallelogramCoil(ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real, spacing::Union{Nothing,Real})
     Rc = 0.0
     Zc = 0.0
     
