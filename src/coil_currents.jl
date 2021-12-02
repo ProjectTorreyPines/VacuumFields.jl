@@ -275,7 +275,7 @@ function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
         # Least-squares with regularization
         # https://www.youtube.com/watch?v=9BckeGN0sF0
         reg_solve(A, b, λ) = inv(A' * A + λ * I) * A' * b
-        Ic0 = reg_solve(Gcp, ψp, λ_regularize)
+        Ic0 = reg_solve(Gcp, ψp, λ_regularize/length(coils)^2)
     else
         Ic0 = Gcp \ ψp
     end
