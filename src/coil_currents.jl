@@ -341,10 +341,14 @@ end
 # ******************************************
 # Plots to check solution
 # ******************************************
-function check_fixed_eq_currents(EQfixed, coils,
+function check_fixed_eq_currents(EQfixed,
+                                 coils,
                                  EQfree::Union{AbstractEquilibrium,Nothing}=nothing;
                                  resolution=257,
-                                 Rmin=nothing, Rmax=nothing, Zmin=nothing, Zmax=nothing)
+                                 Rmin=nothing,
+                                 Rmax=nothing,
+                                 Zmin=nothing,
+                                 Zmax=nothing)
 
     Rmin0, Rmax0, Zmin0, Zmax0 = bounds(coils)
     if Rmin === nothing Rmin = Rmin0 end

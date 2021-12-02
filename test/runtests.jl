@@ -6,10 +6,10 @@ import DelimitedFiles
 using Plots
 
 const active = [
-    "current_cocos",
-    "current_BtIp",
-    "current_Solovev",
-    "current_breakdown",
+    #"current_cocos",
+    #"current_BtIp",
+    #"current_Solovev",
+    #"current_breakdown",
     "current_xpoint"
 ]
 
@@ -63,7 +63,7 @@ if "current_cocos" in active
             Gfixed = efit(transform_cocos(gfixed, cc0, cc), cc)
             Gfree = efit(transform_cocos(gfree, cc0, cc), cc)
             _,ψbound = psi_limits(Gfree)
-            currents = fixed_eq_currents(Gfixed, coils, ψbound)
+            currents = fixed_eq_currents(Gfixed, coils, [], ψbound)
             if cc < 10
                 good_currents = good_currents_sd
             else
@@ -119,21 +119,21 @@ if "current_BtIp" in active
             p = plot(C[i,:], linewidth=3, linecolor=:black)
 
             # Currents with ψbound=0
-            c0 = fixed_eq_currents(Gfixed, coils, 0.0)
+            c0 = fixed_eq_currents(Gfixed, coils, [], 0.0)
             plot!(c0, linewidth=3, linecolor=:red)
 
             # Currents with ψbound from EFIT
-            cb = fixed_eq_currents(Gfixed, coils, ψbound)
+            cb = fixed_eq_currents(Gfixed, coils, [], ψbound)
             plot!(cb, linewidth=3, linecolor=:blue)
 
             # Currents minimized
-            # cm = fixed_eq_currents(Gfixed, coils, ψbound, minimize_currents=0.01)
+            # cm = fixed_eq_currents(Gfixed, coils, [], ψbound, minimize_currents=0.01)
             # plot!(currents)
             display(p)
 
-            # p = check_fixed_eq_currents(Gfixed,coils,c0,Gfree)
+            # p = check_fixed_eq_currents(Gfixed,coils,[],c0,Gfree)
             # display(p)
-            # p = check_fixed_eq_currents(Gfixed,coils,cb,Gfree)
+            # p = check_fixed_eq_currents(Gfixed,coils,[],cb,Gfree)
             # display(p)
 
         end
@@ -151,7 +151,7 @@ if "current_Solovev" in active
         alpha = -0.155
         S = solovev(B0, R0, ϵ, δ, κ, alpha, qstar,B0_dir=1,Ip_dir=1)
         currents = fixed_eq_currents(S,coils)
-        p = check_fixed_eq_currents(S,coils,currents)
+        p = check_fixed_eq_currents(S,coils)
         display(p)
     end
 end
@@ -161,7 +161,9 @@ if "current_breakdown" in active
 
         # OH coils
         coils_OH = coils_D3D[[1,2,3,4,10,11,12,13]]
-        currents_OH = 10000.0*ones(length(coils_OH))
+        for coil in coils_OH
+            coil.current = 10000.0
+        end
 
         # PF coils
         # From DIII-D, but remove coils along CS
@@ -184,15 +186,11 @@ if "current_breakdown" in active
 
         # Find PF coil currents to make field null
         currents_PF = currents_to_match_ψp(1.0, ψp, Rp, Zp, coils_PF,
-                                           fixed_coils=coils_OH,
-                                           fixed_currents=currents_OH)
-
-        println(1e-3*currents_PF)
+                                           fixed_coils=coils_OH)
 
         # Plot flux from all coils
         coils_all = [coils_PF; coils_OH]
-        currents_all = [currents_PF; currents_OH]
-        p = plot_coil_flux(1.0,coils_all,currents_all,ψp,clim=(2.0*ψp,0.0),Rmin=0.5,Rmax=3.0,Zmin=-1.8,Zmax=1.8)
+        p = plot_coil_flux(1.0,coils_all,ψp,clim=(2.0*ψp,0.0),Rmin=0.5,Rmax=3.0,Zmin=-1.8,Zmax=1.8)
         for coil in coils_all
            plot_coil(coil)
         end
@@ -215,7 +213,7 @@ if "current_xpoint" in active
 
         Rx = [1.7]
         Zx = [-1.5]
-        Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(Gfixed, ψbound, Rx=Rx, Zx=Zx)
+        Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(Gfixed, [], ψbound, Rx=Rx, Zx=Zx)
 
         weights = ones(length(Rp))
         weights[end] = 1.0
@@ -226,7 +224,7 @@ if "current_xpoint" in active
 
         currents = currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils, weights=weights, λ_regularize=1E-14)
 
-        p = check_fixed_eq_currents(Gfixed,coils,currents,Gfree,Rmin=0.5,Rmax=3.0,Zmin=-2.0,Zmax=2.0)
+        p = check_fixed_eq_currents(Gfixed,coils,Gfree,Rmin=0.5,Rmax=3.0,Zmin=-2.0,Zmax=2.0)
         display(p)
     end
 end
