@@ -286,7 +286,7 @@ function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
     end
 
     if return_cost
-        cost(Ic) = norm(Gcp * Ic .- ψp) / μ₀ / length(Rp)
+        cost(Ic) = norm(Gcp * Ic .- ψp) / norm(ψp)
         return Ic0, cost(Ic0)
     else
         return Ic0
