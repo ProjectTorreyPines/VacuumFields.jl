@@ -459,8 +459,25 @@ function check_fixed_eq_currents(EQfixed,
     return p
 end
 
+"""
+    coils_flux(Bp_fac, coils, R, Z)
+
+Calculate flux from coils on a R, Z grid
+"""
+function coils_flux(Bp_fac, coils, R::AbstractVector, Z::AbstractVector)
+    ψ = zeros(length(R),length(Z))
+    @threads for i in 1:length(R)
+        r = R[i]
+        for j in 1:length(Z)
+            z = Z[j]
+            @inbounds ψ[i,j] += μ₀ * Bp_fac * sum([coil.current for coil in coils] .* Green.(coils, r, z))
+        end
+    end
+    return ψ
+end
+
 function plot_coil_flux(Bp_fac, coils, ψbound=0.0;
-                        resolution=257, clim=nothing,
+                        resolution=129, clim=nothing,
                         Rmin=nothing, Rmax=nothing, Zmin=nothing, Zmax=nothing)
 
     Rmin0, Rmax0, Zmin0, Zmax0 = bounds(coils)
@@ -472,30 +489,22 @@ function plot_coil_flux(Bp_fac, coils, ψbound=0.0;
     R = range(Rmin, Rmax, length=resolution)
     Z = range(Zmin, Zmax, length=resolution)
 
-    # ψ coil currents
-    ψ = zeros(resolution, resolution)
-    @threads for i in 1:resolution
-        r = R[i]
-        for j in 1:resolution
-            z = Z[j]
-            @inbounds ψ[j,i] += μ₀ * Bp_fac * sum([coil.current for coil in coils] .* Green.(coils, r, z))
-        end
-    end
+    ψ = coils_flux(Bp_fac, coils, R, Z)
 
     if clim === nothing
         ψmax = maximum(abs.(ψ))
         clim = (ψbound - ψmax, ψbound + ψmax)
     end
-    # Plot
 
-    # Heat maps for ψ from coil currents
-    p = heatmap(R, Z, ψ,
+    # Plot heat maps for ψ from coil currents
+    p = heatmap(R, Z, transpose(ψ),
                 clim=clim,
                 c=:diverging,
-                aspect_ratio=:equal,linecolor=:black,
+                aspect_ratio=:equal,
+                linecolor=:black,
                 title="Coil Flux",
                 xlim=(Rmin, Rmax),ylim=(Zmin, Zmax))
-    contour!(R, Z, ψ, levels=ψbound * [0.99,1.00,1.01], linecolor=:black)
+    contour!(R, Z, transpose(ψ), levels=ψbound * [0.99,1.00,1.01], linecolor=:black)
 
     return p
 end
