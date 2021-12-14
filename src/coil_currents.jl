@@ -1,18 +1,53 @@
 abstract type AbstractCoil end
 
-struct PointCoil{T <: Real} <: AbstractCoil
-    R::T
-    Z::T
+mutable struct PointCoil <: AbstractCoil
+    R::Real
+    Z::Real
+    current::Real
+    PointCoil(R, Z) = new(R, Z, 0.0)
 end
 
-struct DistributedCoil{T <: AbstractVector} <: AbstractCoil
-    R::T
-    Z::T
+"""
+    ParallelogramCoil <: AbstractCoil
+
+Parallelogram coil with the R, Z, ΔR, ΔZ, θ₁, θ₂ formalism (as used by EFIT, for example)
+Here θ₁ and θ₂ are the shear angles along the x- and y-axes, respectively, in degrees.
+"""
+mutable struct ParallelogramCoil <: AbstractCoil
+    R::Real
+    Z::Real
+    ΔR::Real
+    ΔZ::Real
+    θ₁::Real
+    θ₂::Real
+    spacing::Union{Nothing,Real}
+    current::Real
+    ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing) = new(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing, 0.0)
 end
 
-function coil(Rc::T, Zc::T, ΔR::T, ΔZ::T, θ₁::T, θ₂::T; spacing=0.01) where {T <: Real}
-    dR = LinRange(-0.5 * ΔR, 0.5 * ΔR, Int(floor(1.0 + ΔR / spacing)))
-    dZ = LinRange(-0.5 * ΔZ, 0.5 * ΔZ, Int(floor(1.0 + ΔZ / spacing)))
+function ParallelogramCoil(R::Real, Z::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Union{Nothing,Real}=0.01)
+    return ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing)
+end
+
+mutable struct DistributedCoil <: AbstractCoil
+    R::AbstractVector
+    Z::AbstractVector
+    current::Real
+    DistributedCoil(R, Z) = new(R, Z, 0.0)
+end
+
+@Memoize.memoize function DistributedParallelogramCoil(ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real, spacing::Union{Nothing,Real})
+    Rc = 0.0
+    Zc = 0.0
+    
+    if spacing === nothing
+        dR = [-0.5 * ΔR, 0.5 * ΔR]
+        dZ = [-0.5 * ΔZ, 0.5 * ΔZ]
+    else
+        dR = LinRange(-0.5 * ΔR, 0.5 * ΔR, Int(ceil(1.0 + ΔR / spacing)))
+        dZ = LinRange(-0.5 * ΔZ, 0.5 * ΔZ, Int(ceil(1.0 + ΔZ / spacing)))
+    end
+
     α₁ = tan(π * θ₁ / 180.0)
     α₂ = tan(π * (θ₂ + 90.0) / 180.0)
 
@@ -30,23 +65,35 @@ function coil(Rc::T, Zc::T, ΔR::T, ΔZ::T, θ₁::T, θ₂::T; spacing=0.01) wh
     return DistributedCoil(R, Z)
 end
 
-function bounds(Cs::AbstractVector{T}) where {T <: AbstractCoil}
-    Rmin = minimum(Cs[1].R)
-    Rmax = maximum(Cs[1].R)
-    Zmin = minimum(Cs[1].Z)
-    Zmax = maximum(Cs[1].Z)
-    for C in Cs
-        Rmin = min(Rmin, minimum(C.R))
-        Rmax = max(Rmax, maximum(C.R))
-        Zmin = min(Zmin, minimum(C.Z))
-        Zmax = max(Zmax, maximum(C.Z))
-    end
-    return Rmin, Rmax, Zmin, Zmax
+function DistributedParallelogramCoil(Rc::Real, Zc::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Union{Nothing,Real}=0.01)
+    C = deepcopy(DistributedParallelogramCoil(ΔR, ΔZ, θ₁, θ₂, spacing))
+    C.R = C.R .+ Rc
+    C.Z = C.Z .+ Zc
+    return C
+end
+
+function DistributedCoil(C::ParallelogramCoil)
+    return DistributedParallelogramCoil(C.R, C.Z, C.ΔR, C.ΔZ, C.θ₁, C.θ₂; spacing=C.spacing)
+end
+
+# ============== #
+#   Convex hull  #
+# ============== #
+function convex_hull(C::ParallelogramCoil)
+    C = DistributedParallelogramCoil(C.R, C.Z, C.ΔR, C.ΔZ, C.θ₁, C.θ₂; spacing=nothing)
+    return [[r,z] for (r, z) in zip(C.R, C.Z)]
 end
 
 function convex_hull(C::DistributedCoil)
     pts = [[r,z] for (r, z) in zip(C.R, C.Z)]
     return convex_hull(pts)
+end
+
+# ======== #
+#   Plot   #
+# ======== #
+function plot_coil(C::ParallelogramCoil)
+    return plot_coil(DistributedCoil(C))
 end
 
 function plot_coil(C::DistributedCoil)
@@ -72,16 +119,22 @@ function plot_coils(Cs::AbstractVector{T}) where {T <: AbstractCoil}
     display(p)
 end
 
-function Green(C::DistributedCoil, R::Real, Z::Real)
-    return sum(Green(x, y, R, Z) for (x, y) in zip(C.R, C.Z)) / length(C.R)
+# ======== #
+#   Green  #
+# ======== #
+function Green(C::ParallelogramCoil, R::Real, Z::Real, scale_factor::Real=1.0)
+    return Green(DistributedCoil(C), R, Z, scale_factor)
 end
 
-
-function Green(C::PointCoil, R::Real, Z::Real)
-    return Green(C.R, C.Z, R, Z)
+function Green(C::DistributedCoil, R::Real, Z::Real, scale_factor::Real=1.0)
+    return sum(Green(x, y, R, Z, scale_factor) for (x, y) in zip(C.R, C.Z)) / length(C.R)
 end
 
-function Green(X::Real, Y::Real, R::Real, Z::Real)
+function Green(C::PointCoil, R::Real, Z::Real, scale_factor::Real=1.0)
+    return Green(C.R, C.Z, R, Z, scale_factor)
+end
+
+function Green(X::Real, Y::Real, R::Real, Z::Real, scale_factor::Real=1.0)
     XR = X * R
     m = 4.0 * XR / ((X + R)^2 + (Y - Z)^2) # this is k^2
     if true # Use our own `Real` version of the elliptic functions to allow for ForwardDiff to work (copied from SpecialFunctions)
@@ -91,9 +144,12 @@ function Green(X::Real, Y::Real, R::Real, Z::Real)
         Km = SpecialFunctions.ellipk(m)
         Em = SpecialFunctions.ellipe(m)
     end
-    return inv2π * (2.0 * Em - (2.0 - m) * Km) * sqrt(XR / m)
+    return inv2π * (2.0 * Em - (2.0 - m) * Km) * sqrt(XR / m) * scale_factor
 end
 
+# ======== #
+#   Utils  #
+# ======== #
 function cumlength(R, Z)
     # Length along boundary
     N = length(R)
@@ -104,6 +160,23 @@ function cumlength(R, Z)
     return L
 end
 
+function bounds(Cs::AbstractVector{T}) where {T <: AbstractCoil}
+    Rmin = minimum(Cs[1].R)
+    Rmax = maximum(Cs[1].R)
+    Zmin = minimum(Cs[1].Z)
+    Zmax = maximum(Cs[1].Z)
+    for C in Cs
+        Rmin = min(Rmin, minimum(C.R))
+        Rmax = max(Rmax, maximum(C.R))
+        Zmin = min(Zmin, minimum(C.Z))
+        Zmax = max(Zmax, maximum(C.Z))
+    end
+    return Rmin, Rmax, Zmin, Zmax
+end
+
+# ========== #
+#   Physics  #
+# ========== #
 function fixed_boundary(EQfixed)
     Sb = boundary(EQfixed)
     Rb, Zb = Sb.r, Sb.z
@@ -121,7 +194,6 @@ end
 """
     ψp_on_fixed_eq_boundary(EQfixed,
                             fixed_coils=[],
-                            fixed_currents=[],
                             ψbound=0.0;
                             Rx=[], Zx=[],
                             fraction_inside=0.999)
@@ -130,7 +202,6 @@ Calculate ψ from image currents on boundary at surface p near boundary
 """
 function ψp_on_fixed_eq_boundary(EQfixed,
                                  fixed_coils=[],
-                                 fixed_currents=[],
                                  ψbound=0.0;
                                  Rx=[], Zx=[],
                                  fraction_inside=0.999)
@@ -168,7 +239,7 @@ function ψp_on_fixed_eq_boundary(EQfixed,
     ψfixed = zeros(length(Rp))
     @threads for i = 1:length(Rp)
         for j in 1:length(fixed_coils)
-            @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_currents[j]
+            @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_coils[j].current
         end
     end
     ψp = ψp .- ψfixed
@@ -176,14 +247,44 @@ function ψp_on_fixed_eq_boundary(EQfixed,
     return Bp_fac, ψp, Rp, Zp
 end
 
+"""
+    field_null_on_boundary(ψp_constant, Rp, Zp,
+                           fixed_coils=[],
+                           ψbound=0.0,
+                           cocos=11)
+
+Account for effect of fixed coils on ψp_constant
+"""
+function field_null_on_boundary(ψp_constant, Rp, Zp,
+                                fixed_coils=[],
+                                ψbound=0.0,
+                                cocos=11)
+
+    # add in desired boundary flux
+    ψbound != 0.0 && (ψp_constant .+= ψbound)
+
+    Bp_fac = Equilibrium.cocos(cocos).sigma_Bp * (2π)^Equilibrium.cocos(cocos).exp_Bp
+
+    # Compute flux from fixed coils and subtract from ψp to match
+    ψfixed = zeros(length(Rp))
+    @threads for i = 1:length(Rp)
+        for j in 1:length(fixed_coils)
+            @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_coils[j].current
+        end
+    end
+    ψp = ψp_constant .- ψfixed
+
+    return Bp_fac, ψp, Rp, Zp
+end
+
 function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
                               weights=nothing,
                               λ_regularize=1E-16,
-                              return_cost=false)
+                              return_cost=false,
+                              tp=Float64)
 
     # Compute coil currents needed to recreate ψp at points (Rp,Zp)
     # Build matrix relating coil Green's functions to boundary points
-    tp = typeof(sum([sum(c.R + c.Z) for c in coils]))
     Gcp = zeros(tp, length(Rp), length(coils))
     @threads for j = 1:length(coils)
         for i = 1:length(Rp)
@@ -203,13 +304,18 @@ function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
         # Least-squares with regularization
         # https://www.youtube.com/watch?v=9BckeGN0sF0
         reg_solve(A, b, λ) = inv(A' * A + λ * I) * A' * b
-        Ic0 = reg_solve(Gcp, ψp, λ_regularize)
+        Ic0 = reg_solve(Gcp, ψp, λ_regularize/length(coils)^2)
     else
         Ic0 = Gcp \ ψp
     end
 
+    # update values of coils current
+    for k in 1:length(coils)
+        coils[k].current = Ic0[k]
+    end
+
     if return_cost
-        cost(Ic) = norm(Gcp * Ic .- ψp) / μ₀ / length(Rp)
+        cost(Ic) = norm(Gcp * Ic .- ψp) / norm(ψp)
         return Ic0, cost(Ic0)
     else
         return Ic0
@@ -219,12 +325,11 @@ end
 function fixed_eq_currents(EQfixed,
                            coils,
                            fixed_coils=[],
-                           fixed_currents=[],
                            ψbound=0.0;
                            λ_regularize=1E-16,
                            return_cost=false)
 
-    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, fixed_coils, fixed_currents, ψbound)
+    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, fixed_coils, ψbound)
 
     return currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
                                 λ_regularize=λ_regularize,
@@ -235,14 +340,13 @@ end
 # ***************************************************
 # Transform fixed-boundary ψ to free-boundary ψ
 # ***************************************************
-function fixed2free(EQfixed, coils, currents, R, Z)
+function fixed2free(EQfixed, coils, R, Z; tp=Float64)
     
     ψ0, ψb = psi_limits(EQfixed)
     ψb = psi_boundary(EQfixed)
     σ₀ = sign(ψ0 - ψb)
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
 
-    tp = typeof(sum([sum(sum(coils[k].R) + sum(coils[k].Z) + sum(currents[k])) for k in 1:length(coils)]))
     ψ_f2f = [tp(EQfixed(r, z)) for z in Z, r in R] .- ψb
     ψ_f2f = ifelse.(σ₀ * ψ_f2f .> 0, ψ_f2f, 0) .+ ψb
 
@@ -256,7 +360,7 @@ function fixed2free(EQfixed, coils, currents, R, Z)
             # subtract image ψ
             @inbounds ψ_f2f[j,i] -= -trapz(Lb, dψdn_R .* Green.(Rb, Zb, r, z))
             # add coil ψ
-            @inbounds ψ_f2f[j,i] += μ₀ * Bp_fac * sum(currents .* Green.(coils, r, z))
+            @inbounds ψ_f2f[j,i] += μ₀ * Bp_fac * sum([coil.current for coil in coils] .* Green.(coils, r, z))
         end
     end
 
@@ -266,10 +370,14 @@ end
 # ******************************************
 # Plots to check solution
 # ******************************************
-function check_fixed_eq_currents(EQfixed, coils, currents,
+function check_fixed_eq_currents(EQfixed,
+                                 coils,
                                  EQfree::Union{AbstractEquilibrium,Nothing}=nothing;
                                  resolution=257,
-                                 Rmin=nothing, Rmax=nothing, Zmin=nothing, Zmax=nothing)
+                                 Rmin=nothing,
+                                 Rmax=nothing,
+                                 Zmin=nothing,
+                                 Zmax=nothing)
 
     Rmin0, Rmax0, Zmin0, Zmax0 = bounds(coils)
     if Rmin === nothing Rmin = Rmin0 end
@@ -290,7 +398,7 @@ function check_fixed_eq_currents(EQfixed, coils, currents,
     
     # ψ at the boundary is determined by the value of the currents
     # calculated in fixed_eq_currents
-    ψ_f2f = fixed2free(EQfixed, coils, currents, R, Z)
+    ψ_f2f = fixed2free(EQfixed, coils, R, Z)
 
     # scale for plotting
     # this may get shifted boundary flux stays at the midpoint
@@ -351,8 +459,25 @@ function check_fixed_eq_currents(EQfixed, coils, currents,
     return p
 end
 
-function plot_coil_flux(Bp_fac, coils, currents, ψbound=0.0;
-                        resolution=257, clim=nothing,
+"""
+    coils_flux(Bp_fac, coils, R, Z)
+
+Calculate flux from coils on a R, Z grid
+"""
+function coils_flux(Bp_fac, coils, R::AbstractVector, Z::AbstractVector)
+    ψ = zeros(length(R),length(Z))
+    @threads for i in 1:length(R)
+        r = R[i]
+        for j in 1:length(Z)
+            z = Z[j]
+            @inbounds ψ[i,j] += μ₀ * Bp_fac * sum([coil.current for coil in coils] .* Green.(coils, r, z))
+        end
+    end
+    return ψ
+end
+
+function plot_coil_flux(Bp_fac, coils, ψbound=0.0;
+                        resolution=129, clim=nothing,
                         Rmin=nothing, Rmax=nothing, Zmin=nothing, Zmax=nothing)
 
     Rmin0, Rmax0, Zmin0, Zmax0 = bounds(coils)
@@ -364,28 +489,22 @@ function plot_coil_flux(Bp_fac, coils, currents, ψbound=0.0;
     R = range(Rmin, Rmax, length=resolution)
     Z = range(Zmin, Zmax, length=resolution)
 
-    # ψ coil currents
-    ψ = zeros(resolution, resolution)
-    @threads for i in 1:resolution
-        r = R[i]
-        for j in 1:resolution
-            z = Z[j]
-            @inbounds ψ[j,i] += μ₀ * Bp_fac * sum(currents .* Green.(coils, r, z))
-        end
-    end
+    ψ = coils_flux(Bp_fac, coils, R, Z)
 
     if clim === nothing
         ψmax = maximum(abs.(ψ))
         clim = (ψbound - ψmax, ψbound + ψmax)
     end
-    # Plot
 
-    # Heat maps for ψ from coil currents
-    p = heatmap(R, Z, ψ, clim=clim, c=:diverging,
-                aspect_ratio=:equal,linecolor=:black,
+    # Plot heat maps for ψ from coil currents
+    p = heatmap(R, Z, transpose(ψ),
+                clim=clim,
+                c=:diverging,
+                aspect_ratio=:equal,
+                linecolor=:black,
                 title="Coil Flux",
                 xlim=(Rmin, Rmax),ylim=(Zmin, Zmax))
-    contour!(R, Z, ψ, levels=ψbound * [0.99,1.00,1.01], linecolor=:black)
+    contour!(R, Z, transpose(ψ), levels=ψbound * [0.99,1.00,1.01], linecolor=:black)
 
     return p
 end

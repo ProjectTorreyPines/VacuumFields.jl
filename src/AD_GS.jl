@@ -2,7 +2,6 @@ __precompile__()
 
 module AD_GS
 
-using Base: Real, Integer
 using Equilibrium
 using Plots
 using Trapz
@@ -12,6 +11,7 @@ using Optim
 using Base.Threads
 using LinearAlgebra
 import LazySets: convex_hull, VPolygon, Singleton
+import Memoize
 
 const μ₀ = 4e-7*π
 const inv2π = 1.0/(2π)
@@ -21,7 +21,7 @@ include("coil_currents.jl")
 include("elliptic.jl")
 
 export plot_coil_flux, check_fixed_eq_currents, fixed2free
-export fixed_eq_currents, ψp_on_fixed_eq_boundary, currents_to_match_ψp
+export fixed_eq_currents, ψp_on_fixed_eq_boundary, field_null_on_boundary, currents_to_match_ψp
 export AbstractCoil, PointCoil, DistributedCoil, coil
 export plot_coils, plot_coil
 
@@ -47,7 +47,7 @@ const coils_D3D_matrix = [[ 8.6080e-01  1.6830e-01  5.0800e-02  3.2110e-01  0.00
 Ncoil = size(coils_D3D_matrix)[1]
 
 const coils_D3D_points = [PointCoil(coils_D3D_matrix[i,1],coils_D3D_matrix[i,2]) for i in 1:Ncoil]
-const coils_D3D = [coil(coils_D3D_matrix[i,:]...) for i in 1:Ncoil]
+const coils_D3D = [ParallelogramCoil(coils_D3D_matrix[i,:]...) for i in 1:Ncoil]
 
 export coils_D3D_points, coils_D3D
 
