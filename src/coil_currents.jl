@@ -351,13 +351,11 @@ function fixed2free(EQfixed::Equilibrium.AbstractEquilibrium,
                     R::AbstractVector,
                     Z::AbstractVector;
                     tp=Float64)
-    ψ0, ψb = psi_limits(EQfixed)
     ψb = psi_boundary(EQfixed)
-    σ₀ = sign(ψ0 - ψb)
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
 
-    ψ_f2f = [tp(EQfixed(r, z)) for z in Z, r in R] .- ψb
-    ψ_f2f = ifelse.(σ₀ * ψ_f2f .> 0, ψ_f2f, 0) .+ ψb
+    Sb = boundary(EQfixed)
+    ψ_f2f = [in_boundary(Sb,(r,z)) ? tp(EQfixed(r, z)) : ψb for z in Z, r in R]
 
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed)
 
