@@ -177,7 +177,7 @@ end
 # ========== #
 #   Physics  #
 # ========== #
-function fixed_boundary(EQfixed)
+function fixed_boundary(EQfixed::Equilibrium.AbstractEquilibrium)
     Sb = boundary(EQfixed)
     Rb, Zb = Sb.r, Sb.z
     Lb = cumlength(Rb, Zb)
@@ -200,11 +200,12 @@ end
 
 Calculate ψ from image currents on boundary at surface p near boundary
 """
-function ψp_on_fixed_eq_boundary(EQfixed,
-                                 fixed_coils=[],
-                                 ψbound=0.0;
-                                 Rx=[], Zx=[],
-                                 fraction_inside=0.999)
+function ψp_on_fixed_eq_boundary(EQfixed::Equilibrium.AbstractEquilibrium,
+                                 fixed_coils::AbstractVector{T} where  {T <: AbstractCoil}=AbstractCoil[],
+                                 ψbound::Real=0.0;
+                                 Rx::AbstractVector=Real[],
+                                 Zx::AbstractVector=Real[],
+                                 fraction_inside::Real=0.999)
     ψ0, ψb = psi_limits(EQfixed)
     ψb = psi_boundary(EQfixed)
 
@@ -255,10 +256,12 @@ end
 
 Account for effect of fixed coils on ψp_constant
 """
-function field_null_on_boundary(ψp_constant, Rp, Zp,
-                                fixed_coils=[],
-                                ψbound=0.0,
-                                cocos=11)
+function field_null_on_boundary(ψp_constant::Real,
+                                Rp::AbstractVector,
+                                Zp::AbstractVector,
+                                fixed_coils::AbstractVector{T} where  {T <: AbstractCoil}=AbstractCoil[],
+                                ψbound::Real=0.0,
+                                cocos::Int=11)
 
     # add in desired boundary flux
     ψbound != 0.0 && (ψp_constant .+= ψbound)
@@ -277,10 +280,14 @@ function field_null_on_boundary(ψp_constant, Rp, Zp,
     return Bp_fac, ψp, Rp, Zp
 end
 
-function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
-                              weights=nothing,
-                              λ_regularize=1E-16,
-                              return_cost=false,
+function currents_to_match_ψp(Bp_fac::Real,
+                              ψp::AbstractVector,
+                              Rp::AbstractVector,
+                              Zp::AbstractVector,
+                              coils::AbstractVector{T} where  {T <: AbstractCoil};
+                              weights::Union{Nothing, AbstractVector}=nothing,
+                              λ_regularize::Real=1E-16,
+                              return_cost::Bool=false,
                               tp=Float64)
 
     # Compute coil currents needed to recreate ψp at points (Rp,Zp)
@@ -294,9 +301,8 @@ function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
 
     # handle weights
     if weights !== nothing
-        if isa(weights, AbstractVector) weights = Diagonal(weights) end
-        Gcp = weights * Gcp
-        ψp  = weights * ψp
+        ψp  = weights .* ψp
+        Gcp = Diagonal(weights) * Gcp
     end
 
     # Least-squares solve for coil currents
@@ -322,12 +328,12 @@ function currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
     end
 end
 
-function fixed_eq_currents(EQfixed,
-                           coils,
-                           fixed_coils=[],
-                           ψbound=0.0;
-                           λ_regularize=1E-16,
-                           return_cost=false)
+function fixed_eq_currents(EQfixed::Equilibrium.AbstractEquilibrium,
+                           coils::AbstractVector{T} where  {T <: AbstractCoil},
+                           fixed_coils::AbstractVector{T} where  {T <: AbstractCoil}=AbstractCoil[],
+                           ψbound::Real=0.0;
+                           λ_regularize::Real=1E-16,
+                           return_cost::Bool=false)
 
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, fixed_coils, ψbound)
 
@@ -340,8 +346,11 @@ end
 # ***************************************************
 # Transform fixed-boundary ψ to free-boundary ψ
 # ***************************************************
-function fixed2free(EQfixed, coils, R, Z; tp=Float64)
-    
+function fixed2free(EQfixed::Equilibrium.AbstractEquilibrium,
+                    coils::AbstractVector{T} where  {T <: AbstractCoil},
+                    R::AbstractVector,
+                    Z::AbstractVector;
+                    tp=Float64)
     ψ0, ψb = psi_limits(EQfixed)
     ψb = psi_boundary(EQfixed)
     σ₀ = sign(ψ0 - ψb)
