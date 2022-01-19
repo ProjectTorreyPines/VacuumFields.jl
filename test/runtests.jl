@@ -63,14 +63,12 @@ if "current_cocos" in active
             Gfixed = efit(transform_cocos(gfixed, cc0, cc), cc)
             Gfree = efit(transform_cocos(gfree, cc0, cc), cc)
             _,ψbound = psi_limits(Gfree)
-            currents = fixed_eq_currents(Gfixed, coils, [], ψbound)
+            currents = fixed_eq_currents(Gfixed, coils, AbstractCoil[], ψbound)
             if cc < 10
                 good_currents = good_currents_sd
             else
                 good_currents = good_currents_dd
             end
-
-            @test currents ≈ Gfixed.cocos.sigma_RpZ * good_currents
 
             if cc == cc0
                 p = plot(eqdsk_currents, linewidth=3, linecolor=:black)
@@ -80,9 +78,11 @@ if "current_cocos" in active
 
             if cc == ccp
                 println("Plotting for COCOS ", cc)
-                p = check_fixed_eq_currents(Gfixed,coils,currents,Gfree)
+                p = check_fixed_eq_currents(Gfixed,coils,Gfree)
                 display(p)
             end
+
+            @test currents ≈ Gfixed.cocos.sigma_RpZ * good_currents
         end
     end
 end
@@ -119,21 +119,21 @@ if "current_BtIp" in active
             p = plot(C[i,:], linewidth=3, linecolor=:black)
 
             # Currents with ψbound=0
-            c0 = fixed_eq_currents(Gfixed, coils, [], 0.0)
+            c0 = fixed_eq_currents(Gfixed, coils, AbstractCoil[], 0.0)
             plot!(c0, linewidth=3, linecolor=:red)
 
             # Currents with ψbound from EFIT
-            cb = fixed_eq_currents(Gfixed, coils, [], ψbound)
+            cb = fixed_eq_currents(Gfixed, coils, AbstractCoil[], ψbound)
             plot!(cb, linewidth=3, linecolor=:blue)
 
             # Currents minimized
-            # cm = fixed_eq_currents(Gfixed, coils, [], ψbound, minimize_currents=0.01)
+            # cm = fixed_eq_currents(Gfixed, coils, AbstractCoil[], ψbound, minimize_currents=0.01)
             # plot!(currents)
             display(p)
 
-            # p = check_fixed_eq_currents(Gfixed,coils,[],c0,Gfree)
+            # p = check_fixed_eq_currents(Gfixed,coils,Gfree)
             # display(p)
-            # p = check_fixed_eq_currents(Gfixed,coils,[],cb,Gfree)
+            # p = check_fixed_eq_currents(Gfixed,coils,Gfree)
             # display(p)
 
         end
@@ -215,7 +215,7 @@ if "current_xpoint" in active
 
         Rx = [1.7]
         Zx = [-1.5]
-        Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(Gfixed, [], ψbound, Rx=Rx, Zx=Zx)
+        Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(Gfixed, AbstractCoil[], ψbound, Rx=Rx, Zx=Zx)
 
         weights = ones(length(Rp))
         weights[end] = 1.0

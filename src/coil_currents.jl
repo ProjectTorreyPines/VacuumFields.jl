@@ -36,7 +36,7 @@ mutable struct DistributedCoil <: AbstractCoil
     DistributedCoil(R, Z) = new(R, Z, 0.0)
 end
 
-@Memoize.memoize function DistributedParallelogramCoil(ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real, spacing::Union{Nothing,Real})
+Memoize.@memoize function DistributedParallelogramCoil(ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real, spacing::Union{Nothing,Real})
     Rc = 0.0
     Zc = 0.0
     
@@ -98,11 +98,13 @@ end
 
 function plot_coil(C::DistributedCoil)
     hull = convex_hull(C)
-    plot!(VPolygon(hull), fillcolor=:black, alpha=0.2)
+    R = [r for (r,z) in hull]
+    Z = [z for (r,z) in hull]
+    plot!(Shape(R, Z), color=:black, alpha=0.2, label="")
 end
 
 function plot_coil(C::PointCoil)
-    plot!(Singleton([C.R,C.Z]), markercolor=:black)
+    plot!([C.R], [C.Z], marker=:circle, markercolor=:black)
 end
 
 function plot_coils(Cs::AbstractVector{T}) where {T <: AbstractCoil}
@@ -378,7 +380,7 @@ end
 # Plots to check solution
 # ******************************************
 function check_fixed_eq_currents(EQfixed,
-                                 coils,
+                                 coils::AbstractVector{T} where  {T <: AbstractCoil},
                                  EQfree::Union{AbstractEquilibrium,Nothing}=nothing;
                                  resolution=257,
                                  Rmin=nothing,

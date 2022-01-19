@@ -10,7 +10,7 @@ import SpecialFunctions
 using Optim
 using Base.Threads
 using LinearAlgebra
-import LazySets: convex_hull, VPolygon, Singleton
+import LazySets: convex_hull
 import Memoize
 
 const μ₀ = 4e-7*π
