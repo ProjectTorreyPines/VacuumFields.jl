@@ -1,6 +1,6 @@
 __precompile__()
 
-module AD_GS
+module VacuumFields
 
 using Equilibrium
 using Plots
