@@ -43,10 +43,8 @@ const coils_D3D_matrix = [[ 8.6080e-01  1.6830e-01  5.0800e-02  3.2110e-01  0.00
                           [ 1.2524e+00 -1.6027e+00  2.3490e-01  8.5100e-02  0.0000e+00  9.0000e+01]
                           [ 1.6889e+00 -1.5780e+00  1.6940e-01  1.3310e-01  0.0000e+00  9.0000e+01]]
 
-Ncoil = size(coils_D3D_matrix)[1]
-
-const coils_D3D_points = [PointCoil(coils_D3D_matrix[i,1],coils_D3D_matrix[i,2]) for i in 1:Ncoil]
-const coils_D3D = [ParallelogramCoil(coils_D3D_matrix[i,:]...) for i in 1:Ncoil]
+const coils_D3D_points = [PointCoil(coils_D3D_matrix[i,1],coils_D3D_matrix[i,2]) for i in 1:size(coils_D3D_matrix)[1]]
+const coils_D3D = [ParallelogramCoil(coils_D3D_matrix[i,:]...) for i in 1:size(coils_D3D_matrix)[1]]
 
 export coils_D3D_points, coils_D3D
 

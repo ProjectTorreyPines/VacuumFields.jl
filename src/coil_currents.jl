@@ -145,9 +145,9 @@ end
 # ======== #
 function cumlength(R, Z)
     # Length along boundary
-    N = length(R)
-    L = zeros(N)
-    for i in 2:N
+    L = Array{Float64,1}(undef, length(R))
+    @inbounds L[1] = 0
+    for i in 2:length(R)
         @inbounds L[i] = L[i-1] + sqrt((R[i] - R[i-1])^2 + (Z[i] - Z[i-1])^2)
     end
     return L
@@ -210,9 +210,9 @@ function ψp_on_fixed_eq_boundary(EQfixed::Equilibrium.AbstractEquilibrium,
     Rp, Zp = Sp.r[1:end-1], Sp.z[1:end-1]
     append!(Rp, Rx)
     append!(Zp, Zx)
-    ψp = zeros(length(Rp))
 
     # this is the image current contribution to the control points
+    ψp = Array{Float64,1}(undef, length(Rp))
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed)
     @threads for i = 1:length(Rp)
         ψp[i] = -trapz(Lb, dψdn_R .* Green.(Rb, Zb, Rp[i], Zp[i]))
