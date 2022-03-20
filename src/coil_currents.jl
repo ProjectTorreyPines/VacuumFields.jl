@@ -36,10 +36,7 @@ mutable struct DistributedCoil <: AbstractCoil
     DistributedCoil(R, Z) = new(R, Z, 0.0)
 end
 
-Memoize.@memoize function DistributedParallelogramCoil(ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real, spacing::Union{Nothing,Real})
-    Rc = 0.0
-    Zc = 0.0
-    
+function DistributedParallelogramCoil(Rc::Real, Zc::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Union{Nothing,Real}=0.01)
     if spacing === nothing
         dR = [-0.5 * ΔR, 0.5 * ΔR]
         dZ = [-0.5 * ΔZ, 0.5 * ΔZ]
@@ -54,22 +51,16 @@ Memoize.@memoize function DistributedParallelogramCoil(ΔR::Real, ΔZ::Real, θ�
     Nr = length(dR)
     Nz = length(dZ)
     N = Nr * Nz
-    R, Z = zeros(N), zeros(N)
+    Z = Array{Float64, 1}(undef, N)
+    R = Array{Float64, 1}(undef, N)
     for i in 1:Nr
         for j in 1:Nz
             k = j + (i - 1) * Nz
-            R[k] = Rc + dR[i] - α₂ * dZ[j]
-            Z[k] = Zc + dZ[j] + α₁ * dR[i]
+            @inbounds R[k] = Rc + dR[i] - α₂ * dZ[j]
+            @inbounds Z[k] = Zc + dZ[j] + α₁ * dR[i]
         end
     end
     return DistributedCoil(R, Z)
-end
-
-function DistributedParallelogramCoil(Rc::Real, Zc::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Union{Nothing,Real}=0.01)
-    C = deepcopy(DistributedParallelogramCoil(ΔR, ΔZ, θ₁, θ₂, spacing))
-    C.R = C.R .+ Rc
-    C.Z = C.Z .+ Zc
-    return C
 end
 
 function DistributedCoil(C::ParallelogramCoil)
@@ -239,8 +230,8 @@ function ψp_on_fixed_eq_boundary(EQfixed::Equilibrium.AbstractEquilibrium,
     # Compute flux from fixed coils and subtract from ψp to match
     # This works whether ψp is a constant or a vector
     ψfixed = zeros(length(Rp))
-    @threads for i = 1:length(Rp)
-        for j in 1:length(fixed_coils)
+    @threads for j in 1:length(fixed_coils)
+        for i = 1:length(Rp)
             @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_coils[j].current
         end
     end
@@ -271,8 +262,8 @@ function field_null_on_boundary(ψp_constant::Real,
 
     # Compute flux from fixed coils and subtract from ψp to match
     ψfixed = zeros(length(Rp))
-    @threads for i = 1:length(Rp)
-        for j in 1:length(fixed_coils)
+    @threads for j in 1:length(fixed_coils)
+        for i = 1:length(Rp)
             @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_coils[j].current
         end
     end
@@ -281,19 +272,19 @@ function field_null_on_boundary(ψp_constant::Real,
     return Bp_fac, ψp, Rp, Zp
 end
 
-function currents_to_match_ψp(Bp_fac::Real,
-                              ψp::AbstractVector,
-                              Rp::AbstractVector,
-                              Zp::AbstractVector,
-                              coils::AbstractVector{T} where  {T <: AbstractCoil};
-                              weights::Union{Nothing, AbstractVector}=nothing,
-                              λ_regularize::Real=1E-16,
+function currents_to_match_ψp(Bp_fac::Float64,
+                              ψp::Vector{T},
+                              Rp::Vector{T},
+                              Zp::Vector{T},
+                              coils::AbstractVector{C};
+                              weights::Vector{Float64}=Float64[],
+                              λ_regularize::Float64=1E-16,
                               return_cost::Bool=false,
-                              tp=Float64)
+                              tp=Float64) where {C <: AbstractCoil, T <: Real}
 
     # Compute coil currents needed to recreate ψp at points (Rp,Zp)
     # Build matrix relating coil Green's functions to boundary points
-    Gcp = zeros(tp, length(Rp), length(coils))
+    Gcp = Array{tp, 2}(undef, length(Rp), length(coils))
     @threads for j = 1:length(coils)
         for i = 1:length(Rp)
             @inbounds Gcp[i,j] = μ₀ * Bp_fac * Green(coils[j], Rp[i], Zp[i])
@@ -301,9 +292,9 @@ function currents_to_match_ψp(Bp_fac::Real,
     end
 
     # handle weights
-    if weights !== nothing
-        ψp  = weights .* ψp
-        Gcp = Diagonal(weights) * Gcp
+    if length(weights) > 0
+        ψp  .*= weights
+        mul!(Gcp, Diagonal(weights), Gcp)
     end
 
     # Least-squares solve for coil currents
@@ -475,9 +466,9 @@ Calculate flux from coils on a R, Z grid
 function coils_flux(Bp_fac, coils, R::AbstractVector, Z::AbstractVector)
     ψ = zeros(length(R),length(Z))
     @threads for i in 1:length(R)
-        r = R[i]
+        @inbounds r = R[i]
         for j in 1:length(Z)
-            z = Z[j]
+            @inbounds z = Z[j]
             @inbounds ψ[i,j] += μ₀ * Bp_fac * sum([coil.current for coil in coils] .* Green.(coils, r, z))
         end
     end
