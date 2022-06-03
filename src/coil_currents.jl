@@ -98,7 +98,7 @@ function plot_coil(C::PointCoil)
     plot!([C.R], [C.Z], marker=:circle, markercolor=:black)
 end
 
-function plot_coils(Cs::AbstractVector{T}) where {T<:AbstractCoil}
+function plot_coils(Cs::AbstractVector{<:AbstractCoil})
     p = plot(aspect_ratio=:equal, legend=false)
     for C in Cs
         plot_coil(C)
@@ -153,7 +153,7 @@ function cumlength(R, Z)
     return L
 end
 
-function bounds(Cs::AbstractVector{T}) where {T<:AbstractCoil}
+function bounds(Cs::AbstractVector{<:AbstractCoil})
     Rmin = minimum(Cs[1].R)
     Rmax = maximum(Cs[1].R)
     Zmin = minimum(Cs[1].Z)
@@ -193,7 +193,7 @@ end
 Calculate ψ from image currents on boundary at surface p near boundary
 """
 function ψp_on_fixed_eq_boundary(EQfixed::Equilibrium.AbstractEquilibrium,
-    fixed_coils::AbstractVector{T} where {T<:AbstractCoil}=AbstractCoil[],
+    fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[],
     ψbound::Real=0.0;
     Rx::AbstractVector=Real[],
     Zx::AbstractVector=Real[],
@@ -251,7 +251,7 @@ Account for effect of fixed coils on ψp_constant
 function field_null_on_boundary(ψp_constant::Real,
     Rp::AbstractVector,
     Zp::AbstractVector,
-    fixed_coils::AbstractVector{T} where {T<:AbstractCoil}=AbstractCoil[],
+    fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[],
     ψbound::Real=0.0,
     cocos::Int=11)
 
@@ -272,15 +272,16 @@ function field_null_on_boundary(ψp_constant::Real,
     return Bp_fac, ψp, Rp, Zp
 end
 
-function currents_to_match_ψp(Bp_fac::Float64,
-    ψp::Vector{T},
-    Rp::Vector{T},
-    Zp::Vector{T},
-    coils::AbstractVector{C};
+function currents_to_match_ψp(
+    Bp_fac::Float64,
+    ψp::Vector{<:Real},
+    Rp::Vector{<:Real},
+    Zp::Vector{<:Real},
+    coils::AbstractVector{<:AbstractCoil};
     weights::Vector{Float64}=Float64[],
     λ_regularize::Float64=1E-16,
     return_cost::Bool=false,
-    tp=Float64) where {C<:AbstractCoil,T<:Real}
+    tp=Float64)
 
     # Compute coil currents needed to recreate ψp at points (Rp,Zp)
     # Build matrix relating coil Green's functions to boundary points
@@ -320,9 +321,10 @@ function currents_to_match_ψp(Bp_fac::Float64,
     end
 end
 
-function fixed_eq_currents(EQfixed::Equilibrium.AbstractEquilibrium,
-    coils::AbstractVector{T} where {T<:AbstractCoil},
-    fixed_coils::AbstractVector{T} where {T<:AbstractCoil}=AbstractCoil[],
+function fixed_eq_currents(
+    EQfixed::Equilibrium.AbstractEquilibrium,
+    coils::AbstractVector{<:AbstractCoil},
+    fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[],
     ψbound::Real=0.0;
     λ_regularize::Real=1E-16,
     return_cost::Bool=false)
@@ -338,8 +340,9 @@ end
 # ***************************************************
 # Transform fixed-boundary ψ to free-boundary ψ
 # ***************************************************
-function fixed2free(EQfixed::Equilibrium.AbstractEquilibrium,
-    coils::AbstractVector{T} where {T<:AbstractCoil},
+function fixed2free(
+    EQfixed::Equilibrium.AbstractEquilibrium,
+    coils::AbstractVector{<:AbstractCoil},
     R::AbstractVector,
     Z::AbstractVector;
     tp=Float64)
@@ -369,8 +372,9 @@ end
 # ******************************************
 # Plots to check solution
 # ******************************************
-function check_fixed_eq_currents(EQfixed,
-    coils::AbstractVector{T} where {T<:AbstractCoil},
+function check_fixed_eq_currents(
+    EQfixed,
+    coils::AbstractVector{<:AbstractCoil},
     EQfree::Union{AbstractEquilibrium,Nothing}=nothing;
     resolution=257,
     Rmin=nothing,
