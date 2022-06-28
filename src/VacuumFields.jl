@@ -19,7 +19,7 @@ include("coil_currents.jl")
 
 include("elliptic.jl")
 
-export plot_coil_flux, check_fixed_eq_currents, fixed2free
+export plot_coil_flux, check_fixed_eq_currents, fixed2free, encircling_coils
 export fixed_eq_currents, ψp_on_fixed_eq_boundary, field_null_on_boundary, currents_to_match_ψp
 export AbstractCoil, PointCoil, DistributedCoil, coil
 export plot_coils, plot_coil

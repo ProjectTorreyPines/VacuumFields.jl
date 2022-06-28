@@ -351,25 +351,27 @@ Distribute n point coils around fixed boundary plasma to get a free boundary ψ 
 """
 function fixed2free(
     EQfixed::Equilibrium.AbstractEquilibrium,
-    n_point_coils::Integer,
+    n_coils::Integer,
     R::AbstractVector,
     Z::AbstractVector)
+    coils = encircling_coils(EQfixed, n_coils)
+    fixed_eq_currents(EQfixed, coils, AbstractCoil[], 0.0)
+    return fixed2free(EQfixed, coils, R, Z)
+end
 
+function encircling_coils(EQfixed::Equilibrium.AbstractEquilibrium, n_coils::Integer)
     bnd = Equilibrium.boundary(EQfixed)
     R0 = sum(bnd.r) / length(bnd.r)
     Z0 = sum(bnd.z) / length(bnd.z)
 
-    t = LinRange(0, 2π, n_point_coils + 1)[1:n_point_coils]
+    t = LinRange(0, 2π, n_coils + 1)[1:n_coils]
     a = maximum(bnd.r) - minimum(bnd.r)
     b = maximum(bnd.z) - minimum(bnd.z)
     a = sqrt(a * b)
 
     coils_r = 2.0 .^ (a .* cos.(t) .+ R0) ./ (2.0 .^ (a + R0)) .* (a + R0)
     coils_z = b .* sin.(t) .+ Z0
-    coils = [PointCoil(r, z) for (r, z) in zip(coils_r, coils_z)]
-
-    fixed_eq_currents(EQfixed, coils, AbstractCoil[], 0)
-    return fixed2free(EQfixed, coils, R, Z)
+    return [PointCoil(r, z) for (r, z) in zip(coils_r, coils_z)]
 end
 
 function fixed2free(
