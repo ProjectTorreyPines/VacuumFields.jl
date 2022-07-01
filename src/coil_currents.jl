@@ -192,7 +192,8 @@ end
 
 Calculate ψ from image currents on boundary at surface p near boundary
 """
-function ψp_on_fixed_eq_boundary(EQfixed::Equilibrium.AbstractEquilibrium,
+function ψp_on_fixed_eq_boundary(
+    EQfixed::Equilibrium.AbstractEquilibrium,
     fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[],
     ψbound::Real=0.0;
     Rx::AbstractVector=Real[],
@@ -330,10 +331,7 @@ function fixed_eq_currents(
     return_cost::Bool=false)
 
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, fixed_coils, ψbound)
-
-    return currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils;
-        λ_regularize=λ_regularize,
-        return_cost=return_cost)
+    return currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize, return_cost)
 end
 
 
@@ -351,25 +349,26 @@ Distribute n point coils around fixed boundary plasma to get a free boundary ψ 
 """
 function fixed2free(
     EQfixed::Equilibrium.AbstractEquilibrium,
-    n_coils::Integer,
-    R::AbstractVector,
-    Z::AbstractVector)
+    n_coils::Integer;
+    R::AbstractVector=EQfixed.r,
+    Z::AbstractVector=EQfixed.z)
+
     coils = encircling_coils(EQfixed, n_coils)
-    fixed_eq_currents(EQfixed, coils, AbstractCoil[], 0.0)
-    return fixed2free(EQfixed, coils, R, Z)
+    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, coils)
+    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=1E-14)
+    return transpose(fixed2free(EQfixed, coils, R, Z))
 end
 
 function encircling_coils(EQfixed::Equilibrium.AbstractEquilibrium, n_coils::Integer)
     bnd = Equilibrium.boundary(EQfixed)
     R0 = sum(bnd.r) / length(bnd.r)
     Z0 = sum(bnd.z) / length(bnd.z)
-
     t = LinRange(0, 2π, n_coils + 1)[1:n_coils]
-    a = maximum(bnd.r) - minimum(bnd.r)
+    a = R0 * 0.99
     b = maximum(bnd.z) - minimum(bnd.z)
-    a = sqrt(a * b)
-
-    coils_r = 2.0 .^ (a .* cos.(t) .+ R0) ./ (2.0 .^ (a + R0)) .* (a + R0)
+    b = max(a, b)
+    a = min(a, b)
+    coils_r = a .* cos.(t) .+ R0
     coils_z = b .* sin.(t) .+ Z0
     return [PointCoil(r, z) for (r, z) in zip(coils_r, coils_z)]
 end
@@ -380,6 +379,7 @@ function fixed2free(
     R::AbstractVector,
     Z::AbstractVector;
     tp=Float64)
+
     ψb = psi_boundary(EQfixed)
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
 
@@ -479,7 +479,6 @@ function check_fixed_eq_currents(
             title="Free Boundary", ylabel="Z (m)",
             xlim=(Rmin, Rmax), ylim=(Zmin, Zmax))
         contour!(R, Z, ψ_free, levels=lvls_off, linecolor=:black)
-
 
         pfix = heatmap(R, Z, ψ_fix, clim=clim, c=:diverging,
             aspect_ratio=:equal, linecolor=:black,
