@@ -196,9 +196,10 @@ function ψp_on_fixed_eq_boundary(
     EQfixed::Equilibrium.AbstractEquilibrium,
     fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[],
     ψbound::Real=0.0;
-    Rx::AbstractVector=Real[],
-    Zx::AbstractVector=Real[],
-    fraction_inside::Real=0.999)
+    Rx::AbstractVector{<:Real}=Real[],
+    Zx::AbstractVector{<:Real}=Real[],
+    fraction_inside::Union{Nothing,Real}=0.999)
+
     ψ0, ψb = psi_limits(EQfixed)
     ψb = psi_boundary(EQfixed)
 
@@ -350,13 +351,16 @@ Distribute n point coils around fixed boundary plasma to get a free boundary ψ 
 function fixed2free(
     EQfixed::Equilibrium.AbstractEquilibrium,
     n_coils::Integer;
-    R::AbstractVector=EQfixed.r,
-    Z::AbstractVector=EQfixed.z)
+    Rx::AbstractVector{<:Real}=Real[],
+    Zx::AbstractVector{<:Real}=Real[],
+    fraction_inside::Union{Nothing,Real}=0.999,
+    Rgrid::AbstractVector{<:Real}=EQfixed.r,
+    Zgrid::AbstractVector{<:Real}=EQfixed.z)
 
     coils = encircling_coils(EQfixed, n_coils)
-    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, coils)
-    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=1E-14)
-    return transpose(fixed2free(EQfixed, coils, R, Z))
+    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, coils; fraction_inside, Rx, Zx)
+    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=1E-15)
+    return transpose(fixed2free(EQfixed, coils, Rgrid, Zgrid))
 end
 
 function encircling_coils(EQfixed::Equilibrium.AbstractEquilibrium, n_coils::Integer)
@@ -376,8 +380,8 @@ end
 function fixed2free(
     EQfixed::Equilibrium.AbstractEquilibrium,
     coils::AbstractVector{<:AbstractCoil},
-    R::AbstractVector,
-    Z::AbstractVector;
+    R::AbstractVector{<:Real},
+    Z::AbstractVector{<:Real};
     tp=Float64)
 
     ψb = psi_boundary(EQfixed)
@@ -508,7 +512,7 @@ end
 
 Calculate flux from coils on a R, Z grid
 """
-function coils_flux(Bp_fac, coils, R::AbstractVector, Z::AbstractVector)
+function coils_flux(Bp_fac::Real, coils::AbstractVector{<:AbstractCoil}, R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
     ψ = zeros(length(R), length(Z))
     @threads for i in 1:length(R)
         @inbounds r = R[i]
@@ -520,7 +524,7 @@ function coils_flux(Bp_fac, coils, R::AbstractVector, Z::AbstractVector)
     return ψ
 end
 
-function plot_coil_flux(Bp_fac, coils, ψbound=0.0;
+function plot_coil_flux(Bp_fac::Real, coils::AbstractVector{<:AbstractCoil}, ψbound=0.0;
     resolution=129, clim=nothing,
     Rmin=nothing, Rmax=nothing, Zmin=nothing, Zmax=nothing)
 
