@@ -209,7 +209,9 @@ function ψp_on_fixed_eq_boundary(
     # ψ₁ = ψp + ψcoil
     # ψcoil = (ψ₁ - ψ₀) + ψim
     Sp = flux_surface(EQfixed, fraction_inside * (ψb - ψ0) + ψ0)
-    Rp, Zp = Sp.r[1:end-1], Sp.z[1:end-1]
+    n = Int(floor(length(Sp.r) / 100.0)) + 1 # roughly at most 100 points
+    Rp, Zp = Sp.r[1:n:end-1], Sp.z[1:n:end-1]
+
     append!(Rp, Rx)
     append!(Zp, Zx)
 
