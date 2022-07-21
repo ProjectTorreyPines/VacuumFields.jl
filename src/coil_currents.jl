@@ -295,7 +295,7 @@ function currents_to_match_ψp(
 
     # handle weights
     if length(weights) > 0
-        ψp .*= weights
+        ψp = weights .* ψp
         mul!(Gcp, Diagonal(weights), Gcp)
     end
 
