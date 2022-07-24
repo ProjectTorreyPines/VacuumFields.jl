@@ -293,6 +293,14 @@ function currents_to_match_ψp(
     @threads for j = 1:length(coils)
         for i = 1:length(Rp)
             @inbounds Gcp[i, j] = μ₀ * Bp_fac * Green(coils[j], Rp[i], Zp[i])
+            for k = 1:length(coils)
+                if k==j
+                    continue
+                elseif sqrt((Rp[i]-Rp[k])^2+(Zp[i]+Zp[k])^2)<1E-2
+                    Gcp[i, j] /= 2.0
+                    Gcp[i, k] = Gcp[i, j]
+                end
+            end
         end
     end
 
