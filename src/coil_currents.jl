@@ -312,6 +312,16 @@ function currents_to_match_ψp(
         Ic0 = Gcp \ ψp
     end
 
+    for j = 1:length(coils)
+        for k = 1:length(coils)
+            if k == j
+                continue
+            elseif sqrt((coils[j].r - coils[k].r)^2 + (coils[j].z + coils[k].z)^2) < 1E-2
+                Ic0[j] = Ic0[k] = (Ic0[j] + Ic0[k]) / 2.0
+            end
+        end
+    end
+
     # update values of coils current
     for k in 1:length(coils)
         coils[k].current = Ic0[k]
