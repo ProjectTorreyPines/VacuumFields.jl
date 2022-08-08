@@ -76,8 +76,7 @@ function convex_hull(C::ParallelogramCoil)
 end
 
 function convex_hull(C::DistributedCoil)
-    pts = [[r, z] for (r, z) in zip(C.R, C.Z)]
-    return convex_hull(pts)
+    return convex_hull(C.R, C.Z; closed_polygon=true)
 end
 
 # ======== #
@@ -576,22 +575,11 @@ struct Point
 end
 
 function Base.isless(p::Point, q::Point)
-    p.x < q.x || (p.x == q.x && p.y < q.y)
+    return p.x < q.x || (p.x == q.x && p.y < q.y)
 end
 
-function isrightturn(p::Point, q::Point, r::Point)
-    (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x) < 0
-end
-
-function grahamscan(points::Vector{Point})
-    sorted = sort(points)
-    upperhull = halfhull(sorted)
-    lowerhull = halfhull(reverse(sorted))
-    [upperhull..., lowerhull[2:end-1]...]
-end
-
-function convex_hull(xy::Vector)
-    return [(k.x, k.y) for k in grahamscan([Point(xx, yx) for (xx, yx) in xy])]
+function isrightturn(p::Point, q::Point, r::Point)::Bool
+    return (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x) < 0.0
 end
 
 function halfhull(points::Vector{Point})
@@ -602,5 +590,31 @@ function halfhull(points::Vector{Point})
             deleteat!(halfhull, length(halfhull) - 1)
         end
     end
-    halfhull
+    return halfhull
+end
+
+function grahamscan(points::Vector{Point})
+    sorted = sort(points)
+    upperhull = halfhull(sorted)
+    lowerhull = halfhull(reverse(sorted))
+    return Point[upperhull..., lowerhull[2:end-1]...]
+end
+
+function convex_hull(xy_points::Vector{Point}; closed_polygon::Bool)
+    tmp = [(k.x, k.y) for k in grahamscan(xy_points)]
+    if closed_polygon
+        return push!(tmp, tmp[1])
+    else
+        return tmp
+    end
+end
+
+function convex_hull(xy::Vector; closed_polygon::Bool)
+    xy_points = [Point(xx, yx) for (xx, yx) in xy]
+    return convex_hull(xy_points; closed_polygon)
+end
+
+function convex_hull(x::Vector, y::Vector; closed_polygon::Bool)
+    xy_points = [Point(xx, yx) for (xx, yx) in zip(x, y)]
+    return convex_hull(xy_points; closed_polygon)
 end
