@@ -370,7 +370,7 @@ function encircling_coils(EQfixed::Equilibrium.AbstractEquilibrium, n_coils::Int
     Z0 = sum(bnd.z) / length(bnd.z)
     t = LinRange(0, 2π, n_coils + 1)[1:n_coils]
     a = R0 * 0.99
-    b = maximum(bnd.z) - minimum(bnd.z)
+    b = (maximum(bnd.z) - minimum(bnd.z)) * 1.5
     b = max(a, b)
     a = min(a, b)
     coils_r = a .* cos.(t) .+ R0
