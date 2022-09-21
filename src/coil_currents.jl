@@ -601,7 +601,7 @@ function halfhull(points::Vector{Point})
     halfhull = points[1:2]
     for p in points[3:end]
         push!(halfhull, p)
-        while length(halfhull) > 2 && !isrightturn(halfhull[end-2:end]...)
+        while length(halfhull) > 2 && !isrightturn(halfhull[end-2], halfhull[end-1], halfhull[end])
             deleteat!(halfhull, length(halfhull) - 1)
         end
     end
@@ -609,10 +609,10 @@ function halfhull(points::Vector{Point})
 end
 
 function grahamscan(points::Vector{Point})
-    sorted = sort(points)
-    upperhull = halfhull(sorted)
-    lowerhull = halfhull(reverse(sorted))
-    return Point[upperhull..., lowerhull[2:end-1]...]
+    sort!(points)
+    upperhull = halfhull(points)
+    lowerhull = halfhull(reverse!(points))
+    return Point[upperhull; lowerhull[2:end-1]]
 end
 
 function convex_hull(xy_points::Vector{Point}; closed_polygon::Bool)
