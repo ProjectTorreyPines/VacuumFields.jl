@@ -1,11 +1,12 @@
 abstract type AbstractCoil end
 
-mutable struct PointCoil <: AbstractCoil
-    R::Real
-    Z::Real
-    current::Real
-    PointCoil(R, Z) = new(R, Z, 0.0)
+mutable struct PointCoil{R1<:Real, R2<:Real, R3<:Real} <: AbstractCoil
+    R::R1
+    Z::R2
+    current::R3
 end
+
+PointCoil(R, Z) = PointCoil(R, Z, 0.0)
 
 """
     ParallelogramCoil <: AbstractCoil
@@ -13,28 +14,30 @@ end
 Parallelogram coil with the R, Z, ΔR, ΔZ, θ₁, θ₂ formalism (as used by EFIT, for example)
 Here θ₁ and θ₂ are the shear angles along the x- and y-axes, respectively, in degrees.
 """
-mutable struct ParallelogramCoil <: AbstractCoil
-    R::Real
-    Z::Real
-    ΔR::Real
-    ΔZ::Real
-    θ₁::Real
-    θ₂::Real
-    spacing::Union{Nothing,Real}
-    current::Real
-    ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing) = new(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing, 0.0)
+mutable struct ParallelogramCoil{R1<:Real, R2<:Real, R3<:Real, R4<:Real, R5<:Real, R6<:Real, UNR<:Union{Nothing,Real}, R7<:Real} <: AbstractCoil
+    R::R1
+    Z::R2
+    ΔR::R3
+    ΔZ::R4
+    θ₁::R5
+    θ₂::R6
+    spacing::UNR
+    current::R7
 end
+
+ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing) = ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing, 0.0)
 
 function ParallelogramCoil(R::Real, Z::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Union{Nothing,Real}=0.01)
     return ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing)
 end
 
-mutable struct DistributedCoil <: AbstractCoil
-    R::AbstractVector
-    Z::AbstractVector
-    current::Real
-    DistributedCoil(R, Z) = new(R, Z, 0.0)
+mutable struct DistributedCoil{AVR1<:AbstractVector{<:Real}, AVR2<:AbstractVector{<:Real}, R1<:Real} <: AbstractCoil
+    R::AVR1
+    Z::AVR2
+    current::R1
 end
+
+DistributedCoil(R, Z) = DistributedCoil(R, Z, 0.0)
 
 function DistributedParallelogramCoil(Rc::Real, Zc::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Union{Nothing,Real}=0.01)
     if spacing === nothing
@@ -119,7 +122,7 @@ function Green(C::ParallelogramCoil, R::Real, Z::Real, scale_factor::Real=1.0)
 end
 
 function Green(C::DistributedCoil, R::Real, Z::Real, scale_factor::Real=1.0)
-    return sum(Green(x, y, R, Z, scale_factor) for (x, y) in zip(C.R, C.Z)) / length(C.R)
+    return sum(Green(C.R[k], C.Z[k], R, Z, scale_factor) for k in eachindex(C.R)) / length(C.R)
 end
 
 function Green(C::PointCoil, R::Real, Z::Real, scale_factor::Real=1.0)
@@ -394,18 +397,30 @@ function fixed2free(
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed)
 
     # ψ from image and coil currents
-    @threads for i in 1:length(R)
-        r = R[i]
-        for j in 1:length(Z)
-            z = Z[j]
+    Threads.@threads for i in eachindex(R)
+        Vb = zero(Lb)
+        @inbounds r = R[i]
+        for j in eachindex(Z)
+            @inbounds z = Z[j]
             # subtract image ψ
-            @inbounds ψ_f2f[j, i] -= -trapz(Lb, dψdn_R .* Green.(Rb, Zb, r, z))
+            Vb .= dψdn_R .* Green.(Rb, Zb, r, z)
+            @inbounds ψ_f2f[j, i] -= -trapz(Lb, Vb)
             # add coil ψ
-            @inbounds ψ_f2f[j, i] += μ₀ * Bp_fac * sum([coil.current for coil in coils] .* Green.(coils, r, z))
+            @inbounds ψ_f2f[j, i] += μ₀ * Bp_fac * sum(coil.current * Green(coil, r, z) for coil in coils)
         end
     end
 
     return ψ_f2f
+end
+
+function fixed2free(
+    EQfixed::Equilibrium.AbstractEquilibrium,
+    coils::AbstractVector{<:ParallelogramCoil},
+    R::AbstractVector{<:Real},
+    Z::AbstractVector{<:Real};
+    tp=Float64)
+    dcoils = DistributedCoil.(coils)
+    return fixed2free(EQfixed, dcoils, R, Z; tp)
 end
 
 # ******************************************
