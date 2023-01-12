@@ -1,7 +1,7 @@
 using VacuumFields
 using Test
 using EFIT
-using Equilibrium
+using MXHEquilibrium
 import DelimitedFiles
 using Plots
 
