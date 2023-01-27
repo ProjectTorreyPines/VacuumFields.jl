@@ -2,7 +2,7 @@ __precompile__()
 
 module VacuumFields
 
-using Equilibrium
+using MXHEquilibrium
 using Plots
 using Trapz
 using Unzip

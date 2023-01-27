@@ -172,7 +172,7 @@ end
 # ========== #
 #   Physics  #
 # ========== #
-function fixed_boundary(EQfixed::Equilibrium.AbstractEquilibrium)
+function fixed_boundary(EQfixed::MXHEquilibrium.AbstractEquilibrium)
     Sb = boundary(EQfixed)
     Rb, Zb = Sb.r, Sb.z
     Lb = cumlength(Rb, Zb)
@@ -195,7 +195,7 @@ end
 Calculate ψ from image currents on boundary at surface p near boundary
 """
 function ψp_on_fixed_eq_boundary(
-    EQfixed::Equilibrium.AbstractEquilibrium,
+    EQfixed::MXHEquilibrium.AbstractEquilibrium,
     fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[],
     ψbound::Real=0.0;
     Rx::AbstractVector{<:Real}=Real[],
@@ -264,7 +264,7 @@ function field_null_on_boundary(ψp_constant::Real,
     # add in desired boundary flux
     ψbound != 0.0 && (ψp_constant .+= ψbound)
 
-    Bp_fac = Equilibrium.cocos(cocos).sigma_Bp * (2π)^Equilibrium.cocos(cocos).exp_Bp
+    Bp_fac = MXHEquilibrium.cocos(cocos).sigma_Bp * (2π)^MXHEquilibrium.cocos(cocos).exp_Bp
 
     # Compute flux from fixed coils and subtract from ψp to match
     ψfixed = zeros(length(Rp))
@@ -328,7 +328,7 @@ function currents_to_match_ψp(
 end
 
 function fixed_eq_currents(
-    EQfixed::Equilibrium.AbstractEquilibrium,
+    EQfixed::MXHEquilibrium.AbstractEquilibrium,
     coils::AbstractVector{<:AbstractCoil},
     fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[],
     ψbound::Real=0.0;
@@ -345,7 +345,7 @@ end
 # ***************************************************
 """
     fixed2free(
-        EQfixed::Equilibrium.AbstractEquilibrium,
+        EQfixed::MXHEquilibrium.AbstractEquilibrium,
         n_point_coils::Integer,
         R::AbstractVector,
         Z::AbstractVector)
@@ -353,7 +353,7 @@ end
 Distribute n point coils around fixed boundary plasma to get a free boundary ψ map
 """
 function fixed2free(
-    EQfixed::Equilibrium.AbstractEquilibrium,
+    EQfixed::MXHEquilibrium.AbstractEquilibrium,
     n_coils::Integer;
     Rx::AbstractVector{<:Real}=Real[],
     Zx::AbstractVector{<:Real}=Real[],
@@ -367,8 +367,8 @@ function fixed2free(
     return transpose(fixed2free(EQfixed, coils, Rgrid, Zgrid))
 end
 
-function encircling_coils(EQfixed::Equilibrium.AbstractEquilibrium, n_coils::Integer)
-    bnd = Equilibrium.boundary(EQfixed)
+function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Integer)
+    bnd = MXHEquilibrium.boundary(EQfixed)
     R0 = sum(bnd.r) / length(bnd.r)
     Z0 = sum(bnd.z) / length(bnd.z)
     t = LinRange(0, 2π, n_coils + 1)[1:n_coils]
@@ -382,7 +382,7 @@ function encircling_coils(EQfixed::Equilibrium.AbstractEquilibrium, n_coils::Int
 end
 
 function fixed2free(
-    EQfixed::Equilibrium.AbstractEquilibrium,
+    EQfixed::MXHEquilibrium.AbstractEquilibrium,
     coils::AbstractVector{<:AbstractCoil},
     R::AbstractVector{<:Real},
     Z::AbstractVector{<:Real};
@@ -414,7 +414,7 @@ function fixed2free(
 end
 
 function fixed2free(
-    EQfixed::Equilibrium.AbstractEquilibrium,
+    EQfixed::MXHEquilibrium.AbstractEquilibrium,
     coils::AbstractVector{<:ParallelogramCoil},
     R::AbstractVector{<:Real},
     Z::AbstractVector{<:Real};
