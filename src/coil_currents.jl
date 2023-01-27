@@ -173,7 +173,7 @@ end
 #   Physics  #
 # ========== #
 function fixed_boundary(EQfixed::MXHEquilibrium.AbstractEquilibrium)
-    Sb = boundary(EQfixed)
+    Sb = MXHEquilibrium.plasma_boundary(EQfixed)
     Rb, Zb = Sb.r, Sb.z
     Lb = cumlength(Rb, Zb)
 
@@ -368,7 +368,7 @@ function fixed2free(
 end
 
 function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Integer)
-    bnd = MXHEquilibrium.boundary(EQfixed)
+    bnd = MXHEquilibrium.plasma_boundary(EQfixed)
     R0 = sum(bnd.r) / length(bnd.r)
     Z0 = sum(bnd.z) / length(bnd.z)
     t = LinRange(0, 2π, n_coils + 1)[1:n_coils]
@@ -388,10 +388,10 @@ function fixed2free(
     Z::AbstractVector{<:Real};
     tp=Float64)
 
-    ψb = psi_boundary(EQfixed)
+    ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed)
+
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
 
-    Sb = boundary(EQfixed)
     ψ_f2f = [in_boundary(Sb, (r, z)) ? tp(EQfixed(r, z)) : ψb for z in Z, r in R]
 
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed)
