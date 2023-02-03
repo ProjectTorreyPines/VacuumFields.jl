@@ -2,6 +2,7 @@ __precompile__()
 
 module VacuumFields
 
+import MillerExtendedHarmonic
 using MXHEquilibrium
 using Plots
 using Trapz

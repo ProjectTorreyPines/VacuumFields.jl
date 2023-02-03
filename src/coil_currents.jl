@@ -1,6 +1,6 @@
 abstract type AbstractCoil end
 
-mutable struct PointCoil{R1<:Real, R2<:Real, R3<:Real} <: AbstractCoil
+mutable struct PointCoil{R1<:Real,R2<:Real,R3<:Real} <: AbstractCoil
     R::R1
     Z::R2
     current::R3
@@ -14,7 +14,7 @@ PointCoil(R, Z) = PointCoil(R, Z, 0.0)
 Parallelogram coil with the R, Z, ΔR, ΔZ, θ₁, θ₂ formalism (as used by EFIT, for example)
 Here θ₁ and θ₂ are the shear angles along the x- and y-axes, respectively, in degrees.
 """
-mutable struct ParallelogramCoil{R1<:Real, R2<:Real, R3<:Real, R4<:Real, R5<:Real, R6<:Real, UNR<:Union{Nothing,Real}, R7<:Real} <: AbstractCoil
+mutable struct ParallelogramCoil{R1<:Real,R2<:Real,R3<:Real,R4<:Real,R5<:Real,R6<:Real,UNR<:Union{Nothing,Real},R7<:Real} <: AbstractCoil
     R::R1
     Z::R2
     ΔR::R3
@@ -31,7 +31,7 @@ function ParallelogramCoil(R::Real, Z::Real, ΔR::Real, ΔZ::Real, θ₁::Real, 
     return ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing)
 end
 
-mutable struct DistributedCoil{AVR1<:AbstractVector{<:Real}, AVR2<:AbstractVector{<:Real}, R1<:Real} <: AbstractCoil
+mutable struct DistributedCoil{AVR1<:AbstractVector{<:Real},AVR2<:AbstractVector{<:Real},R1<:Real} <: AbstractCoil
     R::AVR1
     Z::AVR2
     current::R1
@@ -173,7 +173,7 @@ end
 #   Physics  #
 # ========== #
 function fixed_boundary(EQfixed::MXHEquilibrium.AbstractEquilibrium)
-    Sb = MXHEquilibrium.plasma_boundary(EQfixed)
+    Sb = MXHEquilibrium.plasma_boundary(EQfixed; precision=0.0)
     Rb, Zb = Sb.r, Sb.z
     Lb = cumlength(Rb, Zb)
 
@@ -203,7 +203,7 @@ function ψp_on_fixed_eq_boundary(
     fraction_inside::Union{Nothing,Real}=0.999)
 
     ψ0, ψb = psi_limits(EQfixed)
-    ψb = psi_boundary(EQfixed)
+    ψb = psi_boundary(EQfixed; precision=0.0)
 
     # ψp is the flux from the image currents on the plasma boundary
     # which is equal and opposite to the flux from the plasma current
@@ -363,22 +363,16 @@ function fixed2free(
 
     coils = encircling_coils(EQfixed, n_coils)
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, coils; fraction_inside, Rx, Zx)
-    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=1E-15)
+    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=1E-12)
     return transpose(fixed2free(EQfixed, coils, Rgrid, Zgrid))
 end
 
 function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Integer)
-    bnd = MXHEquilibrium.plasma_boundary(EQfixed)
-    R0 = sum(bnd.r) / length(bnd.r)
-    Z0 = sum(bnd.z) / length(bnd.z)
-    t = LinRange(0, 2π, n_coils + 1)[1:n_coils]
-    a = R0 * 0.99
-    b = (maximum(bnd.z) - minimum(bnd.z)) * 1.5
-    b = max(a, b)
-    a = min(a, b)
-    coils_r = a .* cos.(t) .+ R0
-    coils_z = b .* sin.(t) .+ Z0
-    return [PointCoil(r, z) for (r, z) in zip(coils_r, coils_z)]
+    bnd = MXHEquilibrium.plasma_boundary(EQfixed; precision=0.0)
+    mxh = MillerExtendedHarmonic.MXH(bnd.r, bnd.z, 2)
+    mxh.ϵ = 0.9
+    Θ = LinRange(0, 2π, n_coils)[1:end-1]
+    return [PointCoil(r, z) for (r, z) in mxh.(Θ)]
 end
 
 function fixed2free(
@@ -388,8 +382,7 @@ function fixed2free(
     Z::AbstractVector{<:Real};
     tp=Float64)
 
-    ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed)
-
+    ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0)
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
 
     ψ_f2f = [in_boundary(Sb, (r, z)) ? tp(EQfixed(r, z)) : ψb for z in Z, r in R]
@@ -456,7 +449,7 @@ function check_fixed_eq_currents(
     # ψ from fixed-boundary gEQDSK
     # make ψ at boundary zero, and very small value outside for plotting
     ψ0_fix, ψb_fix = psi_limits(EQfixed)
-    ψb_fix = psi_boundary(EQfixed)
+    ψb_fix = psi_boundary(EQfixed; precision=0.0)
     σ₀ = sign(ψ0_fix - ψb_fix)
     ψ_fix = [EQfixed(r, z) for z in Z, r in R] .- ψb_fix
     ψ_fix = ifelse.(σ₀ * ψ_fix .> 0, ψ_fix, 1e-6 * ψ_fix)
@@ -487,7 +480,7 @@ function check_fixed_eq_currents(
     else
         # Heat maps for free, fix, fix->free, and difference
         # ψ from free-boundary gEQDSK
-        ψb_free = psi_boundary(EQfree)
+        ψb_free = psi_boundary(EQfree; precision=0.0)
         ψ_free = [EQfree(r, z) for z in Z, r in R]
         offset = ψb_free - ψb_fix
 
