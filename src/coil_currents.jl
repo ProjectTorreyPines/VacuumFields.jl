@@ -172,13 +172,12 @@ end
 # ========== #
 #   Physics  #
 # ========== #
-function fixed_boundary(EQfixed::MXHEquilibrium.AbstractEquilibrium)
-    Sb = MXHEquilibrium.plasma_boundary(EQfixed; precision=0.0)
+function fixed_boundary(EQfixed::MXHEquilibrium.AbstractEquilibrium, Sb::MXHEquilibrium.PlasmaBoundary)
     Rb, Zb = Sb.r, Sb.z
     Lb = cumlength(Rb, Zb)
 
     # dPsi/dn = σ_RφZ * σ_ρθφ * Bp_fac * R * Bpol
-    Bpol = poloidal_Bfield.(EQfixed, Rb, Zb)
+    Bpol = MXHEquilibrium.poloidal_Bfield.(EQfixed, Rb, Zb)
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
     σ_ρθφ = EQfixed.cocos.sigma_rhotp
     dψdn_R = σ_ρθφ * Bp_fac * Bpol
@@ -202,15 +201,15 @@ function ψp_on_fixed_eq_boundary(
     Zx::AbstractVector{<:Real}=Real[],
     fraction_inside::Union{Nothing,Real}=0.999)
 
-    ψ0, ψb = psi_limits(EQfixed)
-    ψb = psi_boundary(EQfixed; precision=0.0)
+    ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
+    ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0)
 
     # ψp is the flux from the image currents on the plasma boundary
     # which is equal and opposite to the flux from the plasma current
     # ψ₀ = ψp + ψim
     # ψ₁ = ψp + ψcoil
     # ψcoil = (ψ₁ - ψ₀) + ψim
-    Sp = flux_surface(EQfixed, fraction_inside * (ψb - ψ0) + ψ0)
+    Sp = MXHEquilibrium.flux_surface(EQfixed, fraction_inside * (ψb - ψ0) + ψ0)
     n = Int(floor(length(Sp.r) / 100.0)) + 1 # roughly at most 100 points
     Rp, Zp = Sp.r[1:n:end-1], Sp.z[1:n:end-1]
 
@@ -219,7 +218,7 @@ function ψp_on_fixed_eq_boundary(
 
     # this is the image current contribution to the control points
     ψp = Array{Float64,1}(undef, length(Rp))
-    Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed)
+    Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed, Sb)
     @threads for i = 1:length(Rp)
         ψp[i] = -trapz(Lb, dψdn_R .* Green.(Rb, Zb, Rp[i], Zp[i]))
     end
@@ -362,8 +361,9 @@ function fixed2free(
     Zgrid::AbstractVector{<:Real}=EQfixed.z)
 
     coils = encircling_coils(EQfixed, n_coils)
-    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, coils; fraction_inside, Rx, Zx)
-    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=1E-12)
+    ψbound, _ = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0)
+    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, coils, ψbound; fraction_inside, Rx, Zx)
+    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=1E-14)
     return transpose(fixed2free(EQfixed, coils, Rgrid, Zgrid))
 end
 
@@ -382,12 +382,15 @@ function fixed2free(
     Z::AbstractVector{<:Real};
     tp=Float64)
 
-    ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0)
+    # upsample tracing of boundary to get smooth LCFS from fixed2free
+    R1 = LinRange(minimum(R), maximum(R), length(R) * 10)
+    Z1 = LinRange(minimum(Z), maximum(Z), length(Z) * 10)
+    ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0, r=R1, z=Z1)
+
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
+    ψ_f2f = [MXHEquilibrium.in_boundary(Sb, (r, z)) ? tp(EQfixed(r, z)) : ψb for z in Z, r in R]
 
-    ψ_f2f = [in_boundary(Sb, (r, z)) ? tp(EQfixed(r, z)) : ψb for z in Z, r in R]
-
-    Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed)
+    Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed, Sb)
 
     # ψ from image and coil currents
     Threads.@threads for i in eachindex(R)
@@ -422,7 +425,7 @@ end
 function check_fixed_eq_currents(
     EQfixed,
     coils::AbstractVector{<:AbstractCoil},
-    EQfree::Union{AbstractEquilibrium,Nothing}=nothing;
+    EQfree::Union{MXHEquilibrium.AbstractEquilibrium,Nothing}=nothing;
     resolution=257,
     Rmin=nothing,
     Rmax=nothing,
@@ -448,8 +451,8 @@ function check_fixed_eq_currents(
 
     # ψ from fixed-boundary gEQDSK
     # make ψ at boundary zero, and very small value outside for plotting
-    ψ0_fix, ψb_fix = psi_limits(EQfixed)
-    ψb_fix = psi_boundary(EQfixed; precision=0.0)
+    ψ0_fix, ψb_fix = MXHEquilibrium.psi_limits(EQfixed)
+    ψb_fix = MXHEquilibrium.psi_boundary(EQfixed; precision=0.0)
     σ₀ = sign(ψ0_fix - ψb_fix)
     ψ_fix = [EQfixed(r, z) for z in Z, r in R] .- ψb_fix
     ψ_fix = ifelse.(σ₀ * ψ_fix .> 0, ψ_fix, 1e-6 * ψ_fix)
