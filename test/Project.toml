@@ -1,0 +1,6 @@
+[deps]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+EFIT = "cda752c5-6b03-55a3-9e33-132a441b0c17"
+MXHEquilibrium = "8efa4e5a-7b9a-4eec-876e-01d13d5b5d75"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"

@@ -6,7 +6,6 @@ import MillerExtendedHarmonic
 import MXHEquilibrium
 using Plots
 using Trapz
-using Unzip
 import SpecialFunctions
 using Base.Threads
 using LinearAlgebra
