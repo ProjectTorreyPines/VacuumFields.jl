@@ -388,7 +388,7 @@ function fixed2free(
     ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0, r=R1, z=Z1)
 
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
-    ψ_f2f = [MXHEquilibrium.in_boundary(Sb, (r, z)) ? tp(EQfixed(r, z)) : ψb for z in Z, r in R]
+    ψ_f2f = tp[MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) : ψb for z in Z, r in R]
 
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed, Sb)
 
@@ -612,11 +612,11 @@ function grahamscan(points::Vector{Point})
 end
 
 function convex_hull(xy_points::Vector{Point}; closed_polygon::Bool)
-    tmp = [(k.x, k.y) for k in grahamscan(xy_points)]
+    hull = [(k.x, k.y) for k in grahamscan(xy_points)]
     if closed_polygon
-        return push!(tmp, tmp[1])
+        return push!(hull, hull[1])
     else
-        return tmp
+        return hull
     end
 end
 
