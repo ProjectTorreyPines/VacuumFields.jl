@@ -203,6 +203,10 @@ function ψp_on_fixed_eq_boundary(
 
     ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
     ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0)
+    if Sb === nothing
+        # if the original boundary specified in EQfixed does not close, then find LCFS boundary
+        ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed)
+    end
 
     # ψp is the flux from the image currents on the plasma boundary
     # which is equal and opposite to the flux from the plasma current
@@ -219,7 +223,7 @@ function ψp_on_fixed_eq_boundary(
     # this is the image current contribution to the control points
     ψp = Array{Float64,1}(undef, length(Rp))
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed, Sb)
-    @threads for i = 1:length(Rp)
+    @threads for i in eachindex(Rp)
         ψp[i] = -trapz(Lb, dψdn_R .* Green.(Rb, Zb, Rp[i], Zp[i]))
     end
 
@@ -235,8 +239,8 @@ function ψp_on_fixed_eq_boundary(
     # Compute flux from fixed coils and subtract from ψp to match
     # This works whether ψp is a constant or a vector
     ψfixed = zeros(length(Rp))
-    @threads for j in 1:length(fixed_coils)
-        for i = 1:length(Rp)
+    @threads for j in eachindex(fixed_coils)
+        for i = eachindex(Rp)
             @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_coils[j].current
         end
     end
@@ -267,8 +271,8 @@ function field_null_on_boundary(ψp_constant::Real,
 
     # Compute flux from fixed coils and subtract from ψp to match
     ψfixed = zeros(length(Rp))
-    @threads for j in 1:length(fixed_coils)
-        for i = 1:length(Rp)
+    @threads for j in eachindex(fixed_coils)
+        for i = eachindex(Rp)
             @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_coils[j].current
         end
     end
@@ -291,8 +295,8 @@ function currents_to_match_ψp(
     # Compute coil currents needed to recreate ψp at points (Rp,Zp)
     # Build matrix relating coil Green's functions to boundary points
     Gcp = Array{tp,2}(undef, length(Rp), length(coils))
-    @threads for j = 1:length(coils)
-        for i = 1:length(Rp)
+    @threads for j = eachindex(coils)
+        for i = eachindex(Rp)
             @inbounds Gcp[i, j] = μ₀ * Bp_fac * Green(coils[j], Rp[i], Zp[i])
         end
     end
@@ -314,7 +318,7 @@ function currents_to_match_ψp(
     end
 
     # update values of coils current
-    for k in 1:length(coils)
+    for k in eachindex(coils)
         coils[k].current = Ic0[k]
     end
 
@@ -361,7 +365,11 @@ function fixed2free(
     Zgrid::AbstractVector{<:Real}=EQfixed.z)
 
     coils = encircling_coils(EQfixed, n_coils)
-    ψbound, _ = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0)
+    ψbound = MXHEquilibrium.psi_boundary(EQfixed; precision=0.0)
+    if ψbound === nothing
+        # if the original boundary specified in EQfixed does not close, then find LCFS boundary
+        ψbound = MXHEquilibrium.psi_boundary(EQfixed)
+    end
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, coils, ψbound; fraction_inside, Rx, Zx)
     currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=1E-14)
     return transpose(fixed2free(EQfixed, coils, Rgrid, Zgrid))
@@ -369,6 +377,10 @@ end
 
 function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Integer)
     bnd = MXHEquilibrium.plasma_boundary(EQfixed; precision=0.0)
+    if bnd === nothing
+        # if the original boundary specified in EQfixed does not close, then find LCFS boundary
+        bnd = MXHEquilibrium.plasma_boundary(EQfixed)
+    end
     mxh = MillerExtendedHarmonic.MXH(bnd.r, bnd.z, 2)
     mxh.ϵ = 0.9
     Θ = LinRange(0, 2π, n_coils)[1:end-1]
@@ -386,6 +398,10 @@ function fixed2free(
     R1 = LinRange(minimum(R), maximum(R), length(R) * 10)
     Z1 = LinRange(minimum(Z), maximum(Z), length(Z) * 10)
     ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0, r=R1, z=Z1)
+    if Sb === nothing
+        # if the original boundary specified in EQfixed does not close, then find LCFS boundary
+        ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; r=R1, z=Z1)
+    end
 
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
     ψ_f2f = tp[MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) : ψb for z in Z, r in R]
@@ -453,6 +469,10 @@ function check_fixed_eq_currents(
     # make ψ at boundary zero, and very small value outside for plotting
     ψ0_fix, ψb_fix = MXHEquilibrium.psi_limits(EQfixed)
     ψb_fix = MXHEquilibrium.psi_boundary(EQfixed; precision=0.0)
+    if ψb_fix === nothing
+        # if the original boundary specified in EQfixed does not close, then find LCFS boundary
+        ψb_fix = MXHEquilibrium.psi_boundary(EQfixed)
+    end
     σ₀ = sign(ψ0_fix - ψb_fix)
     ψ_fix = [EQfixed(r, z) for z in Z, r in R] .- ψb_fix
     ψ_fix = ifelse.(σ₀ * ψ_fix .> 0, ψ_fix, 1e-6 * ψ_fix)
@@ -484,6 +504,10 @@ function check_fixed_eq_currents(
         # Heat maps for free, fix, fix->free, and difference
         # ψ from free-boundary gEQDSK
         ψb_free = psi_boundary(EQfree; precision=0.0)
+        if ψb_free === nothing
+            # if the original boundary specified in EQfixed does not close, then find LCFS boundary
+            ψb_free = psi_boundary(EQfree)
+        end
         ψ_free = [EQfree(r, z) for z in Z, r in R]
         offset = ψb_free - ψb_fix
 
@@ -526,9 +550,9 @@ Calculate flux from coils on a R, Z grid
 """
 function coils_flux(Bp_fac::Real, coils::AbstractVector{<:AbstractCoil}, R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
     ψ = zeros(length(R), length(Z))
-    @threads for i in 1:length(R)
+    @threads for i in eachindex(R)
         @inbounds r = R[i]
-        for j in 1:length(Z)
+        for j in eachindex(Z)
             @inbounds z = Z[j]
             @inbounds ψ[i, j] += μ₀ * Bp_fac * sum([coil.current for coil in coils] .* Green.(coils, r, z))
         end
