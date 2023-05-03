@@ -554,7 +554,7 @@ function coils_flux(Bp_fac::Real, coils::AbstractVector{<:AbstractCoil}, R::Abst
         @inbounds r = R[i]
         for j in eachindex(Z)
             @inbounds z = Z[j]
-            @inbounds ψ[i, j] += μ₀ * Bp_fac * sum([coil.current for coil in coils] .* Green.(coils, r, z))
+            @inbounds ψ[i, j] += μ₀ * Bp_fac * sum(coil.current*Green.(coils, r, z) for coil in coils)
         end
     end
     return ψ
