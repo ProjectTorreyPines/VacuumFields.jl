@@ -149,7 +149,7 @@ function cumlength(R, Z)
     # Length along boundary
     L = Array{Float64,1}(undef, length(R))
     @inbounds L[1] = 0
-    for i in 2:length(R)
+    for i in eachindex(R)[2:end]
         @inbounds L[i] = L[i-1] + sqrt((R[i] - R[i-1])^2 + (Z[i] - Z[i-1])^2)
     end
     return L
@@ -180,6 +180,21 @@ function fixed_boundary(EQfixed::MXHEquilibrium.AbstractEquilibrium, Sb::MXHEqui
     Bpol = MXHEquilibrium.poloidal_Bfield.(EQfixed, Rb, Zb)
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
     σ_ρθφ = EQfixed.cocos.sigma_rhotp
+    dψdn_R = σ_ρθφ * Bp_fac * Bpol
+    return (Rb, Zb, Lb, dψdn_R)
+end
+
+function fixed_boundary(shot::TEQUILA.Shot, bnd::MillerExtendedHarmonic.MXH; Nb::Integer=100 * length(bnd.c))
+    return fixed_boundary(shot, bnd(Nb, adaptive = false)...)
+end
+
+function fixed_boundary(shot::TEQUILA.Shot, Rb::AbstractVector{<:Real}, Zb::AbstractVector{<:Real})
+    Lb = cumlength(Rb, Zb)
+    # dPsi/dn = σ_RφZ * σ_ρθφ * Bp_fac * R * Bpol
+    Bpol = MXHEquilibrium.poloidal_Bfield.(Ref(shot), Rb, Zb)
+    cocos = MXHEquilibrium.cocos(shot)
+    Bp_fac = cocos.sigma_Bp * (2π)^cocos.exp_Bp
+    σ_ρθφ = cocos.sigma_rhotp
     dψdn_R = σ_ρθφ * Bp_fac * Bpol
     return (Rb, Zb, Lb, dψdn_R)
 end
@@ -235,6 +250,62 @@ function ψp_on_fixed_eq_boundary(
     ψbound != 0.0 && (ψp .+= ψbound)
 
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
+
+    # Compute flux from fixed coils and subtract from ψp to match
+    # This works whether ψp is a constant or a vector
+    ψfixed = zeros(length(Rp))
+    @threads for j in eachindex(fixed_coils)
+        for i = eachindex(Rp)
+            @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_coils[j].current
+        end
+    end
+    ψp = ψp .- ψfixed
+
+    return Bp_fac, ψp, Rp, Zp
+end
+
+function ψp_on_fixed_eq_boundary(shot::TEQUILA.Shot, fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[],
+                                 ψbound::Real=0.0; Rx::AbstractVector{<:Real}=Real[],
+                                 Zx::AbstractVector{<:Real}=Real[], fraction_inside::Union{Nothing,Real}=0.999)
+
+    Sb = @views MillerExtendedHarmonic.MXH(shot.surfaces[:,end])
+
+    # ψp is the flux from the image currents on the plasma boundary
+    # which is equal and opposite to the flux from the plasma current
+    # ψ₀ = ψp + ψim
+    # ψ₁ = ψp + ψcoil
+    # ψcoil = (ψ₁ - ψ₀) + ψim
+    Sp = MillerExtendedHarmonic.MXH(shot, fraction_inside)
+    Np = 100 * length(Sp.c)
+    Nx = length(Rx)
+
+    Rp = zeros(Np + Nx)
+    Zp = zeros(Np + Nx)
+    r, z = Sp(Np+1, adaptive = false)
+    Rp[1:Np] .= r[1:end-1]
+    Zp[1:Np] .= z[1:end-1]
+    if Nx > 0
+        Rp[(Np + 1):end] .= Rx
+        Zp[(Np + 1):end] .= Zx
+    end
+
+    Rb, Zb, Lb, dψdn_R = @views fixed_boundary(shot, Sb)
+
+    # this is the image current contribution to the control points
+    ψp = Array{Float64,1}(undef, length(Rp))
+    @threads for i in eachindex(Rp)
+        ψp[i] = -trapz(Lb, dψdn_R .* Green.(Rb, Zb, Rp[i], Zp[i]))
+    end
+
+    # this is to account that the control points are inside of the LCFS
+    # applied only to the plasma points
+    ψp[1:Np] .+= TEQUILA.psi_ρθ(shot, fraction_inside, 0.0)
+
+    # add in desired boundary flux
+    ψbound != 0.0 && (ψp .+= ψbound)
+
+    cocos = MXHEquilibrium.cocos(shot)
+    Bp_fac = cocos.sigma_Bp * (2π)^cocos.exp_Bp
 
     # Compute flux from fixed coils and subtract from ψp to match
     # This works whether ψp is a constant or a vector
@@ -375,6 +446,35 @@ function fixed2free(
     return transpose(fixed2free(EQfixed, coils, Rgrid, Zgrid))
 end
 
+function fixed2free(shot::TEQUILA.Shot, n_coils::Integer; n_grid=10 * length(shot.ρ), kwargs...)
+    R0 = shot.surfaces[1, end]
+    Z0 = shot.surfaces[2, end]
+    ϵ  = shot.surfaces[3, end]
+    κ  = shot.surfaces[4, end]
+    a = R0 * ϵ
+    b = κ * a
+
+    Rgrid = range(R0 - a, R0 + a, n_grid)
+    Zgrid = range(Z0 - b, Z0 + b, n_grid)
+    return Rgrid, Zgrid, fixed2free(shot, n_coils, Rgrid, Zgrid; kwargs...)
+end
+
+function fixed2free(
+    shot::TEQUILA.Shot,
+    n_coils::Integer,
+    Rgrid::AbstractVector{<:Real},
+    Zgrid::AbstractVector{<:Real};
+    Rx::AbstractVector{<:Real}=Real[],
+    Zx::AbstractVector{<:Real}=Real[],
+    fraction_inside::Union{Nothing,Real}=0.999,
+    ψbound::Real=0.0)
+
+    coils = encircling_coils(shot, n_coils)
+    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(shot, coils, ψbound; fraction_inside, Rx, Zx)
+    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=1E-14)
+    return transpose(fixed2free(shot, coils, Rgrid, Zgrid; ψbound))
+end
+
 function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Integer)
     bnd = MXHEquilibrium.plasma_boundary(EQfixed; precision=0.0)
     if bnd === nothing
@@ -383,8 +483,25 @@ function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::
     end
     mxh = MillerExtendedHarmonic.MXH(bnd.r, bnd.z, 2)
     mxh.ϵ = 0.9
-    Θ = LinRange(0, 2π, n_coils)[1:end-1]
+    Θ = LinRange(0, 2π, n_coils+1)[1:end-1]
     return [PointCoil(r, z) for (r, z) in mxh.(Θ)]
+end
+
+function encircling_coils(shot::TEQUILA.Shot, n_coils::Integer)
+    mxh = @views MillerExtendedHarmonic.MXH(shot.surfaces[:,end])
+    mxh.ϵ = 0.9
+    Θ = LinRange(0, 2π, n_coils+1)[1:end-1]
+    return [PointCoil(r, z) for (r, z) in mxh.(Θ)]
+end
+
+function fixed2free(
+    EQfixed::MXHEquilibrium.AbstractEquilibrium,
+    coils::AbstractVector{<:ParallelogramCoil},
+    R::AbstractVector{<:Real},
+    Z::AbstractVector{<:Real};
+    tp=Float64)
+    dcoils = DistributedCoil.(coils)
+    return fixed2free(EQfixed, dcoils, R, Z; tp)
 end
 
 function fixed2free(
@@ -426,13 +543,35 @@ function fixed2free(
 end
 
 function fixed2free(
-    EQfixed::MXHEquilibrium.AbstractEquilibrium,
-    coils::AbstractVector{<:ParallelogramCoil},
+    shot::TEQUILA.Shot,
+    coils::AbstractVector{<:AbstractCoil},
     R::AbstractVector{<:Real},
     Z::AbstractVector{<:Real};
-    tp=Float64)
-    dcoils = DistributedCoil.(coils)
-    return fixed2free(EQfixed, dcoils, R, Z; tp)
+    tp=Float64,
+    ψbound::Real=0.0)
+
+    bnd = @views MillerExtendedHarmonic.MXH(shot.surfaces[:,end])
+    cocos = MXHEquilibrium.cocos(shot)
+    Bp_fac = cocos.sigma_Bp * (2π)^cocos.exp_Bp
+    ψ_f2f = tp[shot(r, z) + ψbound for z in Z, r in R]
+
+    Rb, Zb, Lb, dψdn_R = fixed_boundary(shot, bnd)
+
+    # ψ from image and coil currents
+    Threads.@threads for i in eachindex(R)
+        Vb = zero(Lb)
+        @inbounds r = R[i]
+        for j in eachindex(Z)
+            @inbounds z = Z[j]
+            # subtract image ψ
+            Vb .= dψdn_R .* Green.(Rb, Zb, r, z)
+            @inbounds ψ_f2f[j, i] -= -trapz(Lb, Vb)
+            # add coil ψ
+            @inbounds ψ_f2f[j, i] += μ₀ * Bp_fac * sum(coil.current * Green(coil, r, z) for coil in coils)
+        end
+    end
+
+    return ψ_f2f
 end
 
 # ******************************************

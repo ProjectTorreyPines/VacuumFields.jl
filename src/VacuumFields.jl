@@ -7,6 +7,7 @@ using Trapz
 import SpecialFunctions
 using Base.Threads
 using LinearAlgebra
+import TEQUILA
 
 const μ₀ = 4e-7*π
 const inv2π = 1.0/(2π)
