@@ -740,23 +740,26 @@ function plot_coil_flux(Bp_fac::Real, coils::AbstractVector{<:AbstractCoil}, ψb
     return p
 end
 
-# ******************************************
-# Convex Hull
-# ******************************************
-struct Point
-    x::Float64
-    y::Float64
+# ########### #
+# Convex Hull #
+# ########### #
+function points_isless(p::AbstractVector{T}, q::AbstractVector{T}) where T
+    return p[1] < q[1] || (p[1] == q[1] && p[2] < q[2])
 end
 
-function Base.isless(p::Point, q::Point)
-    return p.x < q.x || (p.x == q.x && p.y < q.y)
+function points_isless(p::Tuple{T, T}, q::Tuple{T, T}) where T
+    return p[1] < q[1] || (p[1] == q[1] && p[2] < q[2])
 end
 
-function isrightturn(p::Point, q::Point, r::Point)::Bool
-    return (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x) < 0.0
+function isrightturn(p::AbstractVector{T}, q::AbstractVector{T}, r::AbstractVector{T}) where T
+    return (q[1] - p[1]) * (r[2] - p[2]) - (q[2] - p[2]) * (r[1] - p[1]) < 0.0
 end
 
-function halfhull(points::Vector{Point})
+function isrightturn(p::Tuple{T, T}, q::Tuple{T, T}, r::Tuple{T, T}) where T
+    return (q[1] - p[1]) * (r[2] - p[2]) - (q[2] - p[2]) * (r[1] - p[1]) < 0.0
+end
+
+function halfhull(points::AbstractVector)
     halfhull = points[1:2]
     for p in points[3:end]
         push!(halfhull, p)
@@ -767,15 +770,15 @@ function halfhull(points::Vector{Point})
     return halfhull
 end
 
-function grahamscan(points::Vector{Point})
-    sort!(points)
+function grahamscan!(points::AbstractVector)
+    sort!(points, lt=points_isless)
     upperhull = halfhull(points)
     lowerhull = halfhull(reverse!(points))
-    return Point[upperhull; lowerhull[2:end-1]]
+    return [upperhull; lowerhull[2:end-1]]
 end
 
-function convex_hull(xy_points::Vector{Point}; closed_polygon::Bool)
-    hull = [(k.x, k.y) for k in grahamscan(xy_points)]
+function convex_hull!(xy_points::AbstractVector; closed_polygon::Bool)
+    hull = grahamscan!(xy_points)
     if closed_polygon
         return push!(hull, hull[1])
     else
@@ -783,12 +786,11 @@ function convex_hull(xy_points::Vector{Point}; closed_polygon::Bool)
     end
 end
 
-function convex_hull(xy::Vector; closed_polygon::Bool)
-    xy_points = [Point(xx, yx) for (xx, yx) in xy]
-    return convex_hull(xy_points; closed_polygon)
+function convex_hull(xy_points::AbstractVector; closed_polygon::Bool)
+    convex_hull!(deepcopy(xy_points); closed_polygon)
 end
 
-function convex_hull(x::Vector, y::Vector; closed_polygon::Bool)
-    xy_points = [Point(xx, yx) for (xx, yx) in zip(x, y)]
-    return convex_hull(xy_points; closed_polygon)
+function convex_hull(x::AbstractVector{T}, y::AbstractVector{T}; closed_polygon::Bool) where T
+    xy_points = [(xx, yx) for (xx, yx) in zip(x, y)]
+    return convex_hull!(xy_points; closed_polygon)
 end
