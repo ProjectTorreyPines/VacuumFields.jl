@@ -743,37 +743,40 @@ end
 # ########### #
 # Convex Hull #
 # ########### #
-function points_isless(p::AbstractVector{T}, q::AbstractVector{T}) where T
+@inline function points_isless(p::AbstractVector{T}, q::AbstractVector{T}) where T
     return p[1] < q[1] || (p[1] == q[1] && p[2] < q[2])
 end
 
-function points_isless(p::Tuple{T, T}, q::Tuple{T, T}) where T
+@inline function points_isless(p::Tuple{T, T}, q::Tuple{T, T}) where T
     return p[1] < q[1] || (p[1] == q[1] && p[2] < q[2])
 end
 
-function isrightturn(p::AbstractVector{T}, q::AbstractVector{T}, r::AbstractVector{T}) where T
+@inline function isrightturn(p::AbstractVector{T}, q::AbstractVector{T}, r::AbstractVector{T}) where T
     return (q[1] - p[1]) * (r[2] - p[2]) - (q[2] - p[2]) * (r[1] - p[1]) < 0.0
 end
 
-function isrightturn(p::Tuple{T, T}, q::Tuple{T, T}, r::Tuple{T, T}) where T
+@inline function isrightturn(p::Tuple{T, T}, q::Tuple{T, T}, r::Tuple{T, T}) where T
     return (q[1] - p[1]) * (r[2] - p[2]) - (q[2] - p[2]) * (r[1] - p[1]) < 0.0
 end
 
 function halfhull(points::AbstractVector)
-    halfhull = points[1:2]
-    for p in points[3:end]
-        push!(halfhull, p)
-        while length(halfhull) > 2 && !isrightturn(halfhull[end-2], halfhull[end-1], halfhull[end])
-            deleteat!(halfhull, length(halfhull) - 1)
+    halfhull = similar(points)
+    n = 0
+    for p in points
+        while n > 1 && !isrightturn(halfhull[n-1], halfhull[n], p)
+            n -= 1
         end
+        n += 1
+        halfhull[n] = p
     end
-    return halfhull
+    return view(halfhull, 1:n)
 end
 
 function grahamscan!(points::AbstractVector)
     sort!(points, lt=points_isless)
     upperhull = halfhull(points)
-    lowerhull = halfhull(reverse!(points))
+    reverse!(points)
+    lowerhull = halfhull(points)
     return [upperhull; lowerhull[2:end-1]]
 end
 
