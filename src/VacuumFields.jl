@@ -19,7 +19,7 @@ include("elliptic.jl")
 export plot_coil_flux, check_fixed_eq_currents, fixed2free, encircling_coils
 export fixed_eq_currents, ψp_on_fixed_eq_boundary, field_null_on_boundary, currents_to_match_ψp
 export AbstractCoil, PointCoil, DistributedCoil, coil
-export plot_coils, plot_coil
+export plot_coil
 
 const coils_D3D_matrix = [[ 8.6080e-01  1.6830e-01  5.0800e-02  3.2110e-01  0.0000e+00  9.0000e+01]
                           [ 8.6140e-01  5.0810e-01  5.0800e-02  3.2110e-01  0.0000e+00  9.0000e+01]

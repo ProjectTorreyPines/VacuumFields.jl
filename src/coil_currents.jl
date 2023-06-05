@@ -1,9 +1,9 @@
 abstract type AbstractCoil end
 
-mutable struct PointCoil{R1<:Real,R2<:Real,R3<:Real} <: AbstractCoil
-    R::R1
-    Z::R2
-    current::R3
+mutable struct PointCoil{T<:Real,C<:Real} <: AbstractCoil
+    R::T
+    Z::T
+    current::C
 end
 
 PointCoil(R, Z) = PointCoil(R, Z, 0.0)
@@ -14,32 +14,32 @@ PointCoil(R, Z) = PointCoil(R, Z, 0.0)
 Parallelogram coil with the R, Z, ΔR, ΔZ, θ₁, θ₂ formalism (as used by EFIT, for example)
 Here θ₁ and θ₂ are the shear angles along the x- and y-axes, respectively, in degrees.
 """
-mutable struct ParallelogramCoil{R1<:Real,R2<:Real,R3<:Real,R4<:Real,R5<:Real,R6<:Real,UNR<:Union{Nothing,Real},R7<:Real} <: AbstractCoil
-    R::R1
-    Z::R2
-    ΔR::R3
-    ΔZ::R4
-    θ₁::R5
-    θ₂::R6
+mutable struct ParallelogramCoil{T<:Real,UNR<:Union{Nothing,<:Real},C<:Real} <: AbstractCoil
+    R::T
+    Z::T
+    ΔR::T
+    ΔZ::T
+    θ₁::T
+    θ₂::T
     spacing::UNR
-    current::R7
+    current::C
 end
 
 ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing) = ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing, 0.0)
 
-function ParallelogramCoil(R::Real, Z::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Union{Nothing,Real}=0.01)
+function ParallelogramCoil(R::T, Z::T, ΔR::T, ΔZ::T, θ₁::T, θ₂::T; spacing::UNR=0.01) where {T<:Real,UNR<:Union{Nothing,<:Real}}
     return ParallelogramCoil(R, Z, ΔR, ΔZ, θ₁, θ₂, spacing)
 end
 
-mutable struct DistributedCoil{AVR1<:AbstractVector{<:Real},AVR2<:AbstractVector{<:Real},R1<:Real} <: AbstractCoil
-    R::AVR1
-    Z::AVR2
-    current::R1
+mutable struct DistributedCoil{AVR<:AbstractVector{<:Real},C<:Real} <: AbstractCoil
+    R::AVR
+    Z::AVR
+    current::C
 end
 
 DistributedCoil(R, Z) = DistributedCoil(R, Z, 0.0)
 
-function DistributedParallelogramCoil(Rc::Real, Zc::Real, ΔR::Real, ΔZ::Real, θ₁::Real, θ₂::Real; spacing::Union{Nothing,Real}=0.01)
+function DistributedParallelogramCoil(Rc::T, Zc::T, ΔR::T, ΔZ::T, θ₁::T, θ₂::T; spacing::UNR=0.01) where {T<:Real,UNR<:Union{Nothing,<:Real}}
     if spacing === nothing
         dR = [-0.5 * ΔR, 0.5 * ΔR]
         dZ = [-0.5 * ΔZ, 0.5 * ΔZ]
@@ -75,7 +75,7 @@ end
 # ============== #
 function convex_hull(C::ParallelogramCoil)
     C = DistributedParallelogramCoil(C.R, C.Z, C.ΔR, C.ΔZ, C.θ₁, C.θ₂; spacing=nothing)
-    return [[r, z] for (r, z) in zip(C.R, C.Z)]
+    return collect(zip(C.R, C.Z))
 end
 
 function convex_hull(C::DistributedCoil)
@@ -100,36 +100,22 @@ function plot_coil(C::PointCoil)
     plot!([C.R], [C.Z], marker=:circle, markercolor=:black)
 end
 
-function plot_coils(Cs::AbstractVector{<:AbstractCoil})
-    p = plot(aspect_ratio=:equal, legend=false)
-    for C in Cs
-        plot_coil(C)
-    end
-    Rmin, Rmax, Zmin, Zmax = bounds(Cs)
-    Rmin -= 0.05 * (abs(Rmin) + abs(Rmax))
-    Rmax += 0.05 * (abs(Rmin) + abs(Rmax))
-    Zmin -= 0.05 * (abs(Zmin) + abs(Zmax))
-    Zmax += 0.05 * (abs(Zmin) + abs(Zmax))
-    plot!(xlim=(Rmin, Rmax), ylim=(Zmin, Zmax))
-    display(p)
-end
-
 # ======== #
 #   Green  #
 # ======== #
-function Green(C::ParallelogramCoil, R::Real, Z::Real, scale_factor::Real=1.0)
+function Green(C::ParallelogramCoil, R::T, Z::T, scale_factor::Float64=1.0) where {T<:Real}
     return Green(DistributedCoil(C), R, Z, scale_factor)
 end
 
-function Green(C::DistributedCoil, R::Real, Z::Real, scale_factor::Real=1.0)
+function Green(C::DistributedCoil, R::T, Z::T, scale_factor::Float64=1.0) where {T<:Real}
     return sum(Green(C.R[k], C.Z[k], R, Z, scale_factor) for k in eachindex(C.R)) / length(C.R)
 end
 
-function Green(C::PointCoil, R::Real, Z::Real, scale_factor::Real=1.0)
+function Green(C::PointCoil, R::T, Z::T, scale_factor::Float64=1.0) where {T<:Real}
     return Green(C.R, C.Z, R, Z, scale_factor)
 end
 
-function Green(X::Real, Y::Real, R::Real, Z::Real, scale_factor::Real=1.0)
+function Green(X::T, Y::T, R::T, Z::T, scale_factor::Float64=1.0) where {T<:Real}
     XR = X * R
     m = 4.0 * XR / ((X + R)^2 + (Y - Z)^2) # this is k^2
     if true # Use our own `Real` version of the elliptic functions to allow for ForwardDiff to work (copied from SpecialFunctions)
@@ -145,7 +131,7 @@ end
 # ======== #
 #   Utils  #
 # ======== #
-function cumlength(R, Z)
+function cumlength(R::T, Z::T) where {T<:AbstractVector{Float64}}
     # Length along boundary
     L = Array{Float64,1}(undef, length(R))
     @inbounds L[1] = 0
@@ -185,10 +171,10 @@ function fixed_boundary(EQfixed::MXHEquilibrium.AbstractEquilibrium, Sb::MXHEqui
 end
 
 function fixed_boundary(shot::TEQUILA.Shot, bnd::MillerExtendedHarmonic.MXH; Nb::Integer=100 * length(bnd.c))
-    return fixed_boundary(shot, bnd(Nb, adaptive = false)...)
+    return fixed_boundary(shot, bnd(Nb, adaptive=false)...)
 end
 
-function fixed_boundary(shot::TEQUILA.Shot, Rb::AbstractVector{<:Real}, Zb::AbstractVector{<:Real})
+function fixed_boundary(shot::TEQUILA.Shot, Rb::AbstractVector{T}, Zb::AbstractVector{T}) where {T<:Real}
     Lb = cumlength(Rb, Zb)
     # dPsi/dn = σ_RφZ * σ_ρθφ * Bp_fac * R * Bpol
     Bpol = MXHEquilibrium.poloidal_Bfield.(Ref(shot), Rb, Zb)
@@ -212,9 +198,9 @@ function ψp_on_fixed_eq_boundary(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
     fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[],
     ψbound::Real=0.0;
-    Rx::AbstractVector{<:Real}=Real[],
-    Zx::AbstractVector{<:Real}=Real[],
-    fraction_inside::Union{Nothing,Real}=0.999)
+    Rx::AbstractVector{T}=Float64[],
+    Zx::AbstractVector{T}=Float64[],
+    fraction_inside::Union{Nothing,<:Real}=0.999) where {T<:Real}
 
     ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
     ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0)
@@ -264,11 +250,12 @@ function ψp_on_fixed_eq_boundary(
     return Bp_fac, ψp, Rp, Zp
 end
 
-function ψp_on_fixed_eq_boundary(shot::TEQUILA.Shot, fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[],
-                                 ψbound::Real=0.0; Rx::AbstractVector{<:Real}=Real[],
-                                 Zx::AbstractVector{<:Real}=Real[], fraction_inside::Union{Nothing,Real}=0.999)
+function ψp_on_fixed_eq_boundary(shot::TEQUILA.Shot, fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[], ψbound::Real=0.0;
+    Rx::AbstractVector{T}=Float64[],
+    Zx::AbstractVector{T}=Float64[],
+    fraction_inside::Union{Nothing,<:Real}=0.999) where {T<:Real}
 
-    Sb = @views MillerExtendedHarmonic.MXH(shot.surfaces[:,end])
+    Sb = @views MillerExtendedHarmonic.MXH(shot.surfaces[:, end])
 
     # ψp is the flux from the image currents on the plasma boundary
     # which is equal and opposite to the flux from the plasma current
@@ -281,12 +268,12 @@ function ψp_on_fixed_eq_boundary(shot::TEQUILA.Shot, fixed_coils::AbstractVecto
 
     Rp = zeros(Np + Nx)
     Zp = zeros(Np + Nx)
-    r, z = Sp(Np+1, adaptive = false)
+    r, z = Sp(Np + 1, adaptive=false)
     Rp[1:Np] .= r[1:end-1]
     Zp[1:Np] .= z[1:end-1]
     if Nx > 0
-        Rp[(Np + 1):end] .= Rx
-        Zp[(Np + 1):end] .= Zx
+        Rp[(Np+1):end] .= Rx
+        Zp[(Np+1):end] .= Zx
     end
 
     Rb, Zb, Lb, dψdn_R = @views fixed_boundary(shot, Sb)
@@ -328,12 +315,13 @@ end
 
 Account for effect of fixed coils on ψp_constant
 """
-function field_null_on_boundary(ψp_constant::Real,
-    Rp::AbstractVector,
-    Zp::AbstractVector,
+function field_null_on_boundary(
+    ψp_constant::Real,
+    Rp::AbstractVector{T},
+    Zp::AbstractVector{T},
     fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[],
     ψbound::Real=0.0,
-    cocos::Int=11)
+    cocos::Int=11) where {T<:Real}
 
     # add in desired boundary flux
     ψbound != 0.0 && (ψp_constant .+= ψbound)
@@ -354,18 +342,17 @@ end
 
 function currents_to_match_ψp(
     Bp_fac::Float64,
-    ψp::Vector{<:Real},
-    Rp::Vector{<:Real},
-    Zp::Vector{<:Real},
+    ψp::AbstractVector{<:Real},
+    Rp::AbstractVector{T},
+    Zp::AbstractVector{T},
     coils::AbstractVector{<:AbstractCoil};
     weights::Vector{Float64}=Float64[],
     λ_regularize::Float64=1E-16,
-    return_cost::Bool=false,
-    tp=Float64)
+    return_cost::Bool=false) where {T<:Real}
 
     # Compute coil currents needed to recreate ψp at points (Rp,Zp)
     # Build matrix relating coil Green's functions to boundary points
-    Gcp = Array{tp,2}(undef, length(Rp), length(coils))
+    Gcp = Array{T,2}(undef, length(Rp), length(coils))
     @threads for j = eachindex(coils)
         for i = eachindex(Rp)
             @inbounds Gcp[i, j] = μ₀ * Bp_fac * Green(coils[j], Rp[i], Zp[i])
@@ -406,7 +393,7 @@ function fixed_eq_currents(
     coils::AbstractVector{<:AbstractCoil},
     fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[],
     ψbound::Real=0.0;
-    λ_regularize::Real=1E-16,
+    λ_regularize::Float64=1E-16,
     return_cost::Bool=false)
 
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, fixed_coils, ψbound)
@@ -429,11 +416,11 @@ Distribute n point coils around fixed boundary plasma to get a free boundary ψ 
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
     n_coils::Integer;
-    Rx::AbstractVector{<:Real}=Real[],
-    Zx::AbstractVector{<:Real}=Real[],
-    fraction_inside::Union{Nothing,Real}=0.999,
-    Rgrid::AbstractVector{<:Real}=EQfixed.r,
-    Zgrid::AbstractVector{<:Real}=EQfixed.z)
+    Rx::AbstractVector{T}=Float64[],
+    Zx::AbstractVector{T}=Float64[],
+    fraction_inside::Union{Nothing,<:Real}=0.999,
+    Rgrid::AbstractVector{Float64}=EQfixed.r,
+    Zgrid::AbstractVector{Float64}=EQfixed.z) where {T<:Real}
 
     coils = encircling_coils(EQfixed, n_coils)
     ψbound = MXHEquilibrium.psi_boundary(EQfixed; precision=0.0)
@@ -449,8 +436,8 @@ end
 function fixed2free(shot::TEQUILA.Shot, n_coils::Integer; n_grid=10 * length(shot.ρ), kwargs...)
     R0 = shot.surfaces[1, end]
     Z0 = shot.surfaces[2, end]
-    ϵ  = shot.surfaces[3, end]
-    κ  = shot.surfaces[4, end]
+    ϵ = shot.surfaces[3, end]
+    κ = shot.surfaces[4, end]
     a = R0 * ϵ
     b = κ * a
 
@@ -462,12 +449,12 @@ end
 function fixed2free(
     shot::TEQUILA.Shot,
     n_coils::Integer,
-    Rgrid::AbstractVector{<:Real},
-    Zgrid::AbstractVector{<:Real};
-    Rx::AbstractVector{<:Real}=Real[],
-    Zx::AbstractVector{<:Real}=Real[],
-    fraction_inside::Union{Nothing,Real}=0.999,
-    ψbound::Real=0.0)
+    Rgrid::AbstractVector{Float64},
+    Zgrid::AbstractVector{Float64};
+    Rx::AbstractVector{T}=Float64[],
+    Zx::AbstractVector{T}=Float64[],
+    fraction_inside::Union{Nothing,<:Real}=0.999,
+    ψbound::Real=0.0) where {T<:Real}
 
     coils = encircling_coils(shot, n_coils)
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(shot, coils, ψbound; fraction_inside, Rx, Zx)
@@ -483,33 +470,31 @@ function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::
     end
     mxh = MillerExtendedHarmonic.MXH(bnd.r, bnd.z, 2)
     mxh.ϵ = 0.9
-    Θ = LinRange(0, 2π, n_coils+1)[1:end-1]
+    Θ = LinRange(0, 2π, n_coils + 1)[1:end-1]
     return [PointCoil(r, z) for (r, z) in mxh.(Θ)]
 end
 
 function encircling_coils(shot::TEQUILA.Shot, n_coils::Integer)
-    mxh = @views MillerExtendedHarmonic.MXH(shot.surfaces[:,end])
+    mxh = @views MillerExtendedHarmonic.MXH(shot.surfaces[:, end])
     mxh.ϵ = 0.9
-    Θ = LinRange(0, 2π, n_coils+1)[1:end-1]
+    Θ = LinRange(0, 2π, n_coils + 1)[1:end-1]
     return [PointCoil(r, z) for (r, z) in mxh.(Θ)]
 end
 
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
     coils::AbstractVector{<:ParallelogramCoil},
-    R::AbstractVector{<:Real},
-    Z::AbstractVector{<:Real};
-    tp=Float64)
+    R::AbstractVector{T},
+    Z::AbstractVector{T}) where {T<:Real}
     dcoils = DistributedCoil.(coils)
-    return fixed2free(EQfixed, dcoils, R, Z; tp)
+    return fixed2free(EQfixed, dcoils, R, Z)
 end
 
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
     coils::AbstractVector{<:AbstractCoil},
-    R::AbstractVector{<:Real},
-    Z::AbstractVector{<:Real};
-    tp=Float64)
+    R::AbstractVector{T},
+    Z::AbstractVector{T}) where {T<:Real}
 
     # upsample tracing of boundary to get smooth LCFS from fixed2free
     R1 = LinRange(minimum(R), maximum(R), length(R) * 10)
@@ -521,7 +506,7 @@ function fixed2free(
     end
 
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
-    ψ_f2f = tp[MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) : ψb for z in Z, r in R]
+    ψ_f2f = T[MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) : ψb for z in Z, r in R]
 
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed, Sb)
 
@@ -545,15 +530,14 @@ end
 function fixed2free(
     shot::TEQUILA.Shot,
     coils::AbstractVector{<:AbstractCoil},
-    R::AbstractVector{<:Real},
-    Z::AbstractVector{<:Real};
-    tp=Float64,
-    ψbound::Real=0.0)
+    R::AbstractVector{T},
+    Z::AbstractVector{T};
+    ψbound::Real=0.0) where {T<:Real}
 
-    bnd = @views MillerExtendedHarmonic.MXH(shot.surfaces[:,end])
+    bnd = @views MillerExtendedHarmonic.MXH(shot.surfaces[:, end])
     cocos = MXHEquilibrium.cocos(shot)
     Bp_fac = cocos.sigma_Bp * (2π)^cocos.exp_Bp
-    ψ_f2f = tp[shot(r, z) + ψbound for z in Z, r in R]
+    ψ_f2f = T[shot(r, z) + ψbound for z in Z, r in R]
 
     Rb, Zb, Lb, dψdn_R = fixed_boundary(shot, bnd)
 
@@ -687,13 +671,13 @@ end
 
 Calculate flux from coils on a R, Z grid
 """
-function coils_flux(Bp_fac::Real, coils::AbstractVector{<:AbstractCoil}, R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
+function coils_flux(Bp_fac::Real, coils::AbstractVector{<:AbstractCoil}, R::AbstractVector{T}, Z::AbstractVector{T}) where {T<:Real}
     ψ = zeros(length(R), length(Z))
     @threads for i in eachindex(R)
         @inbounds r = R[i]
         for j in eachindex(Z)
             @inbounds z = Z[j]
-            @inbounds ψ[i, j] += μ₀ * Bp_fac * sum(coil.current*Green(coil, r, z) for coil in coils)
+            @inbounds ψ[i, j] += μ₀ * Bp_fac * sum(coil.current * Green(coil, r, z) for coil in coils)
         end
     end
     return ψ
@@ -743,19 +727,19 @@ end
 # ########### #
 # Convex Hull #
 # ########### #
-@inline function points_isless(p::AbstractVector{T}, q::AbstractVector{T}) where T
+@inline function points_isless(p::AbstractVector{T}, q::AbstractVector{T}) where {T}
     return p[1] < q[1] || (p[1] == q[1] && p[2] < q[2])
 end
 
-@inline function points_isless(p::Tuple{T, T}, q::Tuple{T, T}) where T
+@inline function points_isless(p::Tuple{T,T}, q::Tuple{T,T}) where {T}
     return p[1] < q[1] || (p[1] == q[1] && p[2] < q[2])
 end
 
-@inline function isrightturn(p::AbstractVector{T}, q::AbstractVector{T}, r::AbstractVector{T}) where T
+@inline function isrightturn(p::AbstractVector{T}, q::AbstractVector{T}, r::AbstractVector{T}) where {T}
     return (q[1] - p[1]) * (r[2] - p[2]) - (q[2] - p[2]) * (r[1] - p[1]) < 0.0
 end
 
-@inline function isrightturn(p::Tuple{T, T}, q::Tuple{T, T}, r::Tuple{T, T}) where T
+@inline function isrightturn(p::Tuple{T,T}, q::Tuple{T,T}, r::Tuple{T,T}) where {T}
     return (q[1] - p[1]) * (r[2] - p[2]) - (q[2] - p[2]) * (r[1] - p[1]) < 0.0
 end
 
@@ -793,7 +777,7 @@ function convex_hull(xy_points::AbstractVector; closed_polygon::Bool)
     convex_hull!(deepcopy(xy_points); closed_polygon)
 end
 
-function convex_hull(x::AbstractVector{T}, y::AbstractVector{T}; closed_polygon::Bool) where T
+function convex_hull(x::AbstractVector{T}, y::AbstractVector{T}; closed_polygon::Bool) where {T}
     xy_points = [(xx, yx) for (xx, yx) in zip(x, y)]
     return convex_hull!(xy_points; closed_polygon)
 end
