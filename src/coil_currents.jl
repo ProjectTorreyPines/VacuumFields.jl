@@ -468,14 +468,18 @@ function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::
         # if the original boundary specified in EQfixed does not close, then find LCFS boundary
         bnd = MXHEquilibrium.plasma_boundary(EQfixed)
     end
-    mxh = MillerExtendedHarmonic.MXH(bnd.r, bnd.z, 2)
-    mxh.ϵ = 0.9
-    Θ = LinRange(0, 2π, n_coils + 1)[1:end-1]
-    return [PointCoil(r, z) for (r, z) in mxh.(Θ)]
+
+    return encircling_coils(bnd.r, bnd.z, n_coils)
 end
 
 function encircling_coils(shot::TEQUILA.Shot, n_coils::Integer)
-    mxh = @views MillerExtendedHarmonic.MXH(shot.surfaces[:, end])
+    bnd_r, bnd_z = MillerExtendedHarmonic.MXH(shot.surfaces[:, end])()
+    return encircling_coils(bnd_r, bnd_z, n_coils)
+end
+
+function encircling_coils(bnd_r::AbstractVector{T}, bnd_z::AbstractVector{T}, n_coils::Integer) where {T<:Real}
+    mxh = MillerExtendedHarmonic.MXH(bnd_r, bnd_z, 2)
+    mxh.R0 = mxh.R0 .* (1.0 + mxh.ϵ)
     mxh.ϵ = 0.9
     Θ = LinRange(0, 2π, n_coils + 1)[1:end-1]
     return [PointCoil(r, z) for (r, z) in mxh.(Θ)]
