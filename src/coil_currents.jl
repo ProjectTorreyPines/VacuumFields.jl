@@ -711,7 +711,7 @@ function plot_coil_flux(Bp_fac::Real, coils::AbstractVector{<:AbstractCoil}, ψb
     ψ = coils_flux(Bp_fac, coils, R, Z)
 
     if clim === nothing
-        ψmax = maximum(abs.(ψ))
+        ψmax = maximum(abs, ψ)
         clim = (ψbound - ψmax, ψbound + ψmax)
     end
 
