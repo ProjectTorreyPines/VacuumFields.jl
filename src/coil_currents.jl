@@ -118,13 +118,7 @@ end
 function Green(X::T, Y::T, R::T, Z::T, scale_factor::Float64=1.0) where {T<:Real}
     XR = X * R
     m = 4.0 * XR / ((X + R)^2 + (Y - Z)^2) # this is k^2
-    if true # Use our own `Real` version of the elliptic functions to allow for ForwardDiff to work (copied from SpecialFunctions)
-        Km = ellipk(m)
-        Em = ellipe(m)
-    else
-        Km = SpecialFunctions.ellipk(m)
-        Em = SpecialFunctions.ellipe(m)
-    end
+    Km, Em = ellipke(m)
     return inv2π * (2.0 * Em - (2.0 - m) * Km) * sqrt(XR / m) * scale_factor
 end
 
