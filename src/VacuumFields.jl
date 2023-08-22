@@ -4,7 +4,6 @@ import MillerExtendedHarmonic
 import MXHEquilibrium
 using Plots
 using Trapz
-import SpecialFunctions
 using Base.Threads
 using LinearAlgebra
 import TEQUILA
