@@ -115,7 +115,7 @@ function Green(C::PointCoil, R::T, Z::T, scale_factor::Float64=1.0) where {T<:Re
     return Green(C.R, C.Z, R, Z, scale_factor)
 end
 
-function Green(X::T, Y::T, R::T, Z::T, scale_factor::Float64=1.0) where {T<:Real}
+@inline function Green(X::T, Y::T, R::T, Z::T, scale_factor::Float64=1.0) where {T<:Real}
     XR = X * R
     m = 4.0 * XR / ((X + R)^2 + (Y - Z)^2) # this is k^2
     Km, Em = ellipke(m)
@@ -157,10 +157,8 @@ function fixed_boundary(EQfixed::MXHEquilibrium.AbstractEquilibrium, Sb::MXHEqui
     Lb = cumlength(Rb, Zb)
 
     # dPsi/dn = σ_RφZ * σ_ρθφ * Bp_fac * R * Bpol
-    Bpol = MXHEquilibrium.poloidal_Bfield.(EQfixed, Rb, Zb)
-    Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
-    σ_ρθφ = EQfixed.cocos.sigma_rhotp
-    dψdn_R = σ_ρθφ * Bp_fac * Bpol
+    fac = EQfixed.cocos.sigma_rhotp *  EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
+    dψdn_R = fac .* MXHEquilibrium.poloidal_Bfield.(Ref(EQfixed), Rb, Zb)
     return (Rb, Zb, Lb, dψdn_R)
 end
 
@@ -171,11 +169,9 @@ end
 function fixed_boundary(shot::TEQUILA.Shot, Rb::AbstractVector{T}, Zb::AbstractVector{T}) where {T<:Real}
     Lb = cumlength(Rb, Zb)
     # dPsi/dn = σ_RφZ * σ_ρθφ * Bp_fac * R * Bpol
-    Bpol = MXHEquilibrium.poloidal_Bfield.(Ref(shot), Rb, Zb)
     cocos = MXHEquilibrium.cocos(shot)
-    Bp_fac = cocos.sigma_Bp * (2π)^cocos.exp_Bp
-    σ_ρθφ = cocos.sigma_rhotp
-    dψdn_R = σ_ρθφ * Bp_fac * Bpol
+    fac = cocos.sigma_rhotp * cocos.sigma_Bp * (2π)^cocos.exp_Bp
+    dψdn_R = fac .* MXHEquilibrium.poloidal_Bfield.(Ref(shot), Rb, Zb)
     return (Rb, Zb, Lb, dψdn_R)
 end
 
@@ -347,7 +343,7 @@ function currents_to_match_ψp(
     # Compute coil currents needed to recreate ψp at points (Rp,Zp)
     # Build matrix relating coil Green's functions to boundary points
     Gcp = Array{T,2}(undef, length(Rp), length(coils))
-    @threads for j = eachindex(coils)
+    Threads.@threads for j = eachindex(coils)
         for i = eachindex(Rp)
             @inbounds Gcp[i, j] = μ₀ * Bp_fac * Green(coils[j], Rp[i], Zp[i])
         end
@@ -488,6 +484,7 @@ function fixed2free(
     return fixed2free(EQfixed, dcoils, R, Z)
 end
 
+
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
     coils::AbstractVector{<:AbstractCoil},
@@ -507,18 +504,18 @@ function fixed2free(
     ψ_f2f = T[MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) : ψb for z in Z, r in R]
 
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed, Sb)
+    Vbs = [similar(Lb) for _ in Threads.nthreads()]
 
     # ψ from image and coil currents
-    Threads.@threads for i in eachindex(R)
-        Vb = zero(Lb)
+    Threads.@threads :static for i in eachindex(R)
         @inbounds r = R[i]
         for j in eachindex(Z)
             @inbounds z = Z[j]
-            # subtract image ψ
+            Vb = Vbs[Threads.threadid()]
             Vb .= dψdn_R .* Green.(Rb, Zb, r, z)
-            @inbounds ψ_f2f[j, i] -= -trapz(Lb, Vb)
-            # add coil ψ
-            @inbounds ψ_f2f[j, i] += μ₀ * Bp_fac * sum(coil.current * Green(coil, r, z) for coil in coils)
+            ψi = -Trapz.trapz(Lb, Vb)
+            ψc = μ₀ * Bp_fac * sum(coil.current * Green(coil, r, z) for coil in coils)
+            ψ_f2f[j, i] += ψc - ψi
         end
     end
 

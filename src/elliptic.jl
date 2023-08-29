@@ -36,7 +36,7 @@ For ``m<0``, followed by
 > <https://www.researchgate.net/publication/267330394>
 As suggested in this paper, the domain is restricted to ``(-\infty,1]``.
 """
-function ellipk(m::Real)
+@inline function ellipk(m::Real)
     flag_is_m_neg = false
     if m < 0.0
         x               = m / (m-1)         #dealing with negative args
@@ -162,7 +162,7 @@ function ellipk(m::Real)
             0.179481482914906162 , 0.144556057087555150 , 0.123200993312427711 ,
             0.108938811574293531 , 0.098853409871592910 , 0.091439629201749751 ,
             0.085842591595413900 , 0.081541118718303215)
-        km  = -Base.log(qd) * (kdm/pi)
+        km  = -log(qd) * (kdm/pi)
         t   = km
     end
 
@@ -343,7 +343,7 @@ function ellipe(m::Real)
     end
 end
 
-function ellipke(m::Real)
+@inline function ellipke(m::Real)
 
     km  = ellipk(m)
 
