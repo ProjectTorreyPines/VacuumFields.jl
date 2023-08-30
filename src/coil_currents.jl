@@ -504,7 +504,7 @@ function fixed2free(
     ψ_f2f = T[MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) : ψb for z in Z, r in R]
 
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed, Sb)
-    Vbs = [similar(Lb) for _ in Threads.nthreads()]
+    Vbs = [similar(Lb) for _ in 1:Threads.nthreads()]
 
     # ψ from image and coil currents
     Threads.@threads :static for i in eachindex(R)
