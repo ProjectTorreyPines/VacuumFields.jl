@@ -504,18 +504,18 @@ function fixed2free(
     ψ_f2f = T[MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) : ψb for z in Z, r in R]
 
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed, Sb)
-    Vbs = [similar(Lb) for _ in Threads.nthreads()]
 
     # ψ from image and coil currents
-    Threads.@threads :static for i in eachindex(R)
-        @inbounds r = R[i]
-        for j in eachindex(Z)
-            @inbounds z = Z[j]
-            Vb = Vbs[Threads.threadid()]
-            Vb .= dψdn_R .* Green.(Rb, Zb, r, z)
-            ψi = -Trapz.trapz(Lb, Vb)
-            ψc = μ₀ * Bp_fac * sum(coil.current * Green(coil, r, z) for coil in coils)
-            ψ_f2f[j, i] += ψc - ψi
+    @inbounds begin
+        Threads.@threads for i in eachindex(R)
+            r = R[i]
+            for j in eachindex(Z)
+                z = Z[j]
+                Vb = dψdn_R .* Green.(Rb, Zb, r, z)
+                ψi = -Trapz.trapz(Lb, Vb)
+                ψc = μ₀ * Bp_fac * sum(coil.current * Green(coil, r, z) for coil in coils)
+                ψ_f2f[j, i] += ψc - ψi
+            end
         end
     end
 
