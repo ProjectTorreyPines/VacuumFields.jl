@@ -93,11 +93,11 @@ function plot_coil(C::DistributedCoil)
     hull = convex_hull(C)
     R = [r for (r, z) in hull]
     Z = [z for (r, z) in hull]
-    plot!(Shape(R, Z), color=:black, alpha=0.2, label="")
+    return plot!(Shape(R, Z); color=:black, alpha=0.2, label="")
 end
 
 function plot_coil(C::PointCoil)
-    plot!([C.R], [C.Z], marker=:circle, markercolor=:black)
+    return plot!([C.R], [C.Z]; marker=:circle, markercolor=:black)
 end
 
 # ======== #
@@ -157,13 +157,13 @@ function fixed_boundary(EQfixed::MXHEquilibrium.AbstractEquilibrium, Sb::MXHEqui
     Lb = cumlength(Rb, Zb)
 
     # dPsi/dn = σ_RφZ * σ_ρθφ * Bp_fac * R * Bpol
-    fac = EQfixed.cocos.sigma_rhotp *  EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
+    fac = EQfixed.cocos.sigma_rhotp * EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
     dψdn_R = fac .* MXHEquilibrium.poloidal_Bfield.(Ref(EQfixed), Rb, Zb)
     return (Rb, Zb, Lb, dψdn_R)
 end
 
 function fixed_boundary(shot::TEQUILA.Shot, bnd::MillerExtendedHarmonic.MXH; Nb::Integer=100 * length(bnd.c))
-    return fixed_boundary(shot, bnd(Nb, adaptive=false)...)
+    return fixed_boundary(shot, bnd(Nb; adaptive=false)...)
 end
 
 function fixed_boundary(shot::TEQUILA.Shot, Rb::AbstractVector{T}, Zb::AbstractVector{T}) where {T<:Real}
@@ -231,7 +231,7 @@ function ψp_on_fixed_eq_boundary(
     # This works whether ψp is a constant or a vector
     ψfixed = zeros(length(Rp))
     @threads for j in eachindex(fixed_coils)
-        for i = eachindex(Rp)
+        for i in eachindex(Rp)
             @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_coils[j].current
         end
     end
@@ -258,7 +258,7 @@ function ψp_on_fixed_eq_boundary(shot::TEQUILA.Shot, fixed_coils::AbstractVecto
 
     Rp = zeros(Np + Nx)
     Zp = zeros(Np + Nx)
-    r, z = Sp(Np + 1, adaptive=false)
+    r, z = Sp(Np + 1; adaptive=false)
     Rp[1:Np] .= r[1:end-1]
     Zp[1:Np] .= z[1:end-1]
     if Nx > 0
@@ -288,7 +288,7 @@ function ψp_on_fixed_eq_boundary(shot::TEQUILA.Shot, fixed_coils::AbstractVecto
     # This works whether ψp is a constant or a vector
     ψfixed = zeros(length(Rp))
     @threads for j in eachindex(fixed_coils)
-        for i = eachindex(Rp)
+        for i in eachindex(Rp)
             @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_coils[j].current
         end
     end
@@ -321,7 +321,7 @@ function field_null_on_boundary(
     # Compute flux from fixed coils and subtract from ψp to match
     ψfixed = zeros(length(Rp))
     @threads for j in eachindex(fixed_coils)
-        for i = eachindex(Rp)
+        for i in eachindex(Rp)
             @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rp[i], Zp[i]) * fixed_coils[j].current
         end
     end
@@ -343,8 +343,8 @@ function currents_to_match_ψp(
     # Compute coil currents needed to recreate ψp at points (Rp,Zp)
     # Build matrix relating coil Green's functions to boundary points
     Gcp = Array{T,2}(undef, length(Rp), length(coils))
-    Threads.@threads for j = eachindex(coils)
-        for i = eachindex(Rp)
+    Threads.@threads for j in eachindex(coils)
+        for i in eachindex(Rp)
             @inbounds Gcp[i, j] = μ₀ * Bp_fac * Green(coils[j], Rp[i], Zp[i])
         end
     end
@@ -507,7 +507,7 @@ function fixed2free(
 
     # ψ from image and coil currents
     Vbs = [similar(Lb) for _ in 1:Threads.nthreads()] # preallocate
-    Threads.@threads for (k,indexes) in collect(enumerate(chunk_indices((length(R), length(Z)), Threads.nthreads())))
+    Threads.@threads for (k, indexes) in collect(enumerate(chunk_indices((length(R), length(Z)), Threads.nthreads())))
         @inbounds for index in indexes
             i = index[1]
             j = index[2]
@@ -607,8 +607,8 @@ function check_fixed_eq_currents(
         Zmax = Zmax0
     end
 
-    R = range(Rmin, Rmax, length=resolution)
-    Z = range(Zmin, Zmax, length=resolution)
+    R = range(Rmin, Rmax; length=resolution)
+    Z = range(Zmin, Zmax; length=resolution)
 
     # ψ from fixed-boundary gEQDSK
     # make ψ at boundary zero, and very small value outside for plotting
@@ -635,7 +635,7 @@ function check_fixed_eq_currents(
     # Plot
     if isnothing(EQfree)
         # Overlay contours
-        p = contour(R, Z, ψ_fix, levels=lvls, aspect_ratio=:equal,
+        p = contour(R, Z, ψ_fix; levels=lvls, aspect_ratio=:equal,
             clim=clim, colorbar=false,
             linewidth=3, linecolor=:black,
             xlim=(Rmin, Rmax), ylim=(Zmin, Zmax))
@@ -643,7 +643,7 @@ function check_fixed_eq_currents(
         # subtract ψ_f2f value at ψ_fix boundary to lineup contours
         ψtmp = ifelse.(σ₀ * ψ_fix .> 0, ψ_f2f, 0.0)
         offset = (σ₀ > 0 ? minimum(ψtmp) : maximum(ψtmp))
-        contour!(R, Z, ψ_f2f .- offset, levels=lvls, colorbar=false,
+        contour!(R, Z, ψ_f2f .- offset; levels=lvls, colorbar=false,
             linewidth=1, linecolor=:red)
     else
         # Heat maps for free, fix, fix->free, and difference
@@ -659,31 +659,31 @@ function check_fixed_eq_currents(
         lvls_off = lvls .+ offset
         clim_off = (minimum(lvls_off), maximum(lvls_off))
 
-        pfree = heatmap(R, Z, ψ_free, clim=clim_off, c=:diverging,
+        pfree = heatmap(R, Z, ψ_free; clim=clim_off, c=:diverging,
             aspect_ratio=:equal, linecolor=:black,
             title="Free Boundary", ylabel="Z (m)",
             xlim=(Rmin, Rmax), ylim=(Zmin, Zmax))
-        contour!(R, Z, ψ_free, levels=lvls_off, linecolor=:black)
+        contour!(R, Z, ψ_free; levels=lvls_off, linecolor=:black)
 
-        pfix = heatmap(R, Z, ψ_fix, clim=clim, c=:diverging,
+        pfix = heatmap(R, Z, ψ_fix; clim=clim, c=:diverging,
             aspect_ratio=:equal, linecolor=:black,
             title="Fixed Boundary",
             xlim=(Rmin, Rmax), ylim=(Zmin, Zmax))
-        contour!(R, Z, ψ_fix, levels=lvls, linecolor=:black)
+        contour!(R, Z, ψ_fix; levels=lvls, linecolor=:black)
 
-        pf2f = heatmap(R, Z, ψ_f2f, clim=clim_off, c=:diverging,
+        pf2f = heatmap(R, Z, ψ_f2f; clim=clim_off, c=:diverging,
             aspect_ratio=:equal, linecolor=:black,
             title="Calculated", xlabel="R (m)", ylabel="Z (m)",
             xlim=(Rmin, Rmax), ylim=(Zmin, Zmax))
-        contour!(R, Z, ψ_f2f, levels=lvls_off, linecolor=:black)
+        contour!(R, Z, ψ_f2f; levels=lvls_off, linecolor=:black)
 
-        pdiff = heatmap(R, Z, ψ_f2f - ψ_free, clim=clim, c=:diverging,
+        pdiff = heatmap(R, Z, ψ_f2f - ψ_free; clim=clim, c=:diverging,
             aspect_ratio=:equal, linecolor=:black,
             title="Difference", xlabel="R (m)",
             xlim=(Rmin, Rmax), ylim=(Zmin, Zmax))
 
-        contour!(R, Z, ψ_f2f - ψ_free, levels=lvls, linecolor=:black)
-        p = plot(pfree, pfix, pf2f, pdiff, layout=(2, 2), size=(500, 550))
+        contour!(R, Z, ψ_f2f - ψ_free; levels=lvls, linecolor=:black)
+        p = plot(pfree, pfix, pf2f, pdiff; layout=(2, 2), size=(500, 550))
     end
     return p
 end
@@ -723,8 +723,8 @@ function plot_coil_flux(Bp_fac::Real, coils::AbstractVector{<:AbstractCoil}, ψb
         Zmax = Zmax0
     end
 
-    R = range(Rmin, Rmax, length=resolution)
-    Z = range(Zmin, Zmax, length=resolution)
+    R = range(Rmin, Rmax; length=resolution)
+    Z = range(Zmin, Zmax; length=resolution)
 
     ψ = coils_flux(Bp_fac, coils, R, Z)
 
@@ -734,14 +734,14 @@ function plot_coil_flux(Bp_fac::Real, coils::AbstractVector{<:AbstractCoil}, ψb
     end
 
     # Plot heat maps for ψ from coil currents
-    p = heatmap(R, Z, transpose(ψ),
+    p = heatmap(R, Z, transpose(ψ);
         clim=clim,
         c=:diverging,
         aspect_ratio=:equal,
         linecolor=:black,
         title="Coil Flux",
         xlim=(Rmin, Rmax), ylim=(Zmin, Zmax))
-    contour!(R, Z, transpose(ψ), levels=ψbound * [0.99, 1.00, 1.01], linecolor=:black)
+    contour!(R, Z, transpose(ψ); levels=ψbound * [0.99, 1.00, 1.01], linecolor=:black)
 
     return p
 end
@@ -779,7 +779,7 @@ function halfhull(points::AbstractVector)
 end
 
 function grahamscan!(points::AbstractVector)
-    sort!(points, lt=points_isless)
+    sort!(points; lt=points_isless)
     upperhull = halfhull(points)
     reverse!(points)
     lowerhull = halfhull(points)
@@ -796,7 +796,7 @@ function convex_hull!(xy_points::AbstractVector; closed_polygon::Bool)
 end
 
 function convex_hull(xy_points::AbstractVector; closed_polygon::Bool)
-    convex_hull!(deepcopy(xy_points); closed_polygon)
+    return convex_hull!(deepcopy(xy_points); closed_polygon)
 end
 
 function convex_hull(x::AbstractVector{T}, y::AbstractVector{T}; closed_polygon::Bool) where {T}
