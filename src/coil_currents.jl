@@ -504,14 +504,16 @@ function fixed2free(
     ψ_f2f = T[MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) : ψb for z in Z, r in R]
 
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed, Sb)
-    Vbs = [similar(Lb) for _ in 1:Threads.nthreads()]
 
     # ψ from image and coil currents
-    Threads.@threads :static for i in eachindex(R)
-        @inbounds r = R[i]
-        for j in eachindex(Z)
-            @inbounds z = Z[j]
-            Vb = Vbs[Threads.threadid()]
+    Vbs = [similar(Lb) for _ in 1:Threads.nthreads()] # preallocate
+    Threads.@threads for (k,indexes) in collect(enumerate(chunk_indices((length(R), length(Z)), Threads.nthreads())))
+        @inbounds for index in indexes
+            i = index[1]
+            j = index[2]
+            r = R[i]
+            z = Z[j]
+            Vb = Vbs[k]
             Vb .= dψdn_R .* Green.(Rb, Zb, r, z)
             ψi = -Trapz.trapz(Lb, Vb)
             ψc = μ₀ * Bp_fac * sum(coil.current * Green(coil, r, z) for coil in coils)
@@ -520,6 +522,31 @@ function fixed2free(
     end
 
     return ψ_f2f
+end
+
+function chunk_indices(dims::Tuple, N::Int)
+    # Total number of elements
+    total_elements = prod(dims)
+
+    # Calculate chunk size
+    chunk_size, remainder = divrem(total_elements, N)
+
+    # Split indices into N chunks
+    chunks = []
+    start_idx = 1
+    for i in 1:N
+        end_idx = start_idx + chunk_size - 1
+        # Distribute the remainder among the first few chunks
+        if i <= remainder
+            end_idx += 1
+        end
+        chunk_1d = start_idx:end_idx
+        chunk_multi = (CartesianIndices(dims)[i] for i in chunk_1d)
+        push!(chunks, chunk_multi)
+        start_idx = end_idx + 1
+    end
+
+    return chunks
 end
 
 function fixed2free(
