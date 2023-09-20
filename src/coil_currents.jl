@@ -190,7 +190,7 @@ function ψp_on_fixed_eq_boundary(
     ψbound::Real=0.0;
     Rx::AbstractVector{T}=Float64[],
     Zx::AbstractVector{T}=Float64[],
-    fraction_inside::Union{Nothing,<:Real}=0.999) where {T<:Real}
+    fraction_inside::Union{Nothing,<:Real}) where {T<:Real}
 
     ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
     ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0)
@@ -243,7 +243,7 @@ end
 function ψp_on_fixed_eq_boundary(shot::TEQUILA.Shot, fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[], ψbound::Real=0.0;
     Rx::AbstractVector{T}=Float64[],
     Zx::AbstractVector{T}=Float64[],
-    fraction_inside::Union{Nothing,<:Real}=0.999) where {T<:Real}
+    fraction_inside::Union{Nothing,<:Real}) where {T<:Real}
 
     Sb = @views MillerExtendedHarmonic.MXH(shot.surfaces[:, end])
 
@@ -253,7 +253,7 @@ function ψp_on_fixed_eq_boundary(shot::TEQUILA.Shot, fixed_coils::AbstractVecto
     # ψ₁ = ψp + ψcoil
     # ψcoil = (ψ₁ - ψ₀) + ψim
     Sp = MillerExtendedHarmonic.MXH(shot, fraction_inside)
-    Np = 100 * length(Sp.c)
+    Np = 99
     Nx = length(Rx)
 
     Rp = zeros(Np + Nx)
@@ -408,7 +408,7 @@ function fixed2free(
     n_coils::Integer;
     Rx::AbstractVector{T}=Float64[],
     Zx::AbstractVector{T}=Float64[],
-    fraction_inside::Union{Nothing,<:Real}=0.999,
+    fraction_inside::Union{Nothing,<:Real}=1.0-1E-6,
     Rgrid::AbstractVector{Float64}=EQfixed.r,
     Zgrid::AbstractVector{Float64}=EQfixed.z) where {T<:Real}
 
@@ -443,7 +443,7 @@ function fixed2free(
     Zgrid::AbstractVector{Float64};
     Rx::AbstractVector{T}=Float64[],
     Zx::AbstractVector{T}=Float64[],
-    fraction_inside::Union{Nothing,<:Real}=0.999,
+    fraction_inside::Union{Nothing,<:Real}=1.0-1E-6,
     ψbound::Real=0.0) where {T<:Real}
 
     coils = encircling_coils(shot, n_coils)
