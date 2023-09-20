@@ -384,10 +384,11 @@ function fixed_eq_currents(
     fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[],
     ψbound::Real=0.0;
     λ_regularize::Float64=1E-16,
-    return_cost::Bool=false)
+    return_cost::Bool=false,
+    fraction_inside::Union{Nothing,<:Real}=1.0 - 1E-6)
 
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, fixed_coils, ψbound)
-    return currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize, return_cost)
+    return currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; fraction_inside, λ_regularize, return_cost)
 end
 
 
@@ -408,7 +409,7 @@ function fixed2free(
     n_coils::Integer;
     Rx::AbstractVector{T}=Float64[],
     Zx::AbstractVector{T}=Float64[],
-    fraction_inside::Union{Nothing,<:Real}=1.0-1E-6,
+    fraction_inside::Union{Nothing,<:Real}=1.0 - 1E-6,
     Rgrid::AbstractVector{Float64}=EQfixed.r,
     Zgrid::AbstractVector{Float64}=EQfixed.z) where {T<:Real}
 
@@ -419,8 +420,18 @@ function fixed2free(
         ψbound = MXHEquilibrium.psi_boundary(EQfixed)
     end
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, coils, ψbound; fraction_inside, Rx, Zx)
-    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=1E-14)
+
+    # Finds the λ_regularize to match the boundary the closest in a simple scan
+    λ_range_exp = collect(-20:0.5:-10)
+    cost_λ = [costfixed2free(λ, Bp_fac, ψp, Rp, Zp, coils) for λ in λ_range_exp]
+
+    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=10^λ_range_exp[argmin(cost_λ)])
     return transpose(fixed2free(EQfixed, coils, Rgrid, Zgrid))
+end
+
+function costfixed2free(λ_reg::Float64, Bp_fac, ψp, Rp, Zp, coils)
+    c = currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=10^(λ_reg), return_cost=true)[2]
+    return c^2
 end
 
 function fixed2free(shot::TEQUILA.Shot, n_coils::Integer; n_grid=10 * length(shot.ρ), kwargs...)
@@ -443,12 +454,18 @@ function fixed2free(
     Zgrid::AbstractVector{Float64};
     Rx::AbstractVector{T}=Float64[],
     Zx::AbstractVector{T}=Float64[],
-    fraction_inside::Union{Nothing,<:Real}=1.0-1E-6,
+    fraction_inside::Union{Nothing,<:Real}=1.0 - 1E-6,
     ψbound::Real=0.0) where {T<:Real}
 
     coils = encircling_coils(shot, n_coils)
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(shot, coils, ψbound; fraction_inside, Rx, Zx)
-    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=1E-14)
+
+    # Finds the λ_regularize to match the boundary the closest in a simple scan
+    λ_range_exp = collect(-20:0.5:-10)
+    cost_λ = [costfixed2free(λ, Bp_fac, ψp, Rp, Zp, coils) for λ in λ_range_exp]
+
+    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=10^λ_range_exp[argmin(cost_λ)])
+
     return transpose(fixed2free(shot, coils, Rgrid, Zgrid; ψbound))
 end
 
