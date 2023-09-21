@@ -190,7 +190,7 @@ function ψp_on_fixed_eq_boundary(
     ψbound::Real=0.0;
     Rx::AbstractVector{T}=Float64[],
     Zx::AbstractVector{T}=Float64[],
-    fraction_inside::Union{Nothing,<:Real}) where {T<:Real}
+    fraction_inside::Union{Nothing,<:Real}=1.0-1e5) where {T<:Real}
 
     ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
     ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0)
@@ -243,7 +243,7 @@ end
 function ψp_on_fixed_eq_boundary(shot::TEQUILA.Shot, fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[], ψbound::Real=0.0;
     Rx::AbstractVector{T}=Float64[],
     Zx::AbstractVector{T}=Float64[],
-    fraction_inside::Union{Nothing,<:Real}) where {T<:Real}
+    fraction_inside::Union{Nothing,<:Real}=1.0-1e5) where {T<:Real}
 
     Sb = @views MillerExtendedHarmonic.MXH(shot.surfaces[:, end])
 
