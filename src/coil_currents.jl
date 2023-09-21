@@ -541,7 +541,7 @@ function fixed2free(
     return ψ_f2f
 end
 
-function chunk_indices(dims::Tuple, N::Int)
+function chunk_indices(dims::Tuple{Vararg{Int}}, N::Int)
     # Total number of elements
     total_elements = prod(dims)
 
