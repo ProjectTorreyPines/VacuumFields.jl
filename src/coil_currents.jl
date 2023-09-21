@@ -470,15 +470,15 @@ function optimal_λ_regularize(
     return λ_regularize
 end
 
-function fixed2free(shot::TEQUILA.Shot, n_coils::Integer; n_grid=10 * length(shot.ρ), kwargs...)
+function fixed2free(shot::TEQUILA.Shot, n_coils::Integer; n_grid=129, scale::Float64=1.2, kwargs...)
     R0 = shot.surfaces[1, end]
     Z0 = shot.surfaces[2, end]
     ϵ = shot.surfaces[3, end]
     κ = shot.surfaces[4, end]
-    a = R0 * ϵ
+    a = R0 * ϵ * scale
     b = κ * a
 
-    Rgrid = range(R0 - a, R0 + a, n_grid)
+    Rgrid = range(max(R0 - a, 0.0), R0 + a, n_grid)
     Zgrid = range(Z0 - b, Z0 + b, n_grid)
     return Rgrid, Zgrid, fixed2free(shot, n_coils, Rgrid, Zgrid; kwargs...)
 end
