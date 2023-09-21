@@ -188,9 +188,9 @@ function ψp_on_fixed_eq_boundary(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
     fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[],
     ψbound::Real=0.0;
-    Rx::AbstractVector{T}=Float64[],
-    Zx::AbstractVector{T}=Float64[],
-    fraction_inside::Union{Nothing,<:Real}) where {T<:Real}
+    Rx::AbstractVector{Float64}=Float64[],
+    Zx::AbstractVector{Float64}=Float64[],
+    fraction_inside::Float64)
 
     ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
     ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0)
@@ -240,10 +240,13 @@ function ψp_on_fixed_eq_boundary(
     return Bp_fac, ψp, Rp, Zp
 end
 
-function ψp_on_fixed_eq_boundary(shot::TEQUILA.Shot, fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[], ψbound::Real=0.0;
-    Rx::AbstractVector{T}=Float64[],
-    Zx::AbstractVector{T}=Float64[],
-    fraction_inside::Union{Nothing,<:Real}) where {T<:Real}
+function ψp_on_fixed_eq_boundary(
+    shot::TEQUILA.Shot,
+    fixed_coils::AbstractVector{<:AbstractCoil}=AbstractCoil[],
+    ψbound::Real=0.0;
+    Rx::AbstractVector{Float64}=Float64[],
+    Zx::AbstractVector{Float64}=Float64[],
+    fraction_inside::Float64)
 
     Sb = @views MillerExtendedHarmonic.MXH(shot.surfaces[:, end])
 
@@ -333,8 +336,8 @@ end
 function currents_to_match_ψp(
     Bp_fac::Float64,
     ψp::AbstractVector{<:Real},
-    Rp::AbstractVector{T},
-    Zp::AbstractVector{T},
+    Rp::AbstractVector{Float64},
+    Zp::AbstractVector{Float64},
     coils::AbstractVector{<:AbstractCoil};
     weights::Vector{Float64}=Float64[],
     λ_regularize::Float64=1E-16,
@@ -385,7 +388,7 @@ function fixed_eq_currents(
     ψbound::Real=0.0;
     λ_regularize::Float64=1E-16,
     return_cost::Bool=false,
-    fraction_inside::Union{Nothing,<:Real}=1.0 - 1E-6)
+    fraction_inside::Float64=1.0 - 1E-6)
 
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, fixed_coils, ψbound)
     return currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; fraction_inside, λ_regularize, return_cost)
@@ -398,40 +401,52 @@ end
 """
     fixed2free(
         EQfixed::MXHEquilibrium.AbstractEquilibrium,
-        n_point_coils::Integer,
-        R::AbstractVector,
-        Z::AbstractVector)
+        n_coils::Integer;
+        Rx::AbstractVector{Float64}=Float64[],
+        Zx::AbstractVector{Float64}=Float64[],
+        fraction_inside::Float64=1.0 - 1E-6,
+        λ_regularize::Float64=0.0,
+        Rgrid::AbstractVector{Float64}=EQfixed.r,
+        Zgrid::AbstractVector{Float64}=EQfixed.z)
 
 Distribute n point coils around fixed boundary plasma to get a free boundary ψ map
 """
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
     n_coils::Integer;
-    Rx::AbstractVector{T}=Float64[],
-    Zx::AbstractVector{T}=Float64[],
-    fraction_inside::Union{Nothing,<:Real}=1.0 - 1E-6,
+    Rx::AbstractVector{Float64}=Float64[],
+    Zx::AbstractVector{Float64}=Float64[],
+    fraction_inside::Float64=1.0 - 1E-6,
+    λ_regularize::Float64=0.0,
     Rgrid::AbstractVector{Float64}=EQfixed.r,
-    Zgrid::AbstractVector{Float64}=EQfixed.z) where {T<:Real}
+    Zgrid::AbstractVector{Float64}=EQfixed.z)
 
-    coils = encircling_coils(EQfixed, n_coils)
     ψbound = MXHEquilibrium.psi_boundary(EQfixed; precision=0.0)
     if ψbound === nothing
         # if the original boundary specified in EQfixed does not close, then find LCFS boundary
         ψbound = MXHEquilibrium.psi_boundary(EQfixed)
     end
+
+    coils = encircling_coils(EQfixed, n_coils)
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, coils, ψbound; fraction_inside, Rx, Zx)
 
-    # Finds the λ_regularize to match the boundary the closest in a simple scan
-    λ_range_exp = collect(-20:0.5:-10)
-    cost_λ = [costfixed2free(λ, Bp_fac, ψp, Rp, Zp, coils) for λ in λ_range_exp]
-
-    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=10^λ_range_exp[argmin(cost_λ)])
+    λ_regularize = optimal_λ_regularize(λ_regularize, Bp_fac, ψp, Rp, Zp, coils)
+    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize)
     return transpose(fixed2free(EQfixed, coils, Rgrid, Zgrid))
 end
 
-function costfixed2free(λ_reg::Float64, Bp_fac, ψp, Rp, Zp, coils)
+function cost_λ_regularize(λ_reg::Float64, Bp_fac, ψp, Rp, Zp, coils)
     c = currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=10^(λ_reg), return_cost=true)[2]
     return c^2
+end
+
+function optimal_λ_regularize(λ_regularize::Float64, Bp_fac, ψp, Rp, Zp, coils)
+    if λ_regularize == 0.0
+        λ_range_exp = collect(-20:0.5:-10)
+        cost_λ = [cost_λ_regularize(λ, Bp_fac, ψp, Rp, Zp, coils) for λ in λ_range_exp]
+        λ_regularize = 10^λ_range_exp[argmin(cost_λ)]
+    end
+    return λ_regularize
 end
 
 function fixed2free(shot::TEQUILA.Shot, n_coils::Integer; n_grid=10 * length(shot.ρ), kwargs...)
@@ -452,44 +467,18 @@ function fixed2free(
     n_coils::Integer,
     Rgrid::AbstractVector{Float64},
     Zgrid::AbstractVector{Float64};
-    Rx::AbstractVector{T}=Float64[],
-    Zx::AbstractVector{T}=Float64[],
-    fraction_inside::Union{Nothing,<:Real}=1.0 - 1E-6,
-    ψbound::Real=0.0) where {T<:Real}
+    Rx::AbstractVector{Float64}=Float64[],
+    Zx::AbstractVector{Float64}=Float64[],
+    fraction_inside::Union{Nothing,Float64}=1.0 - 1E-6,
+    λ_regularize::Float64=0.0,
+    ψbound::Real=0.0)
 
     coils = encircling_coils(shot, n_coils)
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(shot, coils, ψbound; fraction_inside, Rx, Zx)
 
-    # Finds the λ_regularize to match the boundary the closest in a simple scan
-    λ_range_exp = collect(-20:0.5:-10)
-    cost_λ = [costfixed2free(λ, Bp_fac, ψp, Rp, Zp, coils) for λ in λ_range_exp]
-
-    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=10^λ_range_exp[argmin(cost_λ)])
-
+    λ_regularize = optimal_λ_regularize(λ_regularize, Bp_fac, ψp, Rp, Zp, coils)
+    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize)
     return transpose(fixed2free(shot, coils, Rgrid, Zgrid; ψbound))
-end
-
-function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Integer)
-    bnd = MXHEquilibrium.plasma_boundary(EQfixed; precision=0.0)
-    if bnd === nothing
-        # if the original boundary specified in EQfixed does not close, then find LCFS boundary
-        bnd = MXHEquilibrium.plasma_boundary(EQfixed)
-    end
-
-    return encircling_coils(bnd.r, bnd.z, n_coils)
-end
-
-function encircling_coils(shot::TEQUILA.Shot, n_coils::Integer)
-    bnd_r, bnd_z = MillerExtendedHarmonic.MXH(shot.surfaces[:, end])()
-    return encircling_coils(bnd_r, bnd_z, n_coils)
-end
-
-function encircling_coils(bnd_r::AbstractVector{T}, bnd_z::AbstractVector{T}, n_coils::Integer) where {T<:Real}
-    mxh = MillerExtendedHarmonic.MXH(bnd_r, bnd_z, 2)
-    mxh.R0 = mxh.R0 .* (1.0 + mxh.ϵ)
-    mxh.ϵ = 0.9
-    Θ = LinRange(0, 2π, n_coils + 1)[1:end-1]
-    return [PointCoil(r, z) for (r, z) in mxh.(Θ)]
 end
 
 function fixed2free(
@@ -500,7 +489,6 @@ function fixed2free(
     dcoils = DistributedCoil.(coils)
     return fixed2free(EQfixed, dcoils, R, Z)
 end
-
 
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
@@ -541,31 +529,6 @@ function fixed2free(
     return ψ_f2f
 end
 
-function chunk_indices(dims::Tuple{Vararg{Int}}, N::Int)
-    # Total number of elements
-    total_elements = prod(dims)
-
-    # Calculate chunk size
-    chunk_size, remainder = divrem(total_elements, N)
-
-    # Split indices into N chunks
-    chunks = []
-    start_idx = 1
-    for i in 1:N
-        end_idx = start_idx + chunk_size - 1
-        # Distribute the remainder among the first few chunks
-        if i <= remainder
-            end_idx += 1
-        end
-        chunk_1d = start_idx:end_idx
-        chunk_multi = (CartesianIndices(dims)[i] for i in chunk_1d)
-        push!(chunks, chunk_multi)
-        start_idx = end_idx + 1
-    end
-
-    return chunks
-end
-
 function fixed2free(
     shot::TEQUILA.Shot,
     coils::AbstractVector{<:AbstractCoil},
@@ -595,6 +558,57 @@ function fixed2free(
     end
 
     return ψ_f2f
+end
+
+# ================ #
+# encircling_coils #
+# ================ #
+function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Integer)
+    bnd = MXHEquilibrium.plasma_boundary(EQfixed; precision=0.0)
+    if bnd === nothing
+        # if the original boundary specified in EQfixed does not close, then find LCFS boundary
+        bnd = MXHEquilibrium.plasma_boundary(EQfixed)
+    end
+
+    return encircling_coils(bnd.r, bnd.z, n_coils)
+end
+
+function encircling_coils(shot::TEQUILA.Shot, n_coils::Integer)
+    bnd_r, bnd_z = MillerExtendedHarmonic.MXH(shot.surfaces[:, end])()
+    return encircling_coils(bnd_r, bnd_z, n_coils)
+end
+
+function encircling_coils(bnd_r::AbstractVector{T}, bnd_z::AbstractVector{T}, n_coils::Integer) where {T<:Real}
+    mxh = MillerExtendedHarmonic.MXH(bnd_r, bnd_z, 2)
+    mxh.R0 = mxh.R0 .* (1.0 + mxh.ϵ)
+    mxh.ϵ = 0.9
+    Θ = LinRange(0, 2π, n_coils + 1)[1:end-1]
+    return [PointCoil(r, z) for (r, z) in mxh.(Θ)]
+end
+
+function chunk_indices(dims::Tuple{Vararg{Int}}, N::Int)
+    # Total number of elements
+    total_elements = prod(dims)
+
+    # Calculate chunk size
+    chunk_size, remainder = divrem(total_elements, N)
+
+    # Split indices into N chunks
+    chunks = []
+    start_idx = 1
+    for i in 1:N
+        end_idx = start_idx + chunk_size - 1
+        # Distribute the remainder among the first few chunks
+        if i <= remainder
+            end_idx += 1
+        end
+        chunk_1d = start_idx:end_idx
+        chunk_multi = (CartesianIndices(dims)[i] for i in chunk_1d)
+        push!(chunks, chunk_multi)
+        start_idx = end_idx + 1
+    end
+
+    return chunks
 end
 
 # ******************************************
