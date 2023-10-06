@@ -244,6 +244,8 @@ function ψp_on_fixed_eq_boundary(
     return Bp_fac, ψp, Rp, Zp
 end
 
+# Compute the plasma contribution to ψ at points fraction_inside the shot boundary,
+#   optionally including vacuum points given by Rx and Zx
 function ψp_on_fixed_eq_boundary(
     shot::TEQUILA.Shot,
     fixed_coils::Vector{<:AbstractCoil{T,C}}=PointCoil{T,C}[],
@@ -302,6 +304,45 @@ function ψp_on_fixed_eq_boundary(
     ψp = ψp .- ψfixed
 
     return Bp_fac, ψp, Rp, Zp
+end
+
+# Compute the plasma contribution to ψ at control points given by Rc and Zc
+function ψp_on_fixed_eq_boundary(
+    shot::TEQUILA.Shot,
+    fixed_coils::Vector{<:AbstractCoil{T,C}}=PointCoil{T,C}[],
+    ψbound::Real=0.0,
+    Rc::AbstractVector{Float64}=Float64[],
+    Zc::AbstractVector{Float64}=Float64[]) where {T<:Real,C<:Real}
+
+    Sb = @views MillerExtendedHarmonic.MXH(shot.surfaces[:, end])
+
+    Rb, Zb, Lb, dψdn_R = @views fixed_boundary(shot, Sb)
+
+    # this is the image current contribution to the control points
+    ψp = Array{Float64,1}(undef, length(Rc))
+    @threads for i in eachindex(Rc)
+        ψp[i] = -trapz(Lb, dψdn_R .* Green.(Rb, Zb, Rc[i], Zc[i]))
+    end
+
+    ψp .+= shot.(Rc, Zc)
+
+    # add in desired boundary flux
+    ψbound != 0.0 && (ψp .+= ψbound)
+
+    cocos = MXHEquilibrium.cocos(shot)
+    Bp_fac = cocos.sigma_Bp * (2π)^cocos.exp_Bp
+
+    # Compute flux from fixed coils and subtract from ψp to match
+    # This works whether ψp is a constant or a vector
+    ψfixed = zeros(length(Rc))
+    @threads for j in eachindex(fixed_coils)
+        for i in eachindex(Rc)
+            @inbounds ψfixed[i] += μ₀ * Bp_fac * Green(fixed_coils[j], Rc[i], Zc[i]) * fixed_coils[j].current
+        end
+    end
+    ψp = ψp .- ψfixed
+
+    return Bp_fac, ψp, Rc, Zc
 end
 
 """
@@ -483,6 +524,8 @@ function fixed2free(shot::TEQUILA.Shot, n_coils::Integer; n_grid=129, scale::Flo
     return Rgrid, Zgrid, fixed2free(shot, n_coils, Rgrid, Zgrid; kwargs...)
 end
 
+# On (Rgrid, Zgrid), convert the fixed equilibrium ψ to free using n_coils encircling coils
+#   whose currents are determined by matching the ψ on shot's boundary and at (Rx, Zx)
 function fixed2free(
     shot::TEQUILA.Shot,
     n_coils::Integer,
@@ -498,6 +541,52 @@ function fixed2free(
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(shot, coils, ψbound; fraction_inside, Rx, Zx)
 
     λ_regularize = optimal_λ_regularize(λ_regularize, Bp_fac, ψp, Rp, Zp, coils)
+    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize)
+    return transpose(fixed2free(shot, coils, Rgrid, Zgrid; ψbound))
+end
+
+# Convert the fixed equilibrium ψ to free using n_coils encircling coils on a bounding box around shot
+#   whose currents are determined by matching the ψ at (Rc, Zc)
+function fixed2free(
+    shot::TEQUILA.Shot,
+    n_coils::Integer,
+    Rc::AbstractVector{<:Real},
+    Zc::AbstractVector{<:Real};
+    n_grid=129,
+    scale::Float64=1.2,
+    kwargs...)
+
+    R0 = shot.surfaces[1, end]
+    Z0 = shot.surfaces[2, end]
+    ϵ = shot.surfaces[3, end]
+    κ = shot.surfaces[4, end]
+    a = R0 * ϵ * scale
+    b = κ * a
+
+    Rgrid = range(max(R0 - a, 0.0), R0 + a, n_grid)
+    Zgrid = range(Z0 - b, Z0 + b, n_grid)
+    return Rgrid, Zgrid, fixed2free(shot, n_coils, Rc, Zc, Rgrid, Zgrid; kwargs...)
+end
+
+# On (Rgrid, Zgrid), convert the fixed equilibrium ψ to free using n_coils encircling coils,
+#   whose currents are determined by matching the ψ at (Rc, Zc)
+function fixed2free(
+    shot::TEQUILA.Shot,
+    n_coils::Integer,
+    Rc::AbstractVector{Float64},
+    Zc::AbstractVector{Float64},
+    Rgrid::AbstractVector{Float64},
+    Zgrid::AbstractVector{Float64};
+    λ_regularize::Float64=0.0,
+    ψbound::Real=0.0)
+
+    coils = encircling_coils(shot, n_coils)
+    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(shot, coils, ψbound, Rc, Zc)
+
+    λ_regularize = optimal_λ_regularize(λ_regularize, Bp_fac, ψp, Rp, Zp, coils)
+    println("λ: ", λ_regularize)
+    weights = ones(length(Rp))
+    weights[(end-11):end] .= 100.
     currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize)
     return transpose(fixed2free(shot, coils, Rgrid, Zgrid; ψbound))
 end
