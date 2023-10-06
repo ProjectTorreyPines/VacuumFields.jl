@@ -252,7 +252,7 @@ function ψp_on_fixed_eq_boundary(
     ψbound::Real=0.0;
     Rx::AbstractVector{Float64}=Float64[],
     Zx::AbstractVector{Float64}=Float64[],
-    fraction_inside::Float64) where {T<:Real,C<:Real}
+    fraction_inside::Float64=0.999) where {T<:Real,C<:Real}
 
     Sb = @views MillerExtendedHarmonic.MXH(shot.surfaces[:, end])
 
@@ -309,10 +309,10 @@ end
 # Compute the plasma contribution to ψ at control points given by Rc and Zc
 function ψp_on_fixed_eq_boundary(
     shot::TEQUILA.Shot,
+    Rc::AbstractVector{Float64},
+    Zc::AbstractVector{Float64};
     fixed_coils::Vector{<:AbstractCoil{T,C}}=PointCoil{T,C}[],
-    ψbound::Real=0.0,
-    Rc::AbstractVector{Float64}=Float64[],
-    Zc::AbstractVector{Float64}=Float64[]) where {T<:Real,C<:Real}
+    ψbound::Real=0.0) where {T<:Real,C<:Real}
 
     Sb = @views MillerExtendedHarmonic.MXH(shot.surfaces[:, end])
 
@@ -581,10 +581,9 @@ function fixed2free(
     ψbound::Real=0.0)
 
     coils = encircling_coils(shot, n_coils)
-    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(shot, coils, ψbound, Rc, Zc)
+    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(shot, Rc, Zc; ψbound)
 
     λ_regularize = optimal_λ_regularize(λ_regularize, Bp_fac, ψp, Rp, Zp, coils)
-    println("λ: ", λ_regularize)
     weights = ones(length(Rp))
     weights[(end-11):end] .= 100.
     currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize)
