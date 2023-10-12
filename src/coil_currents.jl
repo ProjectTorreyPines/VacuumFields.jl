@@ -447,7 +447,7 @@ end
 # Transform fixed-boundary ψ to free-boundary ψ
 # ***************************************************
 """
-    fixed2free(
+    encircling_fixed2free(
         EQfixed::MXHEquilibrium.AbstractEquilibrium,
         n_coils::Integer;
         Rx::AbstractVector{Float64}=Float64[],
@@ -459,12 +459,12 @@ end
 
 Distribute n point coils around fixed boundary plasma to get a free boundary ψ map
 """
-function fixed2free(
+function encircling_fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
     n_coils::Integer;
     Rx::AbstractVector{Float64}=Float64[],
     Zx::AbstractVector{Float64}=Float64[],
-    fraction_inside::Float64=1.0 - 1E-6,
+    fraction_inside::Float64=1.0 - 1E-4,
     λ_regularize::Float64=0.0,
     Rgrid::AbstractVector{Float64}=EQfixed.r,
     Zgrid::AbstractVector{Float64}=EQfixed.z)
@@ -511,7 +511,7 @@ function optimal_λ_regularize(
     return λ_regularize
 end
 
-function fixed2free(shot::TEQUILA.Shot, n_coils::Integer; n_grid=129, scale::Float64=1.2, kwargs...)
+function encircling_fixed2free(shot::TEQUILA.Shot, n_coils::Integer; n_grid=129, scale::Float64=1.2, kwargs...)
     R0 = shot.surfaces[1, end]
     Z0 = shot.surfaces[2, end]
     ϵ = shot.surfaces[3, end]
@@ -526,7 +526,7 @@ end
 
 # On (Rgrid, Zgrid), convert the fixed equilibrium ψ to free using n_coils encircling coils
 #   whose currents are determined by matching the ψ on shot's boundary and at (Rx, Zx)
-function fixed2free(
+function encircling_fixed2free(
     shot::TEQUILA.Shot,
     n_coils::Integer,
     Rgrid::AbstractVector{Float64},
@@ -547,7 +547,7 @@ end
 
 # Convert the fixed equilibrium ψ to free using n_coils encircling coils on a bounding box around shot
 #   whose currents are determined by matching the ψ at (Rc, Zc)
-function fixed2free(
+function encircling_fixed2free(
     shot::TEQUILA.Shot,
     n_coils::Integer,
     Rc::AbstractVector{<:Real},
@@ -570,7 +570,7 @@ end
 
 # On (Rgrid, Zgrid), convert the fixed equilibrium ψ to free using n_coils encircling coils,
 #   whose currents are determined by matching the ψ at (Rc, Zc)
-function fixed2free(
+function encircling_fixed2free(
     shot::TEQUILA.Shot,
     n_coils::Integer,
     Rc::AbstractVector{Float64},
