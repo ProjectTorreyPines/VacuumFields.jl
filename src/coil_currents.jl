@@ -480,7 +480,7 @@ function encircling_fixed2free(
 
     λ_regularize = optimal_λ_regularize(λ_regularize, Bp_fac, ψp, Rp, Zp, coils)
     currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize)
-    return transpose(fixed2free(EQfixed, coils, Rgrid, Zgrid))
+    return fixed2free(EQfixed, coils, Rgrid, Zgrid)
 end
 
 function cost_λ_regularize(
@@ -542,7 +542,7 @@ function encircling_fixed2free(
 
     λ_regularize = optimal_λ_regularize(λ_regularize, Bp_fac, ψp, Rp, Zp, coils)
     currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize)
-    return transpose(fixed2free(shot, coils, Rgrid, Zgrid; ψbound))
+    return fixed2free(shot, coils, Rgrid, Zgrid; ψbound)
 end
 
 # Convert the fixed equilibrium ψ to free using n_coils encircling coils on a bounding box around shot
@@ -587,9 +587,12 @@ function encircling_fixed2free(
     weights = ones(length(Rp))
     weights[(end-11):end] .= 100.
     currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize)
-    return transpose(fixed2free(shot, coils, Rgrid, Zgrid; ψbound))
+    return fixed2free(shot, coils, Rgrid, Zgrid; ψbound)
 end
 
+# ***************************************************
+# Transform fixed-boundary ψ to free-boundary ψ given currents in coils
+# ***************************************************
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
     coils::AbstractVector{<:ParallelogramCoil},
@@ -615,7 +618,7 @@ function fixed2free(
     end
 
     Bp_fac = EQfixed.cocos.sigma_Bp * (2π)^EQfixed.cocos.exp_Bp
-    ψ_f2f = T[MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) : ψb for z in Z, r in R]
+    ψ_f2f = T[MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) : ψb for r in R, z in Z]
 
     Rb, Zb, Lb, dψdn_R = fixed_boundary(EQfixed, Sb)
 
@@ -631,7 +634,7 @@ function fixed2free(
             Vb .= dψdn_R .* Green.(Rb, Zb, r, z)
             ψi = -Trapz.trapz(Lb, Vb)
             ψc = μ₀ * Bp_fac * sum(coil.current * Green(coil, r, z) for coil in coils)
-            ψ_f2f[j, i] += ψc - ψi
+            ψ_f2f[i, j] += ψc - ψi
         end
     end
 
@@ -648,7 +651,7 @@ function fixed2free(
     bnd = @views MillerExtendedHarmonic.MXH(shot.surfaces[:, end])
     cocos = MXHEquilibrium.cocos(shot)
     Bp_fac = cocos.sigma_Bp * (2π)^cocos.exp_Bp
-    ψ_f2f = T[shot(r, z) + ψbound for z in Z, r in R]
+    ψ_f2f = T[shot(r, z) + ψbound for r in R, z in Z]
 
     Rb, Zb, Lb, dψdn_R = fixed_boundary(shot, bnd)
 
@@ -660,9 +663,9 @@ function fixed2free(
             @inbounds z = Z[j]
             # subtract image ψ
             Vb .= dψdn_R .* Green.(Rb, Zb, r, z)
-            @inbounds ψ_f2f[j, i] -= -trapz(Lb, Vb)
+            @inbounds ψ_f2f[i, j] -= -trapz(Lb, Vb)
             # add coil ψ
-            @inbounds ψ_f2f[j, i] += μ₀ * Bp_fac * sum(coil.current * Green(coil, r, z) for coil in coils)
+            @inbounds ψ_f2f[i, j] += μ₀ * Bp_fac * sum(coil.current * Green(coil, r, z) for coil in coils)
         end
     end
 
@@ -882,14 +885,14 @@ function plot_coil_flux(
     end
 
     # Plot heat maps for ψ from coil currents
-    p = heatmap(R, Z, transpose(ψ);
+    p = heatmap(R, Z, ψ;
         clim=clim,
         c=:diverging,
         aspect_ratio=:equal,
         linecolor=:black,
         title="Coil Flux",
         xlim=(Rmin, Rmax), ylim=(Zmin, Zmax))
-    contour!(R, Z, transpose(ψ); levels=ψbound * [0.99, 1.00, 1.01], linecolor=:black)
+    contour!(R, Z, ψ; levels=ψbound * [0.99, 1.00, 1.01], linecolor=:black)
 
     return p
 end
