@@ -436,7 +436,7 @@ function fixed_eq_currents(
     ψbound::Real=0.0;
     λ_regularize::Float64=1E-16,
     return_cost::Bool=false,
-    fraction_inside::Float64=1.0 - 1E-6) where {T<:Real,C<:Real}
+    fraction_inside::Float64=1.0 - 1E-4) where {T<:Real,C<:Real}
 
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, fixed_coils, ψbound)
     return currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; fraction_inside, λ_regularize, return_cost)
@@ -452,7 +452,7 @@ end
         n_coils::Integer;
         Rx::AbstractVector{Float64}=Float64[],
         Zx::AbstractVector{Float64}=Float64[],
-        fraction_inside::Float64=1.0 - 1E-6,
+        fraction_inside::Float64=1.0 - 1E-4,
         λ_regularize::Float64=0.0,
         Rgrid::AbstractVector{Float64}=EQfixed.r,
         Zgrid::AbstractVector{Float64}=EQfixed.z)
@@ -533,7 +533,7 @@ function fixed2free(
     Zgrid::AbstractVector{Float64};
     Rx::AbstractVector{Float64}=Float64[],
     Zx::AbstractVector{Float64}=Float64[],
-    fraction_inside::Union{Nothing,Float64}=1.0 - 1E-6,
+    fraction_inside::Union{Nothing,Float64}=1.0 - 1E-4,
     λ_regularize::Float64=0.0,
     ψbound::Real=0.0)
 
