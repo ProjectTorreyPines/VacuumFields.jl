@@ -469,13 +469,26 @@ function encircling_fixed2free(
     Rgrid::AbstractVector{Float64}=EQfixed.r,
     Zgrid::AbstractVector{Float64}=EQfixed.z)
 
+    coils = encircling_coils(EQfixed, n_coils)
+    return encircling_fixed2free(EQfixed, coils; Rx, Zx, fraction_inside, λ_regularize, Rgrid, Zgrid)
+end
+
+function encircling_fixed2free(
+    EQfixed::MXHEquilibrium.AbstractEquilibrium,
+    coils::AbstractVector{<:AbstractCoil{T,C}};
+    Rx::AbstractVector{Float64}=Float64[],
+    Zx::AbstractVector{Float64}=Float64[],
+    fraction_inside::Float64=1.0 - 1E-4,
+    λ_regularize::Float64=0.0,
+    Rgrid::AbstractVector{Float64}=EQfixed.r,
+    Zgrid::AbstractVector{Float64}=EQfixed.z) where {T<:Real,C<:Real}
+
     ψbound = MXHEquilibrium.psi_boundary(EQfixed; precision=0.0)
     if ψbound === nothing
         # if the original boundary specified in EQfixed does not close, then find LCFS boundary
         ψbound = MXHEquilibrium.psi_boundary(EQfixed)
     end
 
-    coils = encircling_coils(EQfixed, n_coils)
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(EQfixed, coils, ψbound; fraction_inside, Rx, Zx)
 
     λ_regularize = optimal_λ_regularize(λ_regularize, Bp_fac, ψp, Rp, Zp, coils)
@@ -489,8 +502,8 @@ function cost_λ_regularize(
     ψp::AbstractVector{<:Real},
     Rp::AbstractVector{Float64},
     Zp::AbstractVector{Float64},
-    coils::AbstractVector{<:AbstractCoil{T,C}}
-) where {T<:Real,C<:Real}
+    coils::AbstractVector{<:AbstractCoil{T,C}}) where {T<:Real,C<:Real}
+
     c = currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize=10^(λ_reg), return_cost=true)[2]
     return c^2
 end
@@ -501,8 +514,8 @@ function optimal_λ_regularize(
     ψp::AbstractVector{<:Real},
     Rp::AbstractVector{Float64},
     Zp::AbstractVector{Float64},
-    coils::AbstractVector{<:AbstractCoil{T,C}}
-) where {T<:Real,C<:Real}
+    coils::AbstractVector{<:AbstractCoil{T,C}}) where {T<:Real,C<:Real}
+
     if λ_regularize == 0.0
         λ_range_exp = collect(-20:0.5:-10)
         cost_λ = [cost_λ_regularize(λ, Bp_fac, ψp, Rp, Zp, coils) for λ in λ_range_exp]
@@ -511,7 +524,13 @@ function optimal_λ_regularize(
     return λ_regularize
 end
 
-function encircling_fixed2free(shot::TEQUILA.Shot, n_coils::Integer; n_grid=129, scale::Float64=1.2, kwargs...)
+function encircling_fixed2free(
+    shot::TEQUILA.Shot,
+    n_coils::Integer;
+    n_grid=129,
+    scale::Float64=1.2,
+    kwargs...)
+
     R0 = shot.surfaces[1, end]
     Z0 = shot.surfaces[2, end]
     ϵ = shot.surfaces[3, end]
@@ -538,54 +557,23 @@ function encircling_fixed2free(
     ψbound::Real=0.0)
 
     coils = encircling_coils(shot, n_coils)
+    return encircling_fixed2free(shot, coils, Rgrid, Zgrid; Rx, Zx, fraction_inside, λ_regularize, ψbound)
+end
+
+function encircling_fixed2free(
+    shot::TEQUILA.Shot,
+    coils::AbstractVector{<:AbstractCoil{T,C}},
+    Rgrid::AbstractVector{Float64},
+    Zgrid::AbstractVector{Float64};
+    Rx::AbstractVector{Float64}=Float64[],
+    Zx::AbstractVector{Float64}=Float64[],
+    fraction_inside::Union{Nothing,Float64}=1.0 - 1E-4,
+    λ_regularize::Float64=0.0,
+    ψbound::Real=0.0) where {T<:Real,C<:Real}
+
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(shot, coils, ψbound; fraction_inside, Rx, Zx)
 
     λ_regularize = optimal_λ_regularize(λ_regularize, Bp_fac, ψp, Rp, Zp, coils)
-    currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize)
-    return fixed2free(shot, coils, Rgrid, Zgrid; ψbound)
-end
-
-# Convert the fixed equilibrium ψ to free using n_coils encircling coils on a bounding box around shot
-#   whose currents are determined by matching the ψ at (Rc, Zc)
-function encircling_fixed2free(
-    shot::TEQUILA.Shot,
-    n_coils::Integer,
-    Rc::AbstractVector{<:Real},
-    Zc::AbstractVector{<:Real};
-    n_grid=129,
-    scale::Float64=1.2,
-    kwargs...)
-
-    R0 = shot.surfaces[1, end]
-    Z0 = shot.surfaces[2, end]
-    ϵ = shot.surfaces[3, end]
-    κ = shot.surfaces[4, end]
-    a = R0 * ϵ * scale
-    b = κ * a
-
-    Rgrid = range(max(R0 - a, 0.0), R0 + a, n_grid)
-    Zgrid = range(Z0 - b, Z0 + b, n_grid)
-    return Rgrid, Zgrid, fixed2free(shot, n_coils, Rc, Zc, Rgrid, Zgrid; kwargs...)
-end
-
-# On (Rgrid, Zgrid), convert the fixed equilibrium ψ to free using n_coils encircling coils,
-#   whose currents are determined by matching the ψ at (Rc, Zc)
-function encircling_fixed2free(
-    shot::TEQUILA.Shot,
-    n_coils::Integer,
-    Rc::AbstractVector{Float64},
-    Zc::AbstractVector{Float64},
-    Rgrid::AbstractVector{Float64},
-    Zgrid::AbstractVector{Float64};
-    λ_regularize::Float64=0.0,
-    ψbound::Real=0.0)
-
-    coils = encircling_coils(shot, n_coils)
-    Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(shot, Rc, Zc; ψbound)
-
-    λ_regularize = optimal_λ_regularize(λ_regularize, Bp_fac, ψp, Rp, Zp, coils)
-    weights = ones(length(Rp))
-    weights[(end-11):end] .= 100.
     currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; λ_regularize)
     return fixed2free(shot, coils, Rgrid, Zgrid; ψbound)
 end
