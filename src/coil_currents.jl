@@ -382,7 +382,7 @@ function field_null_on_boundary(
 end
 
 function reg_solve(A, b, λ)
-    return inv(A' * A + λ * I) * A' * b
+    return (A' * A + λ * I) \ A' * b
 end
 
 function currents_to_match_ψp(
