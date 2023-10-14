@@ -381,6 +381,10 @@ function field_null_on_boundary(
     return Bp_fac, ψp, Rp, Zp
 end
 
+function reg_solve(A, b, λ)
+    return inv(A' * A + λ * I) * A' * b
+end
+
 function currents_to_match_ψp(
     Bp_fac::Real,
     ψp::AbstractVector{<:Real},
@@ -410,7 +414,6 @@ function currents_to_match_ψp(
     if λ_regularize > 0
         # Least-squares with regularization
         # https://www.youtube.com/watch?v=9BckeGN0sF0
-        reg_solve(A, b, λ) = inv(A' * A + λ * I) * A' * b
         Ic0 = reg_solve(Gcp, ψp, λ_regularize / length(coils)^2)
     else
         Ic0 = Gcp \ ψp
@@ -540,7 +543,7 @@ function encircling_fixed2free(
 
     Rgrid = range(max(R0 - a, 0.0), R0 + a, n_grid)
     Zgrid = range(Z0 - b, Z0 + b, n_grid)
-    return Rgrid, Zgrid, fixed2free(shot, n_coils, Rgrid, Zgrid; kwargs...)
+    return Rgrid, Zgrid, encircling_fixed2free(shot, n_coils, Rgrid, Zgrid; kwargs...)
 end
 
 # On (Rgrid, Zgrid), convert the fixed equilibrium ψ to free using n_coils encircling coils
