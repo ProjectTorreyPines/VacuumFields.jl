@@ -392,7 +392,7 @@ function currents_to_match_ψp(
     Zp::AbstractVector{Float64},
     coils::AbstractVector{<:AbstractCoil{T,C}};
     weights::Vector{Float64}=Float64[],
-    λ_regularize::Float64=1E-16,
+    λ_regularize::Float64,
     return_cost::Bool=false) where {T<:Real,C<:Real}
 
     # Compute coil currents needed to recreate ψp at points (Rp,Zp)
@@ -437,7 +437,7 @@ function fixed_eq_currents(
     coils::AbstractVector{<:AbstractCoil{T,C}},
     fixed_coils::Vector{<:AbstractCoil{T,C}}=PointCoil{T,C}[],
     ψbound::Real=0.0;
-    λ_regularize::Float64=1E-16,
+    λ_regularize::Float64,
     return_cost::Bool=false,
     fraction_inside::Float64=1.0 - 1E-4) where {T<:Real,C<:Real}
 
@@ -456,7 +456,7 @@ end
         Rx::AbstractVector{Float64}=Float64[],
         Zx::AbstractVector{Float64}=Float64[],
         fraction_inside::Float64=1.0 - 1E-4,
-        λ_regularize::Float64=0.0,
+        λ_regularize::Float64=-1.0,
         Rgrid::AbstractVector{Float64}=EQfixed.r,
         Zgrid::AbstractVector{Float64}=EQfixed.z)
 
@@ -468,7 +468,7 @@ function encircling_fixed2free(
     Rx::AbstractVector{Float64}=Float64[],
     Zx::AbstractVector{Float64}=Float64[],
     fraction_inside::Float64=1.0 - 1E-4,
-    λ_regularize::Float64=0.0,
+    λ_regularize::Float64=-1.0,
     Rgrid::AbstractVector{Float64}=EQfixed.r,
     Zgrid::AbstractVector{Float64}=EQfixed.z)
 
@@ -482,7 +482,7 @@ function encircling_fixed2free(
     Rx::AbstractVector{Float64}=Float64[],
     Zx::AbstractVector{Float64}=Float64[],
     fraction_inside::Float64=1.0 - 1E-4,
-    λ_regularize::Float64=0.0,
+    λ_regularize::Float64=-1.0,
     Rgrid::AbstractVector{Float64}=EQfixed.r,
     Zgrid::AbstractVector{Float64}=EQfixed.z) where {T<:Real,C<:Real}
 
@@ -519,7 +519,7 @@ function optimal_λ_regularize(
     Zp::AbstractVector{Float64},
     coils::AbstractVector{<:AbstractCoil{T,C}}) where {T<:Real,C<:Real}
 
-    if λ_regularize == 0.0
+    if λ_regularize < 0.0
         λ_range_exp = collect(-20:0.5:-10)
         cost_λ = [cost_λ_regularize(λ, Bp_fac, ψp, Rp, Zp, coils) for λ in λ_range_exp]
         λ_regularize = 10^λ_range_exp[argmin(cost_λ)]
@@ -556,7 +556,7 @@ function encircling_fixed2free(
     Rx::AbstractVector{Float64}=Float64[],
     Zx::AbstractVector{Float64}=Float64[],
     fraction_inside::Union{Nothing,Float64}=1.0 - 1E-4,
-    λ_regularize::Float64=0.0,
+    λ_regularize::Float64=-1.0,
     ψbound::Real=0.0)
 
     coils = encircling_coils(shot, n_coils)
@@ -571,7 +571,7 @@ function encircling_fixed2free(
     Rx::AbstractVector{Float64}=Float64[],
     Zx::AbstractVector{Float64}=Float64[],
     fraction_inside::Union{Nothing,Float64}=1.0 - 1E-4,
-    λ_regularize::Float64=0.0,
+    λ_regularize::Float64=-1.0,
     ψbound::Real=0.0) where {T<:Real,C<:Real}
 
     Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(shot, coils, ψbound; fraction_inside, Rx, Zx)
