@@ -140,3 +140,61 @@ function fixed2free(
 
     return ψ_f2f
 end
+
+@recipe function plot_free(
+    R::AbstractVecOrMat{<:Real},
+    Z::AbstractVecOrMat{<:Real},
+    free::AbstractVecOrMat{<:Real},
+    coils::Vector{<:AbstractCoil},
+    flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+    clims = (-1, 1) .* maximum(abs, free))
+
+    aspect_ratio --> :equal
+    xlims --> extrema(R)
+    ylims --> extrema(Z)
+
+    levels = Float64[]
+
+    @series begin
+        seriestype --> :heatmap
+        c --> :diverging
+        clims --> clims
+        R, Z, free
+    end
+
+    for (k, coil) in enumerate(coils)
+        @series begin
+            label --> ((k==1) ? "Coil" : :none)
+            coil
+        end
+    end
+
+    for (k, cp) in enumerate(flux_cps)
+        !(cp.target in levels) && push!(levels, cp.target)
+        @series begin
+            seriestype --> :scatter
+            color --> :cyan
+            label --> ((k==1) ? "Flux CP" : :none)
+            [cp.R], [cp.Z]
+        end
+    end
+
+    for (k, cp) in enumerate(saddle_cps)
+        @series begin
+            seriestype --> :scatter
+            color --> :magenta
+            label --> ((k==1) ? "Saddle CP" : :none)
+            [cp.R], [cp.Z]
+        end
+    end
+
+    @series begin
+        seriestype --> :contour
+        levels --> levels
+        color --> :black
+        linewidth --> 2
+        R, Z, free
+    end
+
+end
