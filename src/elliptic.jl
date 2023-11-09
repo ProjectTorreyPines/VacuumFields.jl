@@ -1,6 +1,25 @@
 using Base.Math: @horner
 
 @doc raw"""
+    Derivative of ellipk(m) with respect to m
+"""
+D_ellipk(m) = m == 0 ?  π / 8.0 : D_ellipk(m, ellipke(m)...)
+@inline function D_ellipk(m, Km, Em)
+    m == 0 && return π / 8.0
+    return ((Em / (1-m)) - Km) / (2m)
+end
+
+@doc raw"""
+    Derivative of ellipe(m) with respect to m
+"""
+D_ellipe(m) = m == 0 ?  -π / 8.0 : D_ellipe(m, ellipke(m)...)
+@inline function D_ellipe(m, Km, Em)
+    m == 0 && return -π / 8.0
+    return (Em - Km) / (2m)
+end
+
+
+@doc raw"""
     ellipk(m)
 
 Computes Complete Elliptic Integral of 1st kind ``K(m)`` for parameter ``m`` given by
