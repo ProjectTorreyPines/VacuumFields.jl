@@ -7,9 +7,8 @@ mutable struct FluxControlPoint{T<:Real} <: AbstractControlPoint{T}
     weight::T
 end
 
-function FluxControlPoint(R::T, Z::T, target::T) where {T<:Real}
-    return FluxControlPoint(R, Z, target, one(T))
-end
+FluxControlPoint(R, Z, target) = FluxControlPoint(R, Z, target, one(R))
+FluxControlPoint(R, Z, target, weight) = FluxControlPoint(promote(R, Z, target, weight)...)
 
 mutable struct SaddleControlPoint{T<:Real} <: AbstractControlPoint{T}
     R::T
@@ -17,9 +16,8 @@ mutable struct SaddleControlPoint{T<:Real} <: AbstractControlPoint{T}
     weight::T
 end
 
-function SaddleControlPoint(R::T, Z::T) where {T<:Real}
-    return SaddleControlPoint(R, Z, one(T))
-end
+SaddleControlPoint(R, Z) = SaddleControlPoint(R, Z, one(R))
+SaddleControlPoint(R, Z, weight) = SaddleControlPoint(promote(R, Z, weight)...)
 
 function reg_solve(A, b, λ)
     return (A' * A + λ * I) \ A' * b
@@ -36,7 +34,7 @@ function SaddleControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Re
     return [SaddleControlPoint(Rs[k], Zs[k]) for k in eachindex(Rs)]
 end
 
-function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64, ψbound::Real=0.0; Npts:: Integer=99)
+function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts:: Integer=99)
 
     ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
     ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0)
