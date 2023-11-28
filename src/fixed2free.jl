@@ -94,6 +94,17 @@ end
 # Transform fixed-boundary ψ to free-boundary ψ given currents in coils
 # ***************************************************
 
+function boundary(EQ::MXHEquilibrium.AbstractEquilibrium, r, z)
+    _, Sb = MXHEquilibrium.plasma_boundary_psi(EQ; precision=0.0, r, z)
+    if Sb === nothing
+        # if the original boundary specified in EQfixed does not close, then find LCFS boundary
+        _, Sb = MXHEquilibrium.plasma_boundary_psi(EQ; r, z)
+    end
+    return Sb
+end
+
+boundary(shot::TEQUILA.Shot, args...) = MXHEquilibrium.Boundary(MXHEquilibrium.MXH(shot, 1.0)()...)
+
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
     coils::AbstractVector{<:AbstractCoil{T,C}},
@@ -117,7 +128,10 @@ function fixed2free(
     λ_regularize::Real=0.0) where {T<:Real,C<:Real}
 
     _, ψb = MXHEquilibrium.psi_limits(EQfixed)
-    ψ_f2f = T[EQfixed(r, z) - ψb + ψbound for z in Z, r in R]
+    R1 = LinRange(minimum(R), maximum(R), length(R) * 10)
+    Z1 = LinRange(minimum(Z), maximum(Z), length(Z) * 10)
+    Sb = boundary(EQfixed, R1, Z1)
+    ψ_f2f = T[MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) - ψb + ψbound : ψbound for z in Z, r in R]
 
     if (!isempty(flux_cps) || !isempty(saddle_cps))
         if λ_regularize < 0.0
@@ -127,6 +141,8 @@ function fixed2free(
     end
 
     # ψ from image and coil currents
+    cocos = MXHEquilibrium.cocos(EQfixed)
+    Bp_fac = cocos.sigma_Bp * (2π)^cocos.exp_Bp
     Threads.@threads for i in eachindex(R)
         @inbounds r = R[i]
         for j in eachindex(Z)
@@ -134,7 +150,7 @@ function fixed2free(
             # subtract image ψ
             @inbounds ψ_f2f[j, i] -= ψ(image, r, z)
             # add coil ψ
-            @inbounds ψ_f2f[j, i] += sum(ψ(coil, r, z) for coil in coils)
+            @inbounds ψ_f2f[j, i] += sum(ψ(coil, r, z; Bp_fac) for coil in coils)
         end
     end
 

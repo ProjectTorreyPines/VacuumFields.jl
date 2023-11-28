@@ -34,7 +34,7 @@ function SaddleControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Re
     return [SaddleControlPoint(Rs[k], Zs[k]) for k in eachindex(Rs)]
 end
 
-function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts:: Integer=99)
+function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
 
     ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
     ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0)
@@ -43,12 +43,9 @@ function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fr
         ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed)
     end
 
-    Sp = MXHEquilibrium.flux_surface(EQfixed, fraction_inside * (ψb - ψ0) + ψ0)
-    N = length(Sp)
-    n = Int(floor(length(Sp.r) / 100.0)) + 1 # roughly at most 100 points
-
+    Sp = MXHEquilibrium.flux_surface(EQfixed, fraction_inside * (ψb - ψ0) + ψ0; n_interp=Npts)
     ψtarget = fraction_inside * (ψb - ψ0) + ψ0 - ψb + ψbound
-    return [FluxControlPoint(Sp.r[k], Sp.z[k], ψtarget) for k in 1:n:(N-1)]
+    return [FluxControlPoint(Sp.r[k], Sp.z[k], ψtarget) for k in eachindex(Sp.r)]
 end
 
 function boundary_control_points(shot::TEQUILA.Shot, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
@@ -110,7 +107,7 @@ function optimize_coil_currents!(
         b[i] = cp.target
 
         # remove plasma current contribution (EQ - image)
-        b[i] -= EQ(r, z) + ψbound - ψb
+        b[i] -= ψbound - ψb + EQ(r, z)
         b[i] += ψ(image, r, z)
 
         # remove fixed coil contribution
