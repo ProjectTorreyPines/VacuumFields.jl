@@ -2,23 +2,25 @@ module VacuumFields
 
 import MillerExtendedHarmonic
 import MXHEquilibrium
-using Plots
-using Trapz
 using Base.Threads
 using LinearAlgebra
+using RecipesBase
+import PlotUtils: cgrad
 import TEQUILA
 
 const μ₀ = 4e-7 * π
-const inv2π = 1.0 / (2π)
 
-include("coil_currents.jl")
-
+include("coils.jl")
+include("image.jl")
+include("flux.jl")
 include("elliptic.jl")
+include("green.jl")
+include("control.jl")
+include("fixed2free.jl")
 
-export plot_coil_flux, check_fixed_eq_currents, fixed2free, encircling_coils
-export fixed_eq_currents, ψp_on_fixed_eq_boundary, field_null_on_boundary, currents_to_match_ψp
-export AbstractCoil, PointCoil, DistributedCoil, coil
-export plot_coil
+export AbstractCoil, PointCoil, DistributedCoil, coil, encircling_coils, plot_coil
+export AbstractControlPoint, FluxControlPoint, SaddleControlPoint, optimize_coil_currents!
+export fixed2free, optimal_λ_regularize, encircling_fixed2free
 
 const coils_D3D_matrix = [
     [8.6080e-01 1.6830e-01 5.0800e-02 3.2110e-01 0.0000e+00 9.0000e+01]
