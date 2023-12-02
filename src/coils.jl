@@ -96,7 +96,8 @@ end
 function encircling_coils(bnd_r::AbstractVector{T}, bnd_z::AbstractVector{T}, n_coils::Integer) where {T<:Real}
     mxh = MillerExtendedHarmonic.MXH(bnd_r, bnd_z, 2)
     mxh.R0 = mxh.R0 .* (1.0 + mxh.ϵ)
-    mxh.ϵ = 0.9
+    mxh.ϵ = 0.999
+    mxh.κ *= 1.2
     Θ = LinRange(0, 2π, n_coils + 1)[1:end-1]
     return [PointCoil(r, z) for (r, z) in mxh.(Θ)]
 end
@@ -173,7 +174,7 @@ end
 #   Plot   #
 # ======== #
 @recipe function plot_coil(C::ParallelogramCoil)
-    DistributedCoil(C)
+    return DistributedCoil(C)
 end
 
 @recipe function plot_coil(C::DistributedCoil)
@@ -184,7 +185,7 @@ end
         color --> :black
         alpha --> 0.2
         label --> ""
-        Shape(R,Z)
+        Shape(R, Z)
     end
 end
 
