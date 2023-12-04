@@ -197,3 +197,14 @@ end
         [C.R], [C.Z]
     end
 end
+
+@recipe function plot_coils(coils::AbstractVector{<:AbstractCoil})
+    for (k,coil) in enumerate(coils)
+        @series begin
+            primary := k==1
+            aspect_ratio := :equal
+            label --> ""
+            coil
+        end
+    end
+end

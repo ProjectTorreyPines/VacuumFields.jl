@@ -9,10 +9,10 @@ function cost_λ_regularize(
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     ψbound::Real=0.0,
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64, Float64}[])
+    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[])
 
     c = optimize_coil_currents!(coils, EQ, image, flux_cps, saddle_cps;
-                                ψbound, fixed_coils, λ_regularize=10^λ_exp, return_cost=true)[2]
+        ψbound, fixed_coils, λ_regularize=10^λ_exp, return_cost=true)[2]
 
     return c^2
 end
@@ -24,12 +24,12 @@ function optimal_λ_regularize(
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     ψbound::Real=0.0,
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64, Float64}[],
+    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     min_exp::Integer=-20, max_exp::Integer=-10)
 
     λ_range_exp = collect(min_exp:0.5:max_exp)
     cost_λ = [cost_λ_regularize(λ, coils, EQ, image, flux_cps, saddle_cps; ψbound, fixed_coils) for λ in λ_range_exp]
-    return  10^λ_range_exp[argmin(cost_λ)]
+    return 10^λ_range_exp[argmin(cost_λ)]
 end
 
 # ***************************************************
@@ -167,7 +167,7 @@ end
     coils::Vector{<:AbstractCoil},
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
-    clims = (-1, 1) .* maximum(abs, free))
+    clims=(-1, 1) .* maximum(abs, free))
 
     aspect_ratio --> :equal
     xlims --> extrema(R)
@@ -184,7 +184,7 @@ end
 
     for (k, coil) in enumerate(coils)
         @series begin
-            label --> ((k==1) ? "Coil" : :none)
+            label --> ((k == 1) ? "Coil" : :none)
             coil
         end
     end
@@ -194,7 +194,7 @@ end
         @series begin
             seriestype --> :scatter
             color --> :cyan
-            label --> ((k==1) ? "Flux CP" : :none)
+            label --> ((k == 1) ? "Flux CP" : :none)
             [cp.R], [cp.Z]
         end
     end
@@ -203,7 +203,7 @@ end
         @series begin
             seriestype --> :scatter
             color --> :magenta
-            label --> ((k==1) ? "Saddle CP" : :none)
+            label --> ((k == 1) ? "Saddle CP" : :none)
             [cp.R], [cp.Z]
         end
     end

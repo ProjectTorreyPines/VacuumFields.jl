@@ -1,14 +1,14 @@
 struct Image{V<:AbstractVector{<:Real}}
-    Rb :: V
-    Zb :: V
-    Lb :: V
-    dψdn_R :: V
+    Rb::V
+    Zb::V
+    Lb::V
+    dψdn_R::V
     _Vb::Vector{V}
 end
 
 function Image(Rb, Zb, Lb, dψdn_R)
     Vb = [zero(Lb) for _ in 1:Threads.nthreads()]
-    Image(Rb, Zb, Lb, dψdn_R, Vb)
+    return Image(Rb, Zb, Lb, dψdn_R, Vb)
 end
 
 function cumlength(R::T, Z::T) where {T<:AbstractVector{Float64}}

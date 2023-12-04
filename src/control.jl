@@ -35,7 +35,6 @@ function SaddleControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Re
 end
 
 function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
-
     ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
     ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0)
     if Sb === nothing
@@ -50,7 +49,7 @@ end
 
 function boundary_control_points(shot::TEQUILA.Shot, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
     bnd = MillerExtendedHarmonic.MXH(shot, fraction_inside)
-    θs = LinRange(0, 2π, Npts+1)
+    θs = LinRange(0, 2π, Npts + 1)
     ψtarget = ψbound + TEQUILA.psi_ρθ(shot, fraction_inside, 0.0)
     return [FluxControlPoint(bnd(θ)..., ψtarget) for θ in θs[1:end-1]]
 end
@@ -61,7 +60,7 @@ function optimize_coil_currents!(
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     ψbound::Real=0.0,
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64, Float64}[],
+    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
     return_cost::Bool=false)
 
@@ -76,7 +75,7 @@ function optimize_coil_currents!(
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     ψbound::Real=0.0,
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64, Float64}[],
+    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
     return_cost::Bool=false)
 
