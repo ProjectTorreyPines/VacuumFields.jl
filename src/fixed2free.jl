@@ -125,6 +125,7 @@ function fixed2free(
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
     ψbound::Real=0.0,
+    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64, Float64}[],
     λ_regularize::Real=0.0) where {T<:Real,C<:Real}
 
     _, ψb = MXHEquilibrium.psi_limits(EQfixed)
@@ -135,9 +136,9 @@ function fixed2free(
 
     if (!isempty(flux_cps) || !isempty(saddle_cps))
         if λ_regularize < 0.0
-            λ_regularize = optimal_λ_regularize(coils, EQfixed, image, flux_cps, saddle_cps; ψbound)
+            λ_regularize = optimal_λ_regularize(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, fixed_coils)
         end
-        optimize_coil_currents!(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, λ_regularize)
+        optimize_coil_currents!(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize)
     end
 
     # ψ from image and coil currents

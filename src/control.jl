@@ -79,20 +79,122 @@ function optimize_coil_currents!(
     λ_regularize::Float64=0.0,
     return_cost::Bool=false)
 
-    Nflux = length(flux_cps)
-    N = Nflux + 2 * length(saddle_cps)
-
-    A = zeros(N, length(coils))
-    b = zeros(N)
 
     # First reset current in coils to unity
     for k in eachindex(coils)
         coils[k].current = 1.0
     end
 
-    cocos = MXHEquilibrium.cocos(EQ)
-    Bp_fac = cocos.sigma_Bp * (2π)^cocos.exp_Bp
+    N = length(flux_cps) + 2 * length(saddle_cps)
+    A = zeros(N, length(coils))
+    b = zeros(N)
 
+    init_b!(b, EQ, image, flux_cps, saddle_cps; ψbound)
+    cocos = MXHEquilibrium.cocos(EQ)
+    populate_Ab!(A, b, coils, flux_cps, saddle_cps; fixed_coils, cocos)
+
+    # Least-squares solve for coil currents
+    if λ_regularize > 0
+        # Least-squares with regularization
+        # https://www.youtube.com/watch?v=9BckeGN0sF0
+        Ic0 = reg_solve(A, b, λ_regularize / length(coils)^2)
+    else
+        Ic0 = A \ b
+    end
+
+    # update values of coils current
+    for k in eachindex(coils)
+        coils[k].current = Ic0[k]
+    end
+
+    if return_cost
+        cost(Ic) = norm(A * Ic .- b) / norm(b)
+        return Ic0, cost(Ic0)
+    else
+        return Ic0
+    end
+
+end
+
+function optimize_coil_currents!(
+    coils::Vector{<:AbstractCoil},
+    EQ::Nothing,
+    flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+    ψbound::Real=0.0,
+    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64, Float64}[],
+    λ_regularize::Float64=0.0,
+    return_cost::Bool=false,
+    cocos=MXHEquilibrium.cocos(11))
+    return optimize_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, return_cost, cocos)
+end
+
+function optimize_coil_currents!(
+    coils::Vector{<:AbstractCoil},
+    EQ::Nothing,
+    image::Nothing,
+    flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+    ψbound::Real=0.0,
+    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64, Float64}[],
+    λ_regularize::Float64=0.0,
+    return_cost::Bool=false,
+    cocos=MXHEquilibrium.cocos(11))
+    return optimize_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, return_cost, cocos)
+end
+
+function optimize_coil_currents!(
+    coils::Vector{<:AbstractCoil},
+    flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64, Float64}[],
+    λ_regularize::Float64=0.0,
+    return_cost::Bool=false,
+    cocos=MXHEquilibrium.cocos(11))
+
+    # First reset current in coils to unity
+    for k in eachindex(coils)
+        coils[k].current = 1.0
+    end
+
+    N = length(flux_cps) + 2 * length(saddle_cps)
+    A = zeros(N, length(coils))
+    b = zeros(N)
+
+    populate_Ab!(A, b, coils, flux_cps, saddle_cps; fixed_coils, cocos)
+
+    # Least-squares solve for coil currents
+    if λ_regularize > 0
+        # Least-squares with regularization
+        # https://www.youtube.com/watch?v=9BckeGN0sF0
+        Ic0 = reg_solve(A, b, λ_regularize / length(coils)^2)
+    else
+        Ic0 = A \ b
+    end
+
+    # update values of coils current
+    for k in eachindex(coils)
+        coils[k].current = Ic0[k]
+    end
+
+    if return_cost
+        cost(Ic) = norm(A * Ic .- b) / norm(b)
+        return Ic0, cost(Ic0)
+    else
+        return Ic0
+    end
+
+end
+
+function init_b!(
+    b::AbstractVector{<:Real},
+    EQ::MXHEquilibrium.AbstractEquilibrium,
+    image::Image,
+    flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+    ψbound::Real=0.0)
+
+    Nflux = length(flux_cps)
     _, ψb = MXHEquilibrium.psi_limits(EQ)
 
     @threads for i in eachindex(flux_cps)
@@ -102,12 +204,51 @@ function optimize_coil_currents!(
 
         # RHS
 
-        # target
-        b[i] = cp.target
-
         # remove plasma current contribution (EQ - image)
         b[i] -= ψbound - ψb + EQ(r, z)
         b[i] += ψ(image, r, z)
+
+    end
+
+    @threads for i in eachindex(saddle_cps)
+
+        cp = saddle_cps[i]
+        r = cp.R
+        z = cp.Z
+
+        ir = Nflux + 2i - 1
+        iz = Nflux + 2i
+
+        # target is zero and assume outside boundary, so no EQ contribution
+        b[ir] += dψ_dR(image, r, z)
+        b[iz] += dψ_dZ(image, r, z)
+
+    end
+
+    return b
+end
+
+
+function populate_Ab!(A::AbstractMatrix{<:Real}, b::AbstractVector{<:Real},
+    coils::Vector{<:AbstractCoil},
+    flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64, Float64}[],
+    cocos=MXHEquilibrium.cocos(11))
+
+    Nflux = length(flux_cps)
+
+    Bp_fac = cocos.sigma_Bp * (2π)^cocos.exp_Bp
+
+    @threads for i in eachindex(flux_cps)
+        cp = flux_cps[i]
+        r = cp.R
+        z = cp.Z
+
+        # RHS
+
+        # target
+        b[i] += cp.target
 
         # remove fixed coil contribution
         if !isempty(fixed_coils)
@@ -132,10 +273,6 @@ function optimize_coil_currents!(
         ir = Nflux + 2i - 1
         iz = Nflux + 2i
 
-        # target is zero and assume outside boundary, so no EQ contribution
-        b[ir] = dψ_dR(image, r, z)
-        b[iz] = dψ_dZ(image, r, z)
-
         # remove fixed coil contribution
         if !isempty(fixed_coils)
             b[ir] -= sum(dψ_dR(fixed_coil, r, c; Bp_fac) for fixed_coil in fixed_coils)
@@ -150,27 +287,6 @@ function optimize_coil_currents!(
         w = sqrt(cp.weight)
         b[ir:iz] .*= w
         A[ir:iz, :] .*= w
-    end
-
-    # Least-squares solve for coil currents
-    if λ_regularize > 0
-        # Least-squares with regularization
-        # https://www.youtube.com/watch?v=9BckeGN0sF0
-        Ic0 = reg_solve(A, b, λ_regularize / length(coils)^2)
-    else
-        Ic0 = A \ b
-    end
-
-    # update values of coils current
-    for k in eachindex(coils)
-        coils[k].current = Ic0[k]
-    end
-
-    if return_cost
-        cost(Ic) = norm(A * Ic .- b) / norm(b)
-        return Ic0, cost(Ic0)
-    else
-        return Ic0
     end
 
 end
