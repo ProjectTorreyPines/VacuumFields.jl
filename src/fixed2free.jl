@@ -154,6 +154,9 @@ function fixed2free(
         end
     end
 
+    # sometimes ψ_f2f goes to Inf
+    ψ_f2f[abs.(ψ_f2f).==Inf] .= 0.0
+
     return ψ_f2f
 end
 
