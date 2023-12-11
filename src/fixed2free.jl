@@ -11,10 +11,10 @@ function cost_λ_regularize(
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[])
 
-    c = optimize_coil_currents!(coils, EQ, image, flux_cps, saddle_cps;
-        ψbound, fixed_coils, λ_regularize=10^λ_exp, return_cost=true)[2]
+    _, cost = optimize_coil_currents!(coils, EQ, image, flux_cps, saddle_cps;
+        ψbound, fixed_coils, λ_regularize=10^λ_exp, return_cost=true)
 
-    return c^2
+    return cost^2
 end
 
 function optimal_λ_regularize(

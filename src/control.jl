@@ -64,8 +64,7 @@ function optimize_coil_currents!(
     λ_regularize::Float64=0.0,
     return_cost::Bool=false)
 
-    image = Image(EQ)
-    return optimize_coil_currents!(coils, EQ, image, flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize, return_cost)
+    return optimize_coil_currents!(coils, EQ, Image(EQ), flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize, return_cost)
 end
 
 function optimize_coil_currents!(
@@ -78,7 +77,6 @@ function optimize_coil_currents!(
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
     return_cost::Bool=false)
-
 
     # First reset current in coils to unity
     for k in eachindex(coils)
@@ -108,12 +106,12 @@ function optimize_coil_currents!(
     end
 
     if return_cost
-        cost(Ic) = norm(A * Ic .- b) / norm(b)
-        return Ic0, cost(Ic0)
+        cost = norm(A * Ic0 .- b) / norm(b)
     else
-        return Ic0
+        cost = NaN
     end
 
+    return Ic0, cost
 end
 
 function optimize_coil_currents!(
@@ -122,10 +120,11 @@ function optimize_coil_currents!(
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     ψbound::Real=0.0,
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64, Float64}[],
+    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
     return_cost::Bool=false,
     cocos=MXHEquilibrium.cocos(11))
+
     return optimize_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, return_cost, cocos)
 end
 
@@ -136,10 +135,11 @@ function optimize_coil_currents!(
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     ψbound::Real=0.0,
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64, Float64}[],
+    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
     return_cost::Bool=false,
     cocos=MXHEquilibrium.cocos(11))
+
     return optimize_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, return_cost, cocos)
 end
 
@@ -147,7 +147,7 @@ function optimize_coil_currents!(
     coils::Vector{<:AbstractCoil},
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64, Float64}[],
+    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
     return_cost::Bool=false,
     cocos=MXHEquilibrium.cocos(11))
@@ -178,12 +178,12 @@ function optimize_coil_currents!(
     end
 
     if return_cost
-        cost(Ic) = norm(A * Ic .- b) / norm(b)
-        return Ic0, cost(Ic0)
+        cost = norm(A * Ic0 .- b) / norm(b)
     else
-        return Ic0
+        cost = NaN
     end
 
+    return Ic0, cost
 end
 
 function init_b!(
@@ -207,11 +207,9 @@ function init_b!(
         # remove plasma current contribution (EQ - image)
         b[i] -= ψbound - ψb + EQ(r, z)
         b[i] += ψ(image, r, z)
-
     end
 
     @threads for i in eachindex(saddle_cps)
-
         cp = saddle_cps[i]
         r = cp.R
         z = cp.Z
@@ -222,7 +220,6 @@ function init_b!(
         # target is zero and assume outside boundary, so no EQ contribution
         b[ir] += dψ_dR(image, r, z)
         b[iz] += dψ_dZ(image, r, z)
-
     end
 
     return b
@@ -233,7 +230,7 @@ function populate_Ab!(A::AbstractMatrix{<:Real}, b::AbstractVector{<:Real},
     coils::Vector{<:AbstractCoil},
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64, Float64}[],
+    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     cocos=MXHEquilibrium.cocos(11))
 
     Nflux = length(flux_cps)
@@ -265,7 +262,6 @@ function populate_Ab!(A::AbstractMatrix{<:Real}, b::AbstractVector{<:Real},
     end
 
     @threads for i in eachindex(saddle_cps)
-
         cp = saddle_cps[i]
         r = cp.R
         z = cp.Z
