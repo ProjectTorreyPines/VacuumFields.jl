@@ -11,7 +11,7 @@ function cost_λ_regularize(
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[])
 
-    _, cost = optimize_coil_currents!(coils, EQ, image, flux_cps, saddle_cps;
+    _, cost = find_coil_currents!(coils, EQ, image, flux_cps, saddle_cps;
         ψbound, fixed_coils, λ_regularize=10^λ_exp, return_cost=true)
 
     return cost^2
@@ -85,7 +85,7 @@ function encircling_fixed2free(
     end
     append!(flux_cps, boundary_control_points(EQfixed, fraction_inside, ψbound))
 
-    optimize_coil_currents!(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, λ_regularize)
+    find_coil_currents!(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, λ_regularize)
 
     return fixed2free(EQfixed, coils, Rgrid, Zgrid)
 end
@@ -138,7 +138,7 @@ function fixed2free(
         if λ_regularize < 0.0
             λ_regularize = optimal_λ_regularize(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, fixed_coils)
         end
-        optimize_coil_currents!(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize)
+        find_coil_currents!(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize)
     end
 
     # ψ from image and coil currents

@@ -54,7 +54,7 @@ function boundary_control_points(shot::TEQUILA.Shot, fraction_inside::Float64=0.
     return [FluxControlPoint(bnd(θ)..., ψtarget) for θ in θs[1:end-1]]
 end
 
-function optimize_coil_currents!(
+function find_coil_currents!(
     coils::Vector{<:AbstractCoil},
     EQ::MXHEquilibrium.AbstractEquilibrium,
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
@@ -64,10 +64,10 @@ function optimize_coil_currents!(
     λ_regularize::Float64=0.0,
     return_cost::Bool=false)
 
-    return optimize_coil_currents!(coils, EQ, Image(EQ), flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize, return_cost)
+    return find_coil_currents!(coils, EQ, Image(EQ), flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize, return_cost)
 end
 
-function optimize_coil_currents!(
+function find_coil_currents!(
     coils::Vector{<:AbstractCoil},
     EQ::MXHEquilibrium.AbstractEquilibrium,
     image::Image,
@@ -114,7 +114,7 @@ function optimize_coil_currents!(
     return Ic0, cost
 end
 
-function optimize_coil_currents!(
+function find_coil_currents!(
     coils::Vector{<:AbstractCoil},
     EQ::Nothing,
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
@@ -125,10 +125,10 @@ function optimize_coil_currents!(
     return_cost::Bool=false,
     cocos=MXHEquilibrium.cocos(11))
 
-    return optimize_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, return_cost, cocos)
+    return find_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, return_cost, cocos)
 end
 
-function optimize_coil_currents!(
+function find_coil_currents!(
     coils::Vector{<:AbstractCoil},
     EQ::Nothing,
     image::Nothing,
@@ -140,10 +140,10 @@ function optimize_coil_currents!(
     return_cost::Bool=false,
     cocos=MXHEquilibrium.cocos(11))
 
-    return optimize_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, return_cost, cocos)
+    return find_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, return_cost, cocos)
 end
 
-function optimize_coil_currents!(
+function find_coil_currents!(
     coils::Vector{<:AbstractCoil},
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];

@@ -19,7 +19,7 @@ include("control.jl")
 include("fixed2free.jl")
 
 export AbstractCoil, PointCoil, DistributedCoil, coil, encircling_coils, plot_coil
-export AbstractControlPoint, FluxControlPoint, SaddleControlPoint, optimize_coil_currents!
+export AbstractControlPoint, FluxControlPoint, SaddleControlPoint, find_coil_currents!
 export fixed2free, optimal_λ_regularize, encircling_fixed2free
 
 const coils_D3D_matrix = [
