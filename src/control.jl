@@ -61,10 +61,9 @@ function find_coil_currents!(
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    λ_regularize::Float64=0.0,
-    return_cost::Bool=false)
+    λ_regularize::Float64=0.0)
 
-    return find_coil_currents!(coils, EQ, Image(EQ), flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize, return_cost)
+    return find_coil_currents!(coils, EQ, Image(EQ), flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize)
 end
 
 function find_coil_currents!(
@@ -75,12 +74,11 @@ function find_coil_currents!(
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    λ_regularize::Float64=0.0,
-    return_cost::Bool=false)
+    λ_regularize::Float64=0.0)
 
     # First reset current in coils to unity
-    for k in eachindex(coils)
-        coils[k].current = 1.0
+    for coil in coils
+        coil.current = 1.0
     end
 
     N = length(flux_cps) + 2 * length(saddle_cps)
@@ -101,15 +99,11 @@ function find_coil_currents!(
     end
 
     # update values of coils current
-    for k in eachindex(coils)
-        coils[k].current = Ic0[k]
+    for (k, coil) in enumerate(coils)
+        coil.current = Ic0[k]
     end
 
-    if return_cost
-        cost = norm(A * Ic0 .- b) / norm(b)
-    else
-        cost = NaN
-    end
+    cost = norm(A * Ic0 .- b) / norm(b)
 
     return Ic0, cost
 end
@@ -122,10 +116,9 @@ function find_coil_currents!(
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
-    return_cost::Bool=false,
     cocos=MXHEquilibrium.cocos(11))
 
-    return find_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, return_cost, cocos)
+    return find_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, cocos)
 end
 
 function find_coil_currents!(
@@ -137,10 +130,9 @@ function find_coil_currents!(
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
-    return_cost::Bool=false,
     cocos=MXHEquilibrium.cocos(11))
 
-    return find_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, return_cost, cocos)
+    return find_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, cocos)
 end
 
 function find_coil_currents!(
@@ -149,12 +141,11 @@ function find_coil_currents!(
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
-    return_cost::Bool=false,
     cocos=MXHEquilibrium.cocos(11))
 
     # First reset current in coils to unity
-    for k in eachindex(coils)
-        coils[k].current = 1.0
+    for coil in coils
+        coil.current = 1.0
     end
 
     N = length(flux_cps) + 2 * length(saddle_cps)
@@ -173,15 +164,11 @@ function find_coil_currents!(
     end
 
     # update values of coils current
-    for k in eachindex(coils)
-        coils[k].current = Ic0[k]
+    for (k, coil) in enumerate(coils)
+        coil.current = Ic0[k]
     end
 
-    if return_cost
-        cost = norm(A * Ic0 .- b) / norm(b)
-    else
-        cost = NaN
-    end
+    cost = norm(A * Ic0 .- b) / norm(b)
 
     return Ic0, cost
 end

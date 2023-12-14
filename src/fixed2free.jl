@@ -11,8 +11,7 @@ function cost_λ_regularize(
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[])
 
-    _, cost = find_coil_currents!(coils, EQ, image, flux_cps, saddle_cps;
-        ψbound, fixed_coils, λ_regularize=10^λ_exp, return_cost=true)
+    _, cost = find_coil_currents!(coils, EQ, image, flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize=10^λ_exp)
 
     return cost^2
 end
