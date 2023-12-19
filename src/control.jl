@@ -110,7 +110,7 @@ end
 
 function find_coil_currents!(
     coils::Vector{<:AbstractCoil},
-    EQ::Nothing,
+    EQ::Nothing,  # VACUUM case
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     ψbound::Real=0.0,
@@ -123,7 +123,7 @@ end
 
 function find_coil_currents!(
     coils::Vector{<:AbstractCoil},
-    EQ::Nothing,
+    EQ::Nothing, # VACUUM case
     image::Nothing,
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
@@ -212,7 +212,6 @@ function init_b!(
     return b
 end
 
-
 function populate_Ab!(A::AbstractMatrix{<:Real}, b::AbstractVector{<:Real},
     coils::Vector{<:AbstractCoil},
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
@@ -236,7 +235,7 @@ function populate_Ab!(A::AbstractMatrix{<:Real}, b::AbstractVector{<:Real},
 
         # remove fixed coil contribution
         if !isempty(fixed_coils)
-            b[i] -= sum(ψ(fixed_coil, r, c; Bp_fac) for fixed_coil in fixed_coils)
+            b[i] -= sum(ψ(fixed_coil, r, z; Bp_fac) for fixed_coil in fixed_coils)
         end
 
         # Build matrix relating coil Green's functions to boundary points
@@ -258,8 +257,8 @@ function populate_Ab!(A::AbstractMatrix{<:Real}, b::AbstractVector{<:Real},
 
         # remove fixed coil contribution
         if !isempty(fixed_coils)
-            b[ir] -= sum(dψ_dR(fixed_coil, r, c; Bp_fac) for fixed_coil in fixed_coils)
-            b[iz] -= sum(dψ_dZ(fixed_coil, r, c; Bp_fac) for fixed_coil in fixed_coils)
+            b[ir] -= sum(dψ_dR(fixed_coil, r, z; Bp_fac) for fixed_coil in fixed_coils)
+            b[iz] -= sum(dψ_dZ(fixed_coil, r, z; Bp_fac) for fixed_coil in fixed_coils)
         end
 
         # Build matrix relating coil Green's functions to boundary points
@@ -271,5 +270,4 @@ function populate_Ab!(A::AbstractMatrix{<:Real}, b::AbstractVector{<:Real},
         b[ir:iz] .*= w
         A[ir:iz, :] .*= w
     end
-
 end
