@@ -1,17 +1,20 @@
 name = "VacuumFields"
 uuid = "9d9223b5-c5da-4bf4-abee-2a8bb6775a49"
 authors = ["Brendan Lyons <lyonsbc@fusion.gat.com> and contributors"]
-version = "1.0"
+version = "1.0.0"
 
 [deps]
 Contour = "d38c429a-6771-53c6-b99e-75d170b6e991"
 CoordinateConventions = "7204ce3a-f536-43d2-be4a-fbed74e90d86"
 EFIT = "cda752c5-6b03-55a3-9e33-132a441b0c17"
+FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
 FiniteElementHermite = "6ce10167-d368-4c0e-af34-9787cdd175e5"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MXHEquilibrium = "8efa4e5a-7b9a-4eec-876e-01d13d5b5d75"
 MeshTools = "804828d9-b4e9-4eca-b847-748d6c7bafa9"
 MillerExtendedHarmonic = "c82744c2-dc08-461a-8c37-87ab04d0f9b8"
 PlotUtils = "995b91a9-d308-5afd-9ec6-746e21dbc043"
+QuadGK = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
 RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 TEQUILA = "a60c9cbd-e72f-4185-96b6-b8fc312c4d37"
