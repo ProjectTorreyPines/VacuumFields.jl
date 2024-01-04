@@ -19,6 +19,37 @@ end
 SaddleControlPoint(R, Z) = SaddleControlPoint(R, Z, one(R))
 SaddleControlPoint(R, Z, weight) = SaddleControlPoint(promote(R, Z, weight)...)
 
+@recipe function plot_SaddleControlPoint(cp::SaddleControlPoint)
+    @series begin
+        marker := :star
+        cp, nothing
+    end
+end
+
+@recipe function plot_FluxControlPoint(cp::FluxControlPoint)
+    @series begin
+        marker := :circle
+        cp, nothing
+    end
+end
+
+@recipe function plot_control_point(cp::AbstractControlPoint, dispatch::Nothing=nothing)
+    @series begin
+        seriestype := :scatter
+        label --> ""
+        [cp.R], [cp.Z]
+    end
+end
+
+@recipe function plot_control_points(cps::AbstractVector{<:AbstractControlPoint})
+    for (k, cp) in enumerate(cps)
+        @series begin
+            primary --> k == 1
+            cp
+        end
+    end
+end
+
 function reg_solve(A, b, λ)
     return (A' * A + λ * I) \ A' * b
 end

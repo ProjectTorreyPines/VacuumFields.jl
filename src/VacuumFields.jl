@@ -11,11 +11,17 @@ import TEQUILA
 const μ₀ = 4e-7 * π
 
 include("coils.jl")
+
 include("image.jl")
+
 include("flux.jl")
+
 include("elliptic.jl")
+
 include("green.jl")
+
 include("control.jl")
+
 include("fixed2free.jl")
 
 export AbstractCoil, PointCoil, DistributedCoil, coil, encircling_coils, plot_coil
