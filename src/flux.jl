@@ -1,7 +1,7 @@
 # trapezoidal rule
 @inline trapz(x, y) = 0.5 * sum((x[k] - x[k-1]) * (y[k] + y[k-1]) for k in eachindex(x)[2:end])
 
-# generic functions
+# generalized functions
 @inline ψ(source, R::Real, Z::Real; kwargs...)       = _pfunc(Green, source, R, Z; kwargs...)
 @inline dψ_dR(source, R::Real, Z::Real; kwargs...)   = _pfunc(dG_dR, source, R, Z; kwargs...)
 @inline dψ_dZ(source, R::Real, Z::Real; kwargs...)   = _pfunc(dG_dZ, source, R, Z; kwargs...)

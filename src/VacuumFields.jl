@@ -25,7 +25,6 @@ include("control.jl")
 include("fixed2free.jl")
 include("mutual.jl")
 
-
 export AbstractCoil, PointCoil, DistributedCoil, coil, encircling_coils, plot_coil
 export AbstractControlPoint, FluxControlPoint, SaddleControlPoint, find_coil_currents!
 export fixed2free, optimal_λ_regularize, encircling_fixed2free

@@ -4,7 +4,7 @@ function _gfunc(Gfunc::Function, C::PointCoil, R::Real, Z::Real, scale_factor::R
     return Gfunc(C.R, C.Z, R, Z, scale_factor)
 end
 
-function _gfunc(Gfunc::Function, C::ParallelogramCoil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=3, yorder::Int=3)
+function _gfunc(Gfunc::Function, C::ParallelogramCoil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)
     return integrate((X, Y) -> Gfunc(X, Y, R, Z, scale_factor), C; xorder, yorder) / area(C)
 end
 
