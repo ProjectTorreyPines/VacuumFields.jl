@@ -67,11 +67,7 @@ end
 
 function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
     ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
-    ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0)
-    if Sb === nothing
-        # if the original boundary specified in EQfixed does not close, then find LCFS boundary
-        ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed)
-    end
+    _, ψb = plasma_boundary_psi_w_fallback(EQfixed)
 
     Sp = MXHEquilibrium.flux_surface(EQfixed, fraction_inside * (ψb - ψ0) + ψ0; n_interp=Npts)
     ψtarget = fraction_inside * (ψb - ψ0) + ψ0 - ψb + ψbound
