@@ -31,10 +31,10 @@ function Image(shot::TEQUILA.Shot, bnd::MillerExtendedHarmonic.MXH; Nb::Integer=
 end
 
 function Image(EQ::MXHEquilibrium.AbstractEquilibrium)
-    _, Sb = MXHEquilibrium.plasma_boundary_psi(EQ; precision=0.0)
+    Sb = MXHEquilibrium.plasma_boundary(EQ; precision=0.0)
     if Sb === nothing
         # if the original boundary specified in EQfixed does not close, then find LCFS boundary
-        _, Sb = MXHEquilibrium.plasma_boundary_psi(EQ)
+        Sb = MXHEquilibrium.plasma_boundary(EQ)
     end
     return Image(EQ, Sb.r, Sb.z)
 end

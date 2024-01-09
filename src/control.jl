@@ -19,6 +19,37 @@ end
 SaddleControlPoint(R, Z) = SaddleControlPoint(R, Z, one(R))
 SaddleControlPoint(R, Z, weight) = SaddleControlPoint(promote(R, Z, weight)...)
 
+@recipe function plot_SaddleControlPoint(cp::SaddleControlPoint)
+    @series begin
+        marker := :star
+        cp, nothing
+    end
+end
+
+@recipe function plot_FluxControlPoint(cp::FluxControlPoint)
+    @series begin
+        marker := :circle
+        cp, nothing
+    end
+end
+
+@recipe function plot_control_point(cp::AbstractControlPoint, dispatch::Nothing=nothing)
+    @series begin
+        seriestype := :scatter
+        label --> ""
+        [cp.R], [cp.Z]
+    end
+end
+
+@recipe function plot_control_points(cps::AbstractVector{<:AbstractControlPoint})
+    for (k, cp) in enumerate(cps)
+        @series begin
+            primary --> k == 1
+            cp
+        end
+    end
+end
+
 function reg_solve(A, b, λ)
     return (A' * A + λ * I) \ A' * b
 end
@@ -36,11 +67,7 @@ end
 
 function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
     ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
-    ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed; precision=0.0)
-    if Sb === nothing
-        # if the original boundary specified in EQfixed does not close, then find LCFS boundary
-        ψb, Sb = MXHEquilibrium.plasma_boundary_psi(EQfixed)
-    end
+    _, ψb = plasma_boundary_psi_w_fallback(EQfixed)
 
     Sp = MXHEquilibrium.flux_surface(EQfixed, fraction_inside * (ψb - ψ0) + ψ0; n_interp=Npts)
     ψtarget = fraction_inside * (ψb - ψ0) + ψ0 - ψb + ψbound

@@ -16,12 +16,19 @@ const deg2rad = π / 180.0
 const default_order = 10
 
 include("coils.jl")
+
 include("integration.jl")
+
 include("image.jl")
+
 include("flux.jl")
+
 include("elliptic.jl")
+
 include("green.jl")
+
 include("control.jl")
+
 include("fixed2free.jl")
 include("mutual.jl")
 

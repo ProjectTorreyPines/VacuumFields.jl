@@ -93,16 +93,16 @@ end
 # Transform fixed-boundary ψ to free-boundary ψ given currents in coils
 # ***************************************************
 
-function boundary(EQ::MXHEquilibrium.AbstractEquilibrium, r, z)
-    _, Sb = MXHEquilibrium.plasma_boundary_psi(EQ; precision=0.0, r, z)
+function plasma_boundary_psi_w_fallback(EQ::MXHEquilibrium.AbstractEquilibrium)
+    Sb, ψb = MXHEquilibrium.plasma_boundary_psi(EQ; precision=0.0)
     if Sb === nothing
         # if the original boundary specified in EQfixed does not close, then find LCFS boundary
-        _, Sb = MXHEquilibrium.plasma_boundary_psi(EQ; r, z)
+        Sb, ψb = MXHEquilibrium.plasma_boundary(EQ)
     end
-    return Sb
+    return Sb, ψb
 end
 
-boundary(shot::TEQUILA.Shot, args...) = MXHEquilibrium.Boundary(MXHEquilibrium.MXH(shot, 1.0)()...)
+plasma_boundary_psi_w_fallback(shot::TEQUILA.Shot, args...) = MXHEquilibrium.Boundary(MXHEquilibrium.MXH(shot, 1.0)()...), 0.0
 
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
@@ -124,13 +124,10 @@ function fixed2free(
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
     ψbound::Real=0.0,
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64, Float64}[],
+    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Real=0.0) where {T<:Real,C<:Real}
 
-    _, ψb = MXHEquilibrium.psi_limits(EQfixed)
-    R1 = LinRange(minimum(R), maximum(R), length(R) * 10)
-    Z1 = LinRange(minimum(Z), maximum(Z), length(Z) * 10)
-    Sb = boundary(EQfixed, R1, Z1)
+    Sb, ψb = plasma_boundary_psi_w_fallback(EQfixed)
     ψ_f2f = T[MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) - ψb + ψbound : ψbound for z in Z, r in R]
 
     if (!isempty(flux_cps) || !isempty(saddle_cps))
