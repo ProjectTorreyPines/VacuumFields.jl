@@ -14,6 +14,7 @@ using QuadGK
 const μ₀ = 4e-7 * π
 const inv4π = 0.25 / π
 const deg2rad = π / 180.0
+const default_order = 10
 
 include("coils.jl")
 include("integration.jl")
@@ -29,7 +30,7 @@ include("mutual.jl")
 export AbstractCoil, PointCoil, DistributedCoil, coil, encircling_coils, plot_coil
 export AbstractControlPoint, FluxControlPoint, SaddleControlPoint, find_coil_currents!
 export fixed2free, optimal_λ_regularize, encircling_fixed2free
-export mutual
+export mutual, dM_dZ, d2M_dZ2, stability_margin, normalized_growth_rate
 
 const coils_D3D_matrix = [
     [8.6080e-01 1.6830e-01 5.0800e-02 3.2110e-01 0.0000e+00 9.0000e+01]

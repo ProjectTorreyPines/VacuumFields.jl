@@ -26,6 +26,10 @@ function dG_dZ(coil::AbstractCoil, R::Real, Z::Real, scale_factor::Real=1.0; kwa
     return _gfunc(dG_dZ, coil, R, Z, scale_factor; kwargs...)
 end
 
+function d2G_dZ2(coil::AbstractCoil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
+    return _gfunc(d2G_dZ2, coil, R, Z, scale_factor; kwargs...)
+end
+
 
 # Point-to-point Green's functions
 
@@ -39,8 +43,11 @@ end
 @inline function Green(X::Real, Y::Real, R::Real, Z::Real, scale_factor::Real=1.0)
     D, m = D_m(X, Y, R, Z)
     Km, Em = ellipke(m)
-    return inv4π * (2.0 * Em - (2.0 - m) * Km) * sqrt(D) * scale_factor
+    return scale_factor * _Green(D, m, Km, Em)
 end
+
+_Green(D::Real, m::Real, Km::Real, Em::Real) = inv4π * (2.0 * Em - (2.0 - m) * Km) * sqrt(D)
+
 
 # Derivative of Green(X, Y, R, Z) with respect to R
 function dG_dR(X::Real, Y::Real, R::Real, Z::Real, scale_factor::Real=1.0)
@@ -54,7 +61,7 @@ function dG_dR(X::Real, Y::Real, R::Real, Z::Real, scale_factor::Real=1.0)
     mR = m * ((1.0 / R) - DR_D)
 
     dG = 0.5 * DR_D * Green(X, Y, R, Z, scale_factor)
-    dG += inv4π * mR * (2 * dEm - (2.0 - m) * dKm + Km) * sqrt(D) * scale_factor
+    dG += inv4π * mR * _α(m, Km, dKm, dEm) * sqrt(D) * scale_factor
     return dG
 end
 
@@ -69,8 +76,64 @@ function dG_dZ(X::Real, Y::Real, R::Real, Z::Real, scale_factor::Real=1.0)
     DZ = 2 * (Z - Y)
     DZ_D = DZ / D
     mZ = -m * DZ_D
-
-    dG = 0.5 * DZ_D * Green(X, Y, R, Z, scale_factor)
-    dG += inv4π * mZ * (2 * dEm - (2.0 - m) * dKm + Km) * sqrt(D) * scale_factor
-    return dG
+    G = _Green(D, m, Km, Em)
+    return scale_factor * _dG_dZ(G, D, DZ_D, m, mZ, Km, dKm, dEm)
 end
+
+function _dG_dZ(G::Real, D::Real, DZ_D::Real, m::Real, mZ::Real, Km::Real, dKm::Real, dEm::Real)
+    GZ = 0.5 * DZ_D * G
+    GZ += inv4π * mZ * _α(m, Km, dKm, dEm) * sqrt(D)
+    return GZ
+end
+
+# elliptic integral functions used in dG_dR, dG_dZ & d2G_dZ2
+function α(X::Real, Y::Real, R::Real, Z::Real)
+    _, m = D_m(X, Y, R, Z)
+    Km, Em = ellipke(m)
+    dKm = D_ellipk(m, Km, Em)
+    dEm = D_ellipe(m, Km, Em)
+    return _α(m, Km, dKm, dEm)
+end
+_α(m, Km, dKm, dEm) = 2 * dEm - (2.0 - m) * dKm + Km
+
+
+# Second derivative of Green(X, Y, R, Z) with respect to Z
+function d2G_dZ2(X::Real, Y::Real, R::Real, Z::Real, scale_factor::Real=1.0)
+    D, m = D_m(X, Y, R, Z)
+    Km, Em = ellipke(m)
+    dKm = D_ellipk(m, Km, Em)
+    dEm = D_ellipe(m, Km, Em)
+    d2Km = D2_ellipk(m, Km, Em, dKm, dEm)
+    d2Em = D2_ellipe(m, Km, Em, dKm, dEm)
+
+    invD = 1.0 / D
+    DZ = 2 * (Z - Y)
+    DZ_D = DZ * invD
+    mZ = -m * DZ_D
+
+    DZZ = 2.0
+    mZZ = (m * invD) * (2.0 * DZ * DZ_D - DZZ)
+    α = _α(m, Km, dKm, dEm)
+    dα_dZ = _dα_dZ(m, mZ, dKm, d2Km, d2Em)
+
+    G = _Green(D, m, Km, Em)
+    GZ = _dG_dZ(G, D, DZ_D, m, mZ, Km, dKm, dEm)
+
+    GZZ = 0.5 * invD *  ((DZZ - (DZ * DZ_D)) * G + DZ * GZ)
+    GZZ += inv4π * sqrt(D) * ((mZZ + 0.5 * mZ * DZ_D) * α + mZ * dα_dZ)
+
+    return scale_factor * GZZ
+end
+
+# elliptic integral functions used in d2G_dZ2
+function dα_dZ(X::Real, Y::Real, R::Real, Z::Real)
+    D, m = D_m(X, Y, R, Z)
+    Km, Em = ellipke(m)
+    dKm = D_ellipk(m, Km, Em)
+    dEm = D_ellipe(m, Km, Em)
+    d2Km = D2_ellipk(m, Km, Em, dKm, dEm)
+    d2Em = D2_ellipe(m, Km, Em, dKm, dEm)
+    mZ = -2 * m * (Z - Y) / D
+    return _dα_dZ(m, mZ, dKm, d2Km, d2Em)
+end
+_dα_dZ(m, mZ, dKm, d2Km, d2Em) =  mZ * (2.0 * (d2Em + dKm) - (2.0 - m) * d2Km)
