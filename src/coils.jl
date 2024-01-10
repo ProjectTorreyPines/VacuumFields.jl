@@ -47,9 +47,9 @@ end
 
 Quadrilateral coil with counter-clockwise corners (starting from lower left) at R and Z
 """
-mutable struct QuadCoil{T1<:Real,T2<:Real,T3<:Real} <: AbstractCoil{T1, T2, T3}
-    R::Vector{T1}
-    Z::Vector{T1}
+mutable struct QuadCoil{T1<:Real,T2<:Real,T3<:Real, VT1<:AbstractVector{T1}} <: AbstractCoil{T1, T2, T3}
+    R::VT1
+    Z::VT1
     current::T2
     resistance::T3
     turns::Int
@@ -57,6 +57,13 @@ end
 
 QuadCoil(R, Z, current=0.0; resistance=0.0, turns=1) = QuadCoil(R, Z, current, resistance, turns)
 
+function QuadCoil(pc::ParallelogramCoil)
+    x = SVector(-1., 1., 1., -1.)
+    y = SVector(-1., -1., 1., 1.)
+    R = VacuumFields.Rplgm.(x, y, Ref(pc))
+    Z = VacuumFields.Zplgm.(x, y, Ref(pc))
+    return QuadCoil(R, Z, pc.current; pc.resistance, pc.turns)
+end
 function area(C::QuadCoil)
     R, Z = C.R, C.Z
     A  = R[1] * Z[2] + R[2] * Z[3] + R[3] * Z[4] + R[4] * Z[1]

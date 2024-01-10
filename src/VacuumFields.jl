@@ -8,7 +8,7 @@ using RecipesBase
 import PlotUtils: cgrad
 import TEQUILA
 import FastGaussQuadrature: gausslegendre
-import StaticArrays: SMatrix
+import StaticArrays: SMatrix, SVector
 
 const μ₀ = 4e-7 * π
 const inv4π = 0.25 / π
