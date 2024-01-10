@@ -13,7 +13,7 @@ function mutual(C1::AbstractCoil, C2::DistributedCoil)
     return fac * sum(Green(C1, C2.R[k], C2.Z[k]) for k in eachindex(C2.R)) / length(C2.R)
 end
 
-function mutual(C1::AbstractCoil, C2::ParallelogramCoil; xorder::Int=3, yorder::Int=3)
+function mutual(C1::AbstractCoil, C2::Union{ParallelogramCoil, QuadCoil}; xorder::Int=3, yorder::Int=3)
     fac = -2π * μ₀ * C1.turns * C2.turns
     f = (r, z) -> Green(C1, r, z; xorder = xorder+1, yorder = yorder+1)
     return fac * integrate(f, C2; xorder, yorder) / area(C2)
@@ -30,7 +30,7 @@ function _pfunc(Pfunc, image::Image, C::DistributedCoil, δZ; COCOS::MXHEquilibr
     return fac * sum(Pfunc(image, C.R[k], C.Z[k] - δZ) for k in eachindex(C.R)) / length(C.R)
 end
 
-function _pfunc(Pfunc, image::Image, C::ParallelogramCoil, δZ;
+function _pfunc(Pfunc, image::Image, C::Union{ParallelogramCoil, QuadCoil}, δZ;
                 COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
                 xorder::Int=default_order, yorder::Int=default_order)
     fac = -COCOS.sigma_Bp * (2π)^(1 - COCOS.exp_Bp)

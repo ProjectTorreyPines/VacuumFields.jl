@@ -51,6 +51,10 @@ function integrate(f, xlims, ylims; xorder=3, yorder=3)
     return I
 end
 
+#------------------
+# Parallelogram
+#------------------
+
 # parameterized R coordinate of parallelogram
 function Rplgm(x, y, C::ParallelogramCoil)
     α2 = tan(deg2rad * (C.θ2 + 90.0))
@@ -70,11 +74,11 @@ end
 end
 
 # integrate over a parallelogram
-function integrate(f, C::ParallelogramCoil; xorder=3, yorder=3)
+function integrate(f, C::ParallelogramCoil; xorder=default_order, yorder=default_order)
     return integrate(f, C.R, C.Z, C.ΔR, C.ΔZ, C.θ1, C.θ2; xorder, yorder)
 end
 
-function integrate(f, R, Z, ΔR, ΔZ, θ1, θ2; xorder=3, yorder=3)
+function integrate(f, R, Z, ΔR, ΔZ, θ1, θ2; xorder=default_order, yorder=default_order)
     @assert xorder <= N_gl
     @assert yorder <= N_gl
 
@@ -90,5 +94,66 @@ function integrate(f, R, Z, ΔR, ΔZ, θ1, θ2; xorder=3, yorder=3)
 
     J = 0.25 * (1.0 + α1 * α2) * ΔR * ΔZ
     I = J * sum(g(xs[i], ys[j]) * wxs[i] * wys[j] for i in 1:xorder, j in 1:yorder)
+    return I
+end
+
+#----------------
+# Quadrilateral
+#----------------
+
+# parameterized R, Z coordinates of quadrilateral
+function RZq(x, y, C::QuadCoil)
+    R = C.R
+    Z = C.Z
+    mx = 1.0 - x
+    px = 1.0 + x
+    my = 1.0 - y
+    py = 1.0 + y
+    mxmy = mx * my
+    pxmy = px * my
+    mxpy = mx * py
+    pxpy = px * py
+    r = 0.25 * (mxmy * R[1] + pxmy * R[2] + pxpy * R[3] + mxpy * R[4])
+    z = 0.25 * (mxmy * Z[1] + pxmy * Z[2] + pxpy * Z[3] + mxpy * Z[4])
+    return r, z
+end
+
+# integrate over a Quadrilateral
+function Jacobian(x::Real, y::Real, C::QuadCoil)
+    R = C.R
+    Z = C.Z
+
+    a = -R[1] + R[2] + R[3] - R[4]
+    b =  R[1] - R[2] + R[3] - R[4]
+    dRdx = a + b * y
+
+    a = -R[1] - R[2] + R[3] + R[4]
+    # b same
+    dRdy = a + b * x
+
+    a = -Z[1] + Z[2] + Z[3] - Z[4]
+    b =  Z[1] - Z[2] + Z[3] - Z[4]
+    dZdx = a + b * y
+
+    a = -Z[1] - Z[2] + Z[3] + Z[4]
+    # b same
+    dZdy = a + b * x
+
+    # All these need to be divided by 4
+    return 0.0625 * (dRdx * dZdy - dRdy * dZdx)
+end
+
+function integrate(f, C::QuadCoil; xorder=default_order, yorder=default_order)
+    @assert xorder <= N_gl
+    @assert yorder <= N_gl
+
+    @views xs  = gξ_pa[:, xorder]
+    @views wxs = gw_pa[:, xorder]
+    @views ys  = gξ_pa[:, yorder]
+    @views wys = gw_pa[:, yorder]
+
+    g = (x, y) -> Jacobian(x, y, C)  * f(RZq(x, y, C)...)
+
+    I = sum(g(xs[i], ys[j]) * wxs[i] * wys[j] for i in 1:xorder, j in 1:yorder)
     return I
 end

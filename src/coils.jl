@@ -42,6 +42,28 @@ function area(ΔR, ΔZ, θ1, θ2)
 end
 
 
+"""
+    QuadCoil{T1, T2, T3} <:  AbstractCoil{T1, T2, T3}
+
+Quadrilateral coil with counter-clockwise corners (starting from lower left) at R and Z
+"""
+mutable struct QuadCoil{T1<:Real,T2<:Real,T3<:Real} <: AbstractCoil{T1, T2, T3}
+    R::Vector{T1}
+    Z::Vector{T1}
+    current::T2
+    resistance::T3
+    turns::Int
+end
+
+QuadCoil(R, Z, current=0.0; resistance=0.0, turns=1) = QuadCoil(R, Z, current, resistance, turns)
+
+function area(C::QuadCoil)
+    R, Z = C.R, C.Z
+    A  = R[1] * Z[2] + R[2] * Z[3] + R[3] * Z[4] + R[4] * Z[1]
+    A -= R[2] * Z[1] + R[3] * Z[2] + R[4] * Z[3] + R[1] * Z[4]
+    return 0.5 * A
+end
+
 mutable struct DistributedCoil{T1<:Real,T2<:Real,T3<:Real} <: AbstractCoil{T1, T2, T3}
     R::Vector{T1}
     Z::Vector{T1}
