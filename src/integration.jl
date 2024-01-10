@@ -143,7 +143,13 @@ function Jacobian(x::Real, y::Real, C::QuadCoil)
     return 0.0625 * (dRdx * dZdy - dRdy * dZdx)
 end
 
-function integrate(f, C::QuadCoil; xorder=default_order, yorder=default_order)
+
+function Jf(f, x, y, C::QuadCoil)
+    R, Z = RZq(x, y, C)
+    return Jacobian(x, y, C)  * f(R, Z)
+end
+
+function integrate(f::F, C::QuadCoil; xorder=default_order, yorder=default_order) where {F<:Function}
     @assert xorder <= N_gl
     @assert yorder <= N_gl
 
@@ -152,8 +158,6 @@ function integrate(f, C::QuadCoil; xorder=default_order, yorder=default_order)
     @views ys  = gξ_pa[:, yorder]
     @views wys = gw_pa[:, yorder]
 
-    g = (x, y) -> Jacobian(x, y, C)  * f(RZq(x, y, C)...)
-
-    I = sum(g(xs[i], ys[j]) * wxs[i] * wys[j] for i in 1:xorder, j in 1:yorder)
+    I = sum(Jf(f, xs[i], ys[j], C) * wxs[i] * wys[j] for i in 1:xorder, j in 1:yorder)
     return I
 end
