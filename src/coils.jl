@@ -53,6 +53,14 @@ mutable struct QuadCoil{T1<:Real,T2<:Real,T3<:Real, VT1<:AbstractVector{T1}} <: 
     current::T2
     resistance::T3
     turns::Int
+    function QuadCoil(R::VT1, Z::VT1, current::T2, resistance::T3, turns::Int) where {VT1, T2, T3}
+        @assert length(R) == length(Z) == 4
+        points = reverse!(grahamscan!(collect(zip(R, Z)))) # reverse to make ccw
+        a, b = zip(points...)
+        R = VT1(collect(a))
+        Z = VT1(collect(b))
+        new{eltype(VT1), T2, T3, VT1}(R, Z, current, resistance, turns)
+    end
 end
 
 QuadCoil(R, Z, current=0.0; resistance=0.0, turns=1) = QuadCoil(R, Z, current, resistance, turns)
