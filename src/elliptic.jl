@@ -3,11 +3,23 @@ using Base.Math: @horner
 @doc raw"""
     Derivative of ellipk(m) with respect to m
 """
-D_ellipk(m) = m == 0 ?  π / 8.0 : D_ellipk(m, ellipke(m)...)
+D_ellipk(m) = m == 0 ?  9π / 64.0 : D_ellipk(m, ellipke(m)...)
 @inline function D_ellipk(m, Km, Em)
-    m == 0 && return π / 8.0
+    m == 0 && return 9π / 64.0
     return ((Em / (1-m)) - Km) / (2m)
 end
+
+D2_ellipk(m) = m == 0 ?  π / 8.0 : D2_ellipk(m, ellipke(m)...)
+@inline function D2_ellipk(m, Km, Em, dKm=D_ellipk(m, Km, Em), dEm=D_ellipe(m, Km, Em))
+    m == 0 && return π / 8.0
+    inv1_m = 1.0 / (1.0 - m)
+    E_1_m = Em * inv1_m
+    d2K =  ((dEm + E_1_m) * inv1_m - dKm)
+    d2K -= (E_1_m - Km) / m
+    d2K /= 2m
+    return d2K
+end
+
 
 @doc raw"""
     Derivative of ellipe(m) with respect to m
@@ -16,6 +28,13 @@ D_ellipe(m) = m == 0 ?  -π / 8.0 : D_ellipe(m, ellipke(m)...)
 @inline function D_ellipe(m, Km, Em)
     m == 0 && return -π / 8.0
     return (Em - Km) / (2m)
+end
+
+D2_ellipe(m) = m == 0 ?  3π / 64.0 : D2_ellipe(m, ellipke(m)...)
+@inline function D2_ellipe(m, Km, Em, dKm=D_ellipk(m, Km, Em), dEm=D_ellipe(m, Km, Em))
+    m == 0 && return -3π / 64.0
+    invm = 1.0 / m
+    return 0.5 * invm * (dEm - dKm - invm * (Em - Km))
 end
 
 
