@@ -9,6 +9,7 @@ import PlotUtils: cgrad
 import TEQUILA
 import FastGaussQuadrature: gausslegendre
 import StaticArrays: SMatrix, SVector
+import IMAS
 
 const μ₀ = 4e-7 * π
 const inv4π = 0.25 / π

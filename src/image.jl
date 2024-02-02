@@ -44,7 +44,27 @@ function Image(EQ::MXHEquilibrium.AbstractEquilibrium, Rb::AbstractVector{T}, Zb
     # dPsi/dn = σ_RφZ * σ_ρθφ * Bp_fac * R * Bpol
     cocos = MXHEquilibrium.cocos(EQ)
     fac = cocos.sigma_rhotp * cocos.sigma_Bp * (2π)^cocos.exp_Bp
-    dψdn_R = zero(Lb)
+    dψdn_R = similar(Lb)
     dψdn_R .= fac .* MXHEquilibrium.poloidal_Bfield.(Ref(EQ), Rb, Zb)
+    return Image(Rb, Zb, Lb, dψdn_R)
+end
+
+function Image(dd::IMAS.dd)
+
+    eqt = dd.equilibrium.time_slice[]
+    Rb = eqt.boundary.outline.r
+    Zb = eqt.boundary.outline.z
+
+    Lb = cumlength(Rb, Zb)
+    # dPsi/dn = σ_RφZ * σ_ρθφ * Bp_fac * R * Bpol
+
+    eqt2d = findfirst(:rectangular, eqt.profiles_2d)
+    _, _, PSI_interpolant = IMAS.ψ_interpolant(eqt2d)
+    # poloidal magnetic field (with sign)
+    Br, Bz = IMAS.Br_Bz(PSI_interpolant, Rb, Zb)
+    dψdn_R = (sqrt.(Br .^ 2.0 .+ Bz .^ 2.0) .*
+        sign.((Zb .- eqt.global_quantities.magnetic_axis.z) .* Br .- (Rb .- eqt.global_quantities.magnetic_axis.r) .* Bz)
+    )
+    dψdn_R .*= 2π # σ_RφZ * σ_ρθφ * Bp_fac in COCOS 11
     return Image(Rb, Zb, Lb, dψdn_R)
 end
