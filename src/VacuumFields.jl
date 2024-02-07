@@ -31,6 +31,7 @@ include("green.jl")
 include("control.jl")
 
 include("fixed2free.jl")
+
 include("mutual.jl")
 
 export AbstractCoil, PointCoil, DistributedCoil, coil, encircling_coils, plot_coil

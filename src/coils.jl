@@ -72,6 +72,7 @@ function QuadCoil(pc::ParallelogramCoil)
     Z = VacuumFields.Zplgm.(x, y, Ref(pc))
     return QuadCoil(R, Z, pc.current; pc.resistance, pc.turns)
 end
+
 function area(C::QuadCoil)
     R, Z = C.R, C.Z
     A  = R[1] * Z[2] + R[2] * Z[3] + R[3] * Z[4] + R[4] * Z[1]
@@ -238,6 +239,16 @@ end
         alpha --> 0.2
         label --> ""
         R, Z
+    end
+end
+
+@recipe function plot_coil(C::QuadCoil)
+    @series begin
+        seriestype --> :shape
+        color --> :black
+        alpha --> 0.2
+        label --> ""
+        C.R, C.Z
     end
 end
 
