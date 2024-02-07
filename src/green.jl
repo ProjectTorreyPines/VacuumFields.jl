@@ -1,6 +1,6 @@
 # Generalized functions for specific coil types
 
-function _gfunc(Gfunc::Function, C::PointCoil, R::Real, Z::Real, scale_factor::Real=1.0)
+function _gfunc(Gfunc::Function, C::PointCoil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)
     return Gfunc(C.R, C.Z, R, Z, scale_factor)
 end
 
@@ -8,7 +8,7 @@ function _gfunc(Gfunc::Function, C::Union{ParallelogramCoil, QuadCoil}, R::Real,
     return integrate((X, Y) -> Gfunc(X, Y, R, Z, scale_factor), C; xorder, yorder) / area(C)
 end
 
-function _gfunc(Gfunc::Function, C::DistributedCoil, R::Real, Z::Real, scale_factor::Real=1.0)
+function _gfunc(Gfunc::Function, C::DistributedCoil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)
     return sum(Gfunc(C.R[k], C.Z[k], R, Z, scale_factor) for k in eachindex(C.R)) / length(C.R)
 end
 

@@ -23,7 +23,10 @@ end
 # Plasma-coil mutuals
 
 # Shifting plasma up by δZ is the same as shifting the coil down by δZ
-_pfunc(Pfunc, image::Image, C::PointCoil, δZ; kwargs...) = Pfunc(image, C.r, C.Z - δZ; kwargs...)
+function _pfunc(Pfunc, image::Image, C::PointCoil, δZ; COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11))
+    fac = -COCOS.sigma_Bp * (2π)^(1 - COCOS.exp_Bp)
+    return fac * Pfunc(image, C.R, C.Z - δZ)
+end
 
 function _pfunc(Pfunc, image::Image, C::DistributedCoil, δZ; COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11))
     fac = -COCOS.sigma_Bp * (2π)^(1 - COCOS.exp_Bp)
@@ -40,10 +43,10 @@ end
 
 function mutual(EQ::MXHEquilibrium.AbstractEquilibrium, C::AbstractCoil, δZ::Real=0.0;
                 COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(EQ), kwargs...)
-    return mutual(Image(EQ), C, plasma_current(EQ), δZ; COCOS, xorder, yorder)
+    return mutual(Image(EQ), C, plasma_current(EQ), δZ; COCOS, kwargs...)
 end
 function mutual(image::Image, C::AbstractCoil, Ip::Real, δZ::Real=0.0;
-                COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11))
+                COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), kwargs...)
     Ψ = _pfunc(ψ, image, C, δZ; COCOS, kwargs...)
 
     # negative sign since image flux is opposite plasma flux
