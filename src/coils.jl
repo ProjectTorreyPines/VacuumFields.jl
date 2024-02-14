@@ -80,6 +80,11 @@ function area(C::QuadCoil)
     return 0.5 * A
 end
 
+# compute the resistance given a resistitivity
+function resistance(C::Union{ParallelogramCoil, QuadCoil}, resistivity::Real)
+    return 2π * resistivity / integrate((R, Z) -> 1.0 / R, C)
+end
+
 mutable struct DistributedCoil{T1<:Real,T2<:Real,T3<:Real} <: AbstractCoil{T1, T2, T3}
     R::Vector{T1}
     Z::Vector{T1}
