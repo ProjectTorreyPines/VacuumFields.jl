@@ -10,7 +10,25 @@ mutable struct PointCoil{T1<:Real,T2<:Real,T3<:Real} <: AbstractCoil{T1, T2, T3}
     turns::Int
 end
 
-#PointCoil(R, Z; resistance=0.0, turns=1) = PointCoil(R, Z, 0.0, resistance, turns)
+current(coil::AbstractCoil) = coil.current
+
+# BCL 2/27/24
+# N.B.: Not sure about sign with turns and such
+# N.B.: Not sure how to handle time
+current(coil::IMAScoil) = coil.current.data[] * sum(element.turns_with_sign for element in coil.element)
+
+resistance(coil::Union{AbstractCoil, IMAScoil}) = coil.resistance
+
+turns(coil::AbstractCoil) = coil.turns
+# VacuumFields turns are sign-less
+turns(coil::IMAScoil) = abs(sum(element.turns_with_sign for element in coil.element))
+turns(element::IMASelement) = abs(element.turns_with_sign)
+
+"""
+    PointCoil{T1, T2, T3} <:  AbstractCoil{T1, T2, T3}
+
+Point filament coil at scalar (R, Z) location
+"""
 PointCoil(R, Z, current=0.0; resistance=0.0, turns=1) = PointCoil(R, Z, current, resistance, turns)
 
 """
@@ -73,16 +91,22 @@ function QuadCoil(pc::ParallelogramCoil)
     return QuadCoil(R, Z, pc.current; pc.resistance, pc.turns)
 end
 
-function area(C::QuadCoil)
-    R, Z = C.R, C.Z
+function area(R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
+    @assert length(R) == length(Z) == 4
     A  = R[1] * Z[2] + R[2] * Z[3] + R[3] * Z[4] + R[4] * Z[1]
     A -= R[2] * Z[1] + R[3] * Z[2] + R[4] * Z[3] + R[1] * Z[4]
     return 0.5 * A
 end
 
+area(C::QuadCoil) =  area(C.R, C.Z)
+function area(element::IMASelement)
+    ol = IMAS.outline(element)
+    return area(ol.r, ol.z)
+end
+
 # compute the resistance given a resistitivity
 function resistance(C::Union{ParallelogramCoil, QuadCoil}, resistivity::Real)
-    return 2π * resistivity / integrate((R, Z) -> 1.0 / R, C)
+    return 2π * C.turns ^ 2 * resistivity / integrate((R, Z) -> 1.0 / R, C)
 end
 
 mutable struct DistributedCoil{T1<:Real,T2<:Real,T3<:Real} <: AbstractCoil{T1, T2, T3}
@@ -257,6 +281,17 @@ end
     end
 end
 
+@recipe function plot_coil(element::IMASelement)
+    @series begin
+        seriestype --> :shape
+        color --> :black
+        alpha --> 0.2
+        label --> ""
+        ol = IMAS.outline(element)
+        ol.r, ol.z
+    end
+end
+
 @recipe function plot_coil(C::PointCoil)
     @series begin
         seriestype --> :scatter
@@ -266,7 +301,7 @@ end
     end
 end
 
-@recipe function plot_coils(coils::AbstractVector{<:AbstractCoil})
+@recipe function plot_coils(coils::AbstractVector{<:Union{AbstractCoil, IMAScoil}})
     for (k,coil) in enumerate(coils)
         @series begin
             primary := k==1

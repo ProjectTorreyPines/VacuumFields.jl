@@ -102,9 +102,13 @@ end
 #----------------
 
 # parameterized R, Z coordinates of quadrilateral
-function RZq(x, y, C::QuadCoil)
-    R = C.R
-    Z = C.Z
+RZq(x::Real, y::Real, C::QuadCoil) = RZq(x, y, C.R, C.Z)
+function RZq(x::Real, y::Real, element::IMASelement)
+    ol = IMAS.outline(element)
+    return RZq(x, y, ol.r, ol.z)
+end
+function RZq(x::Real, y::Real, R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
+    @assert length(R) == length(Z) == 4
     mx = 1.0 - x
     px = 1.0 + x
     my = 1.0 - y
@@ -119,9 +123,13 @@ function RZq(x, y, C::QuadCoil)
 end
 
 # integrate over a Quadrilateral
-function Jacobian(x::Real, y::Real, C::QuadCoil)
-    R = C.R
-    Z = C.Z
+Jacobian(x::Real, y::Real, C::QuadCoil) = Jacobian(x, y, C.R, C.Z)
+function Jacobian(x::Real, y::Real, element::IMASelement)
+    ol = IMAS.outline(element)
+    return Jacobian(x, y, ol.r, ol.z)
+end
+function Jacobian(x::Real, y::Real, R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
+    @assert length(R) == length(Z) == 4
 
     a = -R[1] + R[2] + R[3] - R[4]
     b =  R[1] - R[2] + R[3] - R[4]
@@ -144,12 +152,12 @@ function Jacobian(x::Real, y::Real, C::QuadCoil)
 end
 
 
-function Jf(f, x, y, C::QuadCoil)
+function Jf(f, x, y, C::Union{QuadCoil, IMASelement})
     R, Z = RZq(x, y, C)
     return Jacobian(x, y, C)  * f(R, Z)
 end
 
-function integrate(f::F, C::QuadCoil; xorder=default_order, yorder=default_order) where {F<:Function}
+function integrate(f::F, C::Union{QuadCoil, IMASelement}; xorder=default_order, yorder=default_order) where {F<:Function}
     @assert xorder <= N_gl
     @assert yorder <= N_gl
 
