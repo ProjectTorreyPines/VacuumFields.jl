@@ -14,8 +14,7 @@ current(coil::AbstractCoil) = coil.current
 
 # BCL 2/27/24
 # N.B.: Not sure about sign with turns and such
-# N.B.: Not sure how to handle time
-current(coil::IMAScoil) = coil.current.data[] * sum(element.turns_with_sign for element in coil.element)
+current(coil::IMAScoil) = @ddtime(coil.current.data) * sum(element.turns_with_sign for element in coil.element)
 
 resistance(coil::Union{AbstractCoil, IMAScoil}) = coil.resistance
 
@@ -278,17 +277,6 @@ end
         alpha --> 0.2
         label --> ""
         C.R, C.Z
-    end
-end
-
-@recipe function plot_coil(element::IMASelement)
-    @series begin
-        seriestype --> :shape
-        color --> :black
-        alpha --> 0.2
-        label --> ""
-        ol = IMAS.outline(element)
-        ol.r, ol.z
     end
 end
 
