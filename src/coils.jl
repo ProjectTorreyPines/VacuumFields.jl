@@ -14,7 +14,7 @@ current(coil::AbstractCoil) = coil.current
 
 # BCL 2/27/24
 # N.B.: Not sure about sign with turns and such
-current(coil::IMAScoil) = @ddtime(coil.current.data) * sum(element.turns_with_sign for element in coil.element)
+current(coil::IMAScoil) = IMAS.@ddtime(coil.current.data) * sum(element.turns_with_sign for element in coil.element)
 
 resistance(coil::Union{AbstractCoil, IMAScoil}) = coil.resistance
 
