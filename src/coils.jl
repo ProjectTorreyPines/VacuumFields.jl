@@ -98,10 +98,8 @@ function area(R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
 end
 
 area(C::QuadCoil) =  area(C.R, C.Z)
-function area(element::IMASelement)
-    ol = IMAS.outline(element)
-    return area(ol.r, ol.z)
-end
+area(element::IMASelement) = area(IMAS.outline(element))
+area(ol::IMASoutline) = area(ol.r, ol.z)
 
 # compute the resistance given a resistitivity
 function resistance(C::Union{ParallelogramCoil, QuadCoil}, resistivity::Real)

@@ -103,10 +103,6 @@ end
 
 # parameterized R, Z coordinates of quadrilateral
 RZq(x::Real, y::Real, C::QuadCoil) = RZq(x, y, C.R, C.Z)
-function RZq(x::Real, y::Real, element::IMASelement)
-    ol = IMAS.outline(element)
-    return RZq(x, y, ol.r, ol.z)
-end
 function RZq(x::Real, y::Real, R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
     @assert length(R) == length(Z) == 4
     mx = 1.0 - x
@@ -124,10 +120,6 @@ end
 
 # integrate over a Quadrilateral
 Jacobian(x::Real, y::Real, C::QuadCoil) = Jacobian(x, y, C.R, C.Z)
-function Jacobian(x::Real, y::Real, element::IMASelement)
-    ol = IMAS.outline(element)
-    return Jacobian(x, y, ol.r, ol.z)
-end
 function Jacobian(x::Real, y::Real, R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
     @assert length(R) == length(Z) == 4
 
@@ -152,12 +144,36 @@ function Jacobian(x::Real, y::Real, R::AbstractVector{<:Real}, Z::AbstractVector
 end
 
 
-function Jf(f, x, y, C::Union{QuadCoil, IMASelement})
+function Jf(f, x, y, C::QuadCoil)
     R, Z = RZq(x, y, C)
     return Jacobian(x, y, C)  * f(R, Z)
 end
 
-function integrate(f::F, C::Union{QuadCoil, IMASelement}; xorder=default_order, yorder=default_order) where {F<:Function}
+function Jf(f, x, y, rs, zs)
+    R, Z = RZq(x, y, rs, zs)
+    return Jacobian(x, y, rs, zs)  * f(R, Z)
+end
+
+function integrate(f::F, element::IMASelement; xorder=default_order, yorder=default_order) where {F<:Function}
+    return integrate(f, IMAS.outline(element); xorder, yorder)
+end
+
+function integrate(f::F, ol::IMASoutline; xorder=default_order, yorder=default_order) where {F<:Function}
+    @assert xorder <= N_gl
+    @assert yorder <= N_gl
+
+    @views xs  = gξ_pa[:, xorder]
+    @views wxs = gw_pa[:, xorder]
+    @views ys  = gξ_pa[:, yorder]
+    @views wys = gw_pa[:, yorder]
+
+    rs, zs = ol.r, ol.z
+
+    I = sum(Jf(f, xs[i], ys[j], rs, zs) * wxs[i] * wys[j] for i in 1:xorder, j in 1:yorder)
+    return I
+end
+
+function integrate(f::F, C::QuadCoil; xorder=default_order, yorder=default_order) where {F<:Function}
     @assert xorder <= N_gl
     @assert yorder <= N_gl
 

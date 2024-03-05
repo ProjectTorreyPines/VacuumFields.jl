@@ -18,6 +18,7 @@ const default_order = 10
 
 const IMAScoil = IMAS.pf_active__coil
 const IMASelement = IMAS.pf_active__coil___element
+const IMASoutline = Union{IMAS.pf_active__coil___element___geometry__outline, NamedTuple}
 
 include("coils.jl")
 
