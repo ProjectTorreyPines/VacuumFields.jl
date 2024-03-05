@@ -16,6 +16,9 @@ const inv4π = 0.25 / π
 const deg2rad = π / 180.0
 const default_order = 10
 
+const IMAScoil = IMAS.pf_active__coil
+const IMASelement = IMAS.pf_active__coil___element
+
 include("coils.jl")
 
 include("integration.jl")

@@ -12,21 +12,28 @@ function _gfunc(Gfunc::Function, C::DistributedCoil, R::Real, Z::Real, scale_fac
     return sum(Gfunc(C.R[k], C.Z[k], R, Z, scale_factor) for k in eachindex(C.R)) / length(C.R)
 end
 
+function _gfunc(Gfunc::Function, C::IMAScoil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)
+    return sum(_gfunc(Gfunc, element, R, Z, scale_factor; xorder, yorder) for element in C.element)
+end
+
+function _gfunc(Gfunc::Function, element::IMASelement, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)
+    return integrate((X, Y) -> Gfunc(X, Y, R, Z, scale_factor), element; xorder, yorder) / area(element)
+end
 
 # Generalized wrapper functions for all coil types
-function Green(coil::AbstractCoil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
+function Green(coil::Union{AbstractCoil, IMAScoil}, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
     return _gfunc(Green, coil, R, Z, scale_factor; kwargs...)
 end
 
-function dG_dR(coil::AbstractCoil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
+function dG_dR(coil::Union{AbstractCoil, IMAScoil}, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
     return _gfunc(dG_dR, coil, R, Z, scale_factor; kwargs...)
 end
 
-function dG_dZ(coil::AbstractCoil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
+function dG_dZ(coil::Union{AbstractCoil, IMAScoil}, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
     return _gfunc(dG_dZ, coil, R, Z, scale_factor; kwargs...)
 end
 
-function d2G_dZ2(coil::AbstractCoil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
+function d2G_dZ2(coil::Union{AbstractCoil, IMAScoil}, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
     return _gfunc(d2G_dZ2, coil, R, Z, scale_factor; kwargs...)
 end
 
