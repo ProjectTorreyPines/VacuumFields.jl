@@ -14,7 +14,7 @@ current(coil::AbstractCoil) = coil.current
 
 # BCL 2/27/24
 # N.B.: Not sure about sign with turns and such
-current(coil::IMAScoil) = @ddtime(coil.current.data) * sum(element.turns_with_sign for element in coil.element)
+current(coil::IMAScoil) = IMAS.@ddtime(coil.current.data) * sum(element.turns_with_sign for element in coil.element)
 
 resistance(coil::Union{AbstractCoil, IMAScoil}) = coil.resistance
 
@@ -98,10 +98,8 @@ function area(R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
 end
 
 area(C::QuadCoil) =  area(C.R, C.Z)
-function area(element::IMASelement)
-    ol = IMAS.outline(element)
-    return area(ol.r, ol.z)
-end
+area(element::IMASelement) = area(IMAS.outline(element))
+area(ol::IMASoutline) = area(ol.r, ol.z)
 
 # compute the resistance given a resistitivity
 function resistance(C::Union{ParallelogramCoil, QuadCoil}, resistivity::Real)
