@@ -143,11 +143,11 @@ function normalized_growth_rate(image::Image, coils::Vector{<:Union{AbstractCoil
     end
     R = Diagonal(b)
 
-    A0 = .- Mstar \ R;
+    A0 = .- Mstar \ R
 
     D, V = eigen(A0)
-    dmax = argmax(D)
-    γ = D[dmax]
+    dmax = argmax(real.(D))
+    γ = real(D[dmax])
     passive = [current(C) == 0.0 for C in coils]
     @views v = V[passive, dmax]
     @views τ = dot(v, M[passive, passive], v) / dot(v, R[passive, passive], v)
