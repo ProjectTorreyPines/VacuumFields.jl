@@ -3,24 +3,28 @@
 #      For coils: this cancels out the COCOS dependence in flux, leaving a -2π factor
 #      For image: need the whole factor since the COCOS is buried into the image flux
 
-function mutual(C1::Union{AbstractCoil, IMAScoil}, C2::PointCoil)
+function mutual(C1::Union{AbstractCoil, IMASelement}, C2::PointCoil)
     fac = -2π * μ₀ * turns(C1) * turns(C2)
     return fac * Green(C1, C2.R, C2.Z)
 end
 
-function mutual(C1::Union{AbstractCoil, IMAScoil}, C2::DistributedCoil)
+function mutual(C1::Union{AbstractCoil, IMASelement}, C2::DistributedCoil)
     fac = -2π * μ₀ * turns(C1) * turns(C2)
     return fac * sum(Green(C1, C2.R[k], C2.Z[k]) for k in eachindex(C2.R)) / length(C2.R)
 end
 
-function mutual(C1::Union{AbstractCoil, IMAScoil}, C2::Union{ParallelogramCoil, QuadCoil, IMASelement}; xorder::Int=3, yorder::Int=3)
+function mutual(C1::Union{AbstractCoil, IMASelement}, C2::Union{ParallelogramCoil, QuadCoil, IMASelement}; xorder::Int=3, yorder::Int=3)
     fac = -2π * μ₀ * turns(C1) * turns(C2)
     f = (r, z) -> Green(C1, r, z; xorder = xorder+1, yorder = yorder+1)
     return fac * integrate(f, C2; xorder, yorder) / area(C2)
 end
 
-function mutual(C1::Union{AbstractCoil, IMAScoil}, C2::IMAScoil; xorder::Int=3, yorder::Int=3)
+function mutual(C1::Union{AbstractCoil, IMASelement}, C2::IMAScoil; xorder::Int=3, yorder::Int=3)
     return sum(mutual(C1, element; xorder, yorder) for element in C2.element)
+end
+
+function mutual(C1::IMAScoil, C2::Union{AbstractCoil, IMAScoil, IMASelement}; xorder::Int=3, yorder::Int=3)
+    return sum(mutual(element, C2; xorder, yorder) for element in C1.element)
 end
 
 
@@ -37,7 +41,13 @@ function _pfunc(Pfunc, image::Image, C::DistributedCoil, δZ; COCOS::MXHEquilibr
     return fac * sum(Pfunc(image, C.R[k], C.Z[k] - δZ) for k in eachindex(C.R)) / length(C.R)
 end
 
-function _pfunc(Pfunc, image::Image, C::Union{ParallelogramCoil, QuadCoil, IMAScoil}, δZ;
+function _pfunc(Pfunc, image::Image, coil::IMAScoil, δZ;
+                COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
+                xorder::Int=default_order, yorder::Int=default_order)
+    return sum(_pfunc(Pfunc, image, element, δZ; COCOS, xorder, yorder) for element in coil.element)
+end
+
+function _pfunc(Pfunc, image::Image, C::Union{ParallelogramCoil, QuadCoil, IMASelement}, δZ;
                 COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
                 xorder::Int=default_order, yorder::Int=default_order)
     fac = -COCOS.sigma_Bp * (2π)^(1 - COCOS.exp_Bp)

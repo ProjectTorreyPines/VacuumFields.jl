@@ -98,12 +98,28 @@ function area(R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
 end
 
 area(C::QuadCoil) =  area(C.R, C.Z)
+area(coil::IMAScoil) = sum(area(element) for element in coil.element)
 area(element::IMASelement) = area(IMAS.outline(element))
 area(ol::IMASoutline) = area(ol.r, ol.z)
 
 # compute the resistance given a resistitivity
 function resistance(C::Union{ParallelogramCoil, QuadCoil}, resistivity::Real)
     return 2π * C.turns ^ 2 * resistivity / integrate((R, Z) -> 1.0 / R, C)
+end
+
+function resistance(coil::IMAScoil, resistivity::Real, element_connection::Symbol)
+    if element_connection === :series
+        eta = sum(resistance(element, resistivity) for element in coil.element)
+    elseif element_connection === :parallel
+        eta = 1.0 / sum(1.0 / resistance(element, resistivity) for element in coil.element)
+    else
+        error("element_connection should be :series or :parallel")
+    end
+    return eta
+end
+
+function resistance(element::IMASelement, resistivity::Real)
+    return 2π * turns(element) ^ 2 * resistivity / integrate((R, Z) -> 1.0 / R, element)
 end
 
 mutable struct DistributedCoil{T1<:Real,T2<:Real,T3<:Real} <: AbstractCoil{T1, T2, T3}
