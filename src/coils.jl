@@ -1,13 +1,13 @@
-abstract type AbstractCoil{T1<:Real,T2<:Real,T3<:Real} end
+abstract type AbstractCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} end
 (::Type{T})(R, Z; resistance=0.0, turns=1) where {T<:AbstractCoil} = T(R, Z, 0.0, resistance, turns)
 (::Type{T})(R, Z, current; resistance=0.0, turns=1) where {T<:AbstractCoil} = T(R, Z, current, resistance, turns)
 
-mutable struct PointCoil{T1<:Real,T2<:Real,T3<:Real} <: AbstractCoil{T1, T2, T3}
+mutable struct PointCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractCoil{T1,T2,T3,T4}
     R::T1
     Z::T1
     current::T2
     resistance::T3
-    turns::Int
+    turns::T4
 end
 
 current(coil::AbstractCoil) = coil.current
@@ -16,7 +16,7 @@ current(coil::AbstractCoil) = coil.current
 # N.B.: Not sure about sign with turns and such
 current(coil::IMAScoil) = IMAS.@ddtime(coil.current.data) * sum(element.turns_with_sign for element in coil.element)
 
-resistance(coil::Union{AbstractCoil, IMAScoil}) = coil.resistance
+resistance(coil::Union{AbstractCoil,IMAScoil}) = coil.resistance
 
 turns(coil::AbstractCoil) = coil.turns
 # VacuumFields turns are sign-less
@@ -24,19 +24,19 @@ turns(coil::IMAScoil) = abs(sum(element.turns_with_sign for element in coil.elem
 turns(element::IMASelement) = abs(element.turns_with_sign)
 
 """
-    PointCoil{T1, T2, T3} <:  AbstractCoil{T1, T2, T3}
+    PointCoil{T1, T2, T3, T4} <:  AbstractCoil{T1, T2, T3, T4}
 
 Point filament coil at scalar (R, Z) location
 """
 PointCoil(R, Z, current=0.0; resistance=0.0, turns=1) = PointCoil(R, Z, current, resistance, turns)
 
 """
-    ParallelogramCoil{T1, T2, T3} <:  AbstractCoil{T1, T2, T3}
+    ParallelogramCoil{T1, T2, T3, T4} <:  AbstractCoil{T1, T2, T3, T4}
 
 Parallelogram coil with the R, Z, ΔR, ΔZ, θ1, θ2 formalism (as used by EFIT, for example)
 Here θ1 and θ2 are the shear angles along the x- and y-axes, respectively, in degrees.
 """
-mutable struct ParallelogramCoil{T1<:Real,T2<:Real,T3<:Real} <: AbstractCoil{T1, T2, T3}
+mutable struct ParallelogramCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractCoil{T1,T2,T3,T4}
     R::T1
     Z::T1
     ΔR::T1
@@ -45,7 +45,7 @@ mutable struct ParallelogramCoil{T1<:Real,T2<:Real,T3<:Real} <: AbstractCoil{T1,
     θ2::T1
     current::T2
     resistance::T3
-    turns::Int
+    turns::T4
 end
 
 ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current=0.0; resistance=0.0, turns=1) = ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current, resistance, turns)
@@ -58,33 +58,32 @@ function area(ΔR, ΔZ, θ1, θ2)
     return (1.0 + α1 * α2) * ΔR * ΔZ
 end
 
-
 """
-    QuadCoil{T1, T2, T3} <:  AbstractCoil{T1, T2, T3}
+    QuadCoil{T1, T2, T3, T4} <:  AbstractCoil{T1, T2, T3, T4}
 
 Quadrilateral coil with counter-clockwise corners (starting from lower left) at R and Z
 """
-mutable struct QuadCoil{T1<:Real,T2<:Real,T3<:Real, VT1<:AbstractVector{T1}} <: AbstractCoil{T1, T2, T3}
+mutable struct QuadCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real,VT1<:AbstractVector{T1}} <: AbstractCoil{T1,T2,T3,T4}
     R::VT1
     Z::VT1
     current::T2
     resistance::T3
-    turns::Int
-    function QuadCoil(R::VT1, Z::VT1, current::T2, resistance::T3, turns::Int) where {VT1, T2, T3}
+    turns::T4
+    function QuadCoil(R::VT1, Z::VT1, current::T2, resistance::T3, turns::T4) where {VT1,T2,T3,T4}
         @assert length(R) == length(Z) == 4
         points = reverse!(grahamscan!(collect(zip(R, Z)))) # reverse to make ccw
         a, b = zip(points...)
         R = VT1(collect(a))
         Z = VT1(collect(b))
-        new{eltype(VT1), T2, T3, VT1}(R, Z, current, resistance, turns)
+        return new{eltype(VT1),T2,T3,T4,VT1}(R, Z, current, resistance, turns)
     end
 end
 
 QuadCoil(R, Z, current=0.0; resistance=0.0, turns=1) = QuadCoil(R, Z, current, resistance, turns)
 
 function QuadCoil(pc::ParallelogramCoil)
-    x = SVector(-1., 1., 1., -1.)
-    y = SVector(-1., -1., 1., 1.)
+    x = SVector(-1.0, 1.0, 1.0, -1.0)
+    y = SVector(-1.0, -1.0, 1.0, 1.0)
     R = VacuumFields.Rplgm.(x, y, Ref(pc))
     Z = VacuumFields.Zplgm.(x, y, Ref(pc))
     return QuadCoil(R, Z, pc.current; pc.resistance, pc.turns)
@@ -92,19 +91,19 @@ end
 
 function area(R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
     @assert length(R) == length(Z) == 4
-    A  = R[1] * Z[2] + R[2] * Z[3] + R[3] * Z[4] + R[4] * Z[1]
+    A = R[1] * Z[2] + R[2] * Z[3] + R[3] * Z[4] + R[4] * Z[1]
     A -= R[2] * Z[1] + R[3] * Z[2] + R[4] * Z[3] + R[1] * Z[4]
     return 0.5 * A
 end
 
-area(C::QuadCoil) =  area(C.R, C.Z)
+area(C::QuadCoil) = area(C.R, C.Z)
 area(coil::IMAScoil) = sum(area(element) for element in coil.element)
 area(element::IMASelement) = area(IMAS.outline(element))
 area(ol::IMASoutline) = area(ol.r, ol.z)
 
 # compute the resistance given a resistitivity
-function resistance(C::Union{ParallelogramCoil, QuadCoil}, resistivity::Real)
-    return 2π * C.turns ^ 2 * resistivity / integrate((R, Z) -> 1.0 / R, C)
+function resistance(C::Union{ParallelogramCoil,QuadCoil}, resistivity::Real)
+    return 2π * C.turns^2 * resistivity / integrate((R, Z) -> 1.0 / R, C)
 end
 
 function resistance(coil::IMAScoil, resistivity::Real, element_connection::Symbol)
@@ -119,25 +118,25 @@ function resistance(coil::IMAScoil, resistivity::Real, element_connection::Symbo
 end
 
 function resistance(element::IMASelement, resistivity::Real)
-    return 2π * turns(element) ^ 2 * resistivity / integrate((R, Z) -> 1.0 / R, element)
+    return 2π * turns(element)^2 * resistivity / integrate((R, Z) -> 1.0 / R, element)
 end
 
-mutable struct DistributedCoil{T1<:Real,T2<:Real,T3<:Real} <: AbstractCoil{T1, T2, T3}
+mutable struct DistributedCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractCoil{T1,T2,T3,T4}
     R::Vector{T1}
     Z::Vector{T1}
     current::T2
     resistance::T3
-    turns::Int
+    turns::T4
 end
 
 DistributedCoil(R, Z, current=0.0; resistance=0.0, turns=1) = DistributedCoil(R, Z, current, resistance, turns)
 
 """
-    DistributedParallelogramCoil(Rc::T1, Zc::T1, ΔR::T1, ΔZ::T1, θ1::T1, θ2::T1; spacing::T1=0.01) where {T<:Real}
+    DistributedParallelogramCoil(Rc::T1, Zc::T1, ΔR::T1, ΔZ::T1, θ1::T1, θ2::T1, current::Real=0.0; spacing::Real=0.01, turns::Real=1) where {T1<:Real}
 
 NOTE: if spacing <= 0.0 then current filaments are placed at the vertices
 """
-function DistributedParallelogramCoil(Rc::T1, Zc::T1, ΔR::T1, ΔZ::T1, θ1::T1, θ2::T1, current::T1=0.0; spacing::T1=0.01, turns::Int=1) where {T1<:Real}
+function DistributedParallelogramCoil(Rc::T1, Zc::T1, ΔR::T1, ΔZ::T1, θ1::T1, θ2::T1, current::Real=0.0; spacing::Real=0.01, turns::Real=1) where {T1<:Real}
     if spacing <= 0.0
         dR = [-0.5 * ΔR, 0.5 * ΔR]
         dZ = [-0.5 * ΔZ, 0.5 * ΔZ]
@@ -171,8 +170,7 @@ end
 # ================ #
 # encircling_coils #
 # ================ #
-
-function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Integer)
+function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Int)
     bnd = MXHEquilibrium.plasma_boundary(EQfixed; precision=0.0)
     if bnd === nothing
         # if the original boundary specified in EQfixed does not close, then find LCFS boundary
@@ -182,12 +180,12 @@ function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::
     return encircling_coils(bnd.r, bnd.z, n_coils)
 end
 
-function encircling_coils(shot::TEQUILA.Shot, n_coils::Integer)
+function encircling_coils(shot::TEQUILA.Shot, n_coils::Int)
     bnd_r, bnd_z = MillerExtendedHarmonic.MXH(shot.surfaces[:, end])()
     return encircling_coils(bnd_r, bnd_z, n_coils)
 end
 
-function encircling_coils(bnd_r::AbstractVector{T}, bnd_z::AbstractVector{T}, n_coils::Integer) where {T<:Real}
+function encircling_coils(bnd_r::AbstractVector{T}, bnd_z::AbstractVector{T}, n_coils::Int) where {T<:Real}
     mxh = MillerExtendedHarmonic.MXH(bnd_r, bnd_z, 2)
     mxh.R0 = mxh.R0 .* (1.0 + mxh.ϵ)
     mxh.ϵ = 0.999
@@ -199,7 +197,6 @@ end
 # ============== #
 #   Convex hull  #
 # ============== #
-
 @inline function points_isless(p::AbstractVector{T}, q::AbstractVector{T}) where {T}
     return p[1] < q[1] || (p[1] == q[1] && p[2] < q[2])
 end
@@ -303,10 +300,10 @@ end
     end
 end
 
-@recipe function plot_coils(coils::AbstractVector{<:Union{AbstractCoil, IMAScoil}})
-    for (k,coil) in enumerate(coils)
+@recipe function plot_coils(coils::AbstractVector{<:Union{AbstractCoil,IMAScoil}})
+    for (k, coil) in enumerate(coils)
         @series begin
-            primary := k==1
+            primary := k == 1
             aspect_ratio := :equal
             label --> ""
             coil

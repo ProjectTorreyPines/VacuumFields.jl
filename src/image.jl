@@ -50,8 +50,10 @@ function Image(EQ::MXHEquilibrium.AbstractEquilibrium, Rb::AbstractVector{T}, Zb
 end
 
 function Image(dd::IMAS.dd)
+    return Image(dd.equilibrium.time_slice[])
+end
 
-    eqt = dd.equilibrium.time_slice[]
+function Image(eqt::IMAS.equilibrium__time_slice)
     Rb = eqt.boundary.outline.r
     Zb = eqt.boundary.outline.z
 
