@@ -25,7 +25,7 @@ function Image(shot::TEQUILA.Shot)
     bnd = @views MillerExtendedHarmonic.MXH(shot.surfaces[:, end])
     return Image(shot, bnd)
 end
-function Image(shot::TEQUILA.Shot, bnd::MillerExtendedHarmonic.MXH; Nb::Integer=100 * length(bnd.c))
+function Image(shot::TEQUILA.Shot, bnd::MillerExtendedHarmonic.MXH; Nb::Integer=100 * (length(bnd.c) + 1))
     image = Image(shot, bnd(Nb; adaptive=false)...)
     return image
 end
@@ -65,7 +65,7 @@ function Image(eqt::IMAS.equilibrium__time_slice)
     # poloidal magnetic field (with sign)
     Br, Bz = IMAS.Br_Bz(PSI_interpolant, Rb, Zb)
     dψdn_R = (sqrt.(Br .^ 2.0 .+ Bz .^ 2.0) .*
-        sign.((Zb .- eqt.global_quantities.magnetic_axis.z) .* Br .- (Rb .- eqt.global_quantities.magnetic_axis.r) .* Bz)
+              sign.((Zb .- eqt.global_quantities.magnetic_axis.z) .* Br .- (Rb .- eqt.global_quantities.magnetic_axis.r) .* Bz)
     )
     dψdn_R .*= 2π # σ_RφZ * σ_ρθφ * Bp_fac in COCOS 11
     return Image(Rb, Zb, Lb, dψdn_R)
