@@ -81,6 +81,11 @@ function boundary_control_points(shot::TEQUILA.Shot, fraction_inside::Float64=0.
     return [FluxControlPoint(bnd(θ)..., ψtarget) for θ in θs[1:end-1]]
 end
 
+function find_boundary(EQ)
+    Sb, _ = plasma_boundary_psi_w_fallback(EQ)
+    return Sb
+end
+
 function find_coil_currents!(
     coils::Vector{<:AbstractCoil},
     EQ::MXHEquilibrium.AbstractEquilibrium,
@@ -88,9 +93,10 @@ function find_coil_currents!(
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    λ_regularize::Float64=0.0)
+    λ_regularize::Float64=0.0,
+    Sb::MXHEquilibrium.Boundary=find_boundary(EQ))
 
-    return find_coil_currents!(coils, EQ, Image(EQ), flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize)
+    return find_coil_currents!(coils, EQ, Image(EQ), flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize, Sb)
 end
 
 function find_coil_currents!(
@@ -101,7 +107,8 @@ function find_coil_currents!(
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    λ_regularize::Float64=0.0)
+    λ_regularize::Float64=0.0,
+    Sb::MXHEquilibrium.Boundary=find_boundary(EQ))
 
     # First reset current in coils to unity
     for coil in coils
@@ -112,7 +119,7 @@ function find_coil_currents!(
     A = zeros(N, length(coils))
     b = zeros(N)
 
-    init_b!(b, EQ, image, flux_cps, saddle_cps; ψbound)
+    init_b!(b, EQ, image, flux_cps, saddle_cps; ψbound, Sb)
     cocos = MXHEquilibrium.cocos(EQ)
     populate_Ab!(A, b, coils, flux_cps, saddle_cps; fixed_coils, cocos)
 
@@ -143,7 +150,8 @@ function find_coil_currents!(
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
-    cocos=MXHEquilibrium.cocos(11))
+    cocos=MXHEquilibrium.cocos(11),
+    Sb=nothing)
 
     return find_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, cocos)
 end
@@ -157,7 +165,8 @@ function find_coil_currents!(
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
-    cocos=MXHEquilibrium.cocos(11))
+    cocos=MXHEquilibrium.cocos(11),
+    Sb=nothing)
 
     return find_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, cocos)
 end
@@ -206,10 +215,13 @@ function init_b!(
     image::Image,
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
-    ψbound::Real=0.0)
+    ψbound::Real=0.0,
+    Sb::MXHEquilibrium.Boundary=find_boundary(EQ))
 
     Nflux = length(flux_cps)
     _, ψb = MXHEquilibrium.psi_limits(EQ)
+
+    flux(r, z) = MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) : ψb
 
     @threads for i in eachindex(flux_cps)
         cp = flux_cps[i]
@@ -219,7 +231,7 @@ function init_b!(
         # RHS
 
         # remove plasma current contribution (EQ - image)
-        b[i] -= ψbound - ψb + EQ(r, z)
+        b[i] -= ψbound - ψb + flux(r, z)
         b[i] += ψ(image, r, z)
     end
 

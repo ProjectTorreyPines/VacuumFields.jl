@@ -9,9 +9,10 @@ function cost_λ_regularize(
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     ψbound::Real=0.0,
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[])
+    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+    Sb::MXHEquilibrium.Boundary=find_boundary(EQ))
 
-    _, cost = find_coil_currents!(coils, EQ, image, flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize=10^λ_exp)
+    _, cost = find_coil_currents!(coils, EQ, image, flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize=10^λ_exp, Sb)
 
     return cost^2
 end
@@ -24,10 +25,11 @@ function optimal_λ_regularize(
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    min_exp::Integer=-20, max_exp::Integer=-10)
+    min_exp::Integer=-20, max_exp::Integer=-10,
+    Sb::MXHEquilibrium.Boundary=find_boundary(EQ))
 
     λ_range_exp = collect(min_exp:0.5:max_exp)
-    cost_λ = [cost_λ_regularize(λ, coils, EQ, image, flux_cps, saddle_cps; ψbound, fixed_coils) for λ in λ_range_exp]
+    cost_λ = [cost_λ_regularize(λ, coils, EQ, image, flux_cps, saddle_cps; ψbound, fixed_coils, Sb) for λ in λ_range_exp]
     return 10^λ_range_exp[argmin(cost_λ)]
 end
 
@@ -132,9 +134,9 @@ function fixed2free(
 
     if (!isempty(flux_cps) || !isempty(saddle_cps))
         if λ_regularize < 0.0
-            λ_regularize = optimal_λ_regularize(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, fixed_coils)
+            λ_regularize = optimal_λ_regularize(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, fixed_coils, Sb)
         end
-        find_coil_currents!(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize)
+        find_coil_currents!(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize; Sb)
     end
 
     # ψ from image and coil currents
