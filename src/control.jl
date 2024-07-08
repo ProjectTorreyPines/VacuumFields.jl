@@ -67,8 +67,6 @@ end
 
 function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
     ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
-    _, ψb = plasma_boundary_psi_w_fallback(EQfixed)
-
     Sp = MXHEquilibrium.flux_surface(EQfixed, fraction_inside * (ψb - ψ0) + ψ0; n_interp=Npts)
     ψtarget = fraction_inside * (ψb - ψ0) + ψ0 - ψb + ψbound
     return [FluxControlPoint(Sp.r[k], Sp.z[k], ψtarget, 1.0 / Npts) for k in 1:length(Sp.r)-1]
