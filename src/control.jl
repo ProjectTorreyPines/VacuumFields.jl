@@ -221,7 +221,7 @@ function init_b!(
     Nflux = length(flux_cps)
     _, ψb = MXHEquilibrium.psi_limits(EQ)
 
-    flux(r, z) = MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) : ψb
+    flux(r, z) = MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQ(r, z) : ψb
 
     @threads for i in eachindex(flux_cps)
         cp = flux_cps[i]

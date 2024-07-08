@@ -136,7 +136,7 @@ function fixed2free(
         if λ_regularize < 0.0
             λ_regularize = optimal_λ_regularize(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, fixed_coils, Sb)
         end
-        find_coil_currents!(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize; Sb)
+        find_coil_currents!(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize, Sb)
     end
 
     # ψ from image and coil currents
