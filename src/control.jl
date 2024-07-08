@@ -54,7 +54,7 @@ function reg_solve(A, b, λ)
     return (A' * A + λ * I) \ A' * b
 end
 
-function FluxControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real}, ψtarget::Real=0.0)
+function FluxControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real}, ψtarget::Real)
     return [FluxControlPoint(Rs[k], Zs[k], ψtarget) for k in eachindex(Rs)]
 end
 function FluxControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real}, ψtarget::AbstractVector{<:Real})
@@ -81,9 +81,6 @@ function boundary_control_points(shot::TEQUILA.Shot, fraction_inside::Float64=0.
     return [FluxControlPoint(bnd(θ)..., ψtarget) for θ in θs[1:end-1]]
 end
 
-function find_boundary(EQ)
-    Sb, _ = plasma_boundary_psi_w_fallback(EQ)
-    return Sb
 end
 
 function find_coil_currents!(
@@ -94,7 +91,7 @@ function find_coil_currents!(
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
-    Sb::MXHEquilibrium.Boundary=find_boundary(EQ))
+    Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
     return find_coil_currents!(coils, EQ, Image(EQ), flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize, Sb)
 end
