@@ -10,7 +10,7 @@ function cost_λ_regularize(
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    Sb::MXHEquilibrium.Boundary=find_boundary(EQ))
+    Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
     _, cost = find_coil_currents!(coils, EQ, image, flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize=10^λ_exp, Sb)
 
@@ -26,7 +26,7 @@ function optimal_λ_regularize(
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     min_exp::Integer=-20, max_exp::Integer=-10,
-    Sb::MXHEquilibrium.Boundary=find_boundary(EQ))
+    Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
     λ_range_exp = collect(min_exp:0.5:max_exp)
     cost_λ = [cost_λ_regularize(λ, coils, EQ, image, flux_cps, saddle_cps; ψbound, fixed_coils, Sb) for λ in λ_range_exp]

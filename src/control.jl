@@ -101,7 +101,7 @@ function find_coil_currents!(
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
-    Sb::MXHEquilibrium.Boundary=find_boundary(EQ))
+    Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
     # First reset current in coils to unity
     for coil in coils
@@ -209,7 +209,7 @@ function init_b!(
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
     ψbound::Real=0.0,
-    Sb::MXHEquilibrium.Boundary=find_boundary(EQ))
+    Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
     Nflux = length(flux_cps)
     _, ψb = MXHEquilibrium.psi_limits(EQ)
