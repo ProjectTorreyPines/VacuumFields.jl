@@ -1,3 +1,8 @@
+"""
+    AbstractControlPoint{T<:Real}
+
+Abstract control point - for coil current least-squres fitting
+"""
 abstract type AbstractControlPoint{T<:Real} end
 
 mutable struct FluxControlPoint{T<:Real} <: AbstractControlPoint{T}
@@ -7,8 +12,12 @@ mutable struct FluxControlPoint{T<:Real} <: AbstractControlPoint{T}
     weight::T
 end
 
-FluxControlPoint(R, Z, target) = FluxControlPoint(R, Z, target, one(R))
-FluxControlPoint(R, Z, target, weight) = FluxControlPoint(promote(R, Z, target, weight)...)
+"""
+    FluxControlPoint(R::Real, Z::Real, target::Real, weight::Real=1.0)
+
+Returns a control point for a `target` flux value at point `(R, Z)`, with an optional `weight`
+"""
+FluxControlPoint(R::Real, Z::Real, target::Real, weight::Real=1.0) = FluxControlPoint(promote(R, Z, target, weight)...)
 
 mutable struct SaddleControlPoint{T<:Real} <: AbstractControlPoint{T}
     R::T
@@ -16,8 +25,12 @@ mutable struct SaddleControlPoint{T<:Real} <: AbstractControlPoint{T}
     weight::T
 end
 
-SaddleControlPoint(R, Z) = SaddleControlPoint(R, Z, one(R))
-SaddleControlPoint(R, Z, weight) = SaddleControlPoint(promote(R, Z, weight)...)
+"""
+    SaddleControlPoint(R::Real, Z::Real,weight::Real=1.0)
+
+Returns a control point for a saddle (i.e., dψ/dR = dψ/dZ = 0.0) at point `(R, Z)`, with an optional `weight`
+"""
+SaddleControlPoint(R::Real, Z::Real, weight::Real=1.0) = SaddleControlPoint(promote(R, Z, weight)...)
 
 @recipe function plot_SaddleControlPoint(cp::SaddleControlPoint)
     @series begin
@@ -54,17 +67,37 @@ function reg_solve(A, b, λ)
     return (A' * A + λ * I) \ A' * b
 end
 
+"""
+    FluxControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real}, ψtarget::Real)
+
+Returns a Vector of FluxControlPoint at each `Rs` and `Zs` point, each with the same `ψtarget` flux
+"""
 function FluxControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real}, ψtarget::Real)
     return [FluxControlPoint(Rs[k], Zs[k], ψtarget) for k in eachindex(Rs)]
 end
-function FluxControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real}, ψtarget::AbstractVector{<:Real})
-    return [FluxControlPoint(Rs[k], Zs[k], ψtarget[k]) for k in eachindex(Rs)]
+
+"""
+    FluxControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real}, ψtargets::AbstractVector{<:Real})
+
+Returns a Vector of FluxControlPoint at each `Rs` and `Zs` point with `ψtargets` flux
+"""
+function FluxControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real}, ψtargets::AbstractVector{<:Real})
+    return [FluxControlPoint(Rs[k], Zs[k], ψtargets[k]) for k in eachindex(Rs)]
 end
 
+"""
+    SaddleControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real})
+
+Returns a Vector of SaddleControlPoint at each `Rs` and `Zs` point
+"""
 function SaddleControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real})
     return [SaddleControlPoint(Rs[k], Zs[k]) for k in eachindex(Rs)]
 end
 
+"""
+    boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
+Returns a Vector of FluxControlPoint, each with target `ψbound`, at `Npts` equally distributed `fraction_inside` percent inside the the boundary of `EQfixed`
+"""
 function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
     ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
     Sp = MXHEquilibrium.flux_surface(EQfixed, fraction_inside * (ψb - ψ0) + ψ0; n_interp=Npts)
@@ -72,6 +105,10 @@ function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fr
     return [FluxControlPoint(Sp.r[k], Sp.z[k], ψtarget, 1.0 / Npts) for k in 1:length(Sp.r)-1]
 end
 
+"""
+    boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
+Returns a Vector of FluxControlPoint, each with target `ψbound`, at `Npts` equally distributed `fraction_inside` percent inside the the boundary of `shot`
+"""
 function boundary_control_points(shot::TEQUILA.Shot, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
     bnd = MillerExtendedHarmonic.MXH(shot, fraction_inside)
     θs = LinRange(0, 2π, Npts + 1)
@@ -79,6 +116,22 @@ function boundary_control_points(shot::TEQUILA.Shot, fraction_inside::Float64=0.
     return [FluxControlPoint(bnd(θ)..., ψtarget, 1.0 / Npts) for θ in θs[1:end-1]]
 end
 
+"""
+    find_coil_currents!(
+        coils::Vector{<:AbstractCoil},
+        EQ::MXHEquilibrium.AbstractEquilibrium,
+        flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+        saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+        ψbound::Real=0.0,
+        fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+        λ_regularize::Float64=0.0,
+        Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
+
+Find the currents for `coils` that best match (leas-squares) the flux or saddle control points provided by `flux_cps` and `saddle_cps`
+Assumes flux from  plasma current given by equilibrium `EQ` with a `ψbound` flux at the boundary `Sb`
+Optionally assumes flux from additional `fixed_coils`, whose currents will not change
+`λ_regularize` provides regularization in the least-squares fitting
+"""
 function find_coil_currents!(
     coils::Vector{<:AbstractCoil},
     EQ::MXHEquilibrium.AbstractEquilibrium,
@@ -92,6 +145,23 @@ function find_coil_currents!(
     return find_coil_currents!(coils, EQ, Image(EQ), flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize, Sb)
 end
 
+"""
+    find_coil_currents!(
+        coils::Vector{<:AbstractCoil},
+        EQ::MXHEquilibrium.AbstractEquilibrium,
+        image::Image,
+        flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+        saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+        ψbound::Real=0.0,
+        fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+        λ_regularize::Float64=0.0,
+        Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
+
+Find the currents for `coils` that best match (leas-squares) the flux or saddle control points provided by `flux_cps` and `saddle_cps`
+Assumes flux from  plasma current given by equilibrium `EQ` with image currents `image` and a `ψbound` flux at the boundary `Sb`
+Optionally assumes flux from additional `fixed_coils`, whose currents will not change
+`λ_regularize` provides regularization in the least-squares fitting
+"""
 function find_coil_currents!(
     coils::Vector{<:AbstractCoil},
     EQ::MXHEquilibrium.AbstractEquilibrium,
@@ -135,6 +205,23 @@ function find_coil_currents!(
     return Ic0, cost
 end
 
+"""
+    find_coil_currents!(
+        coils::Vector{<:AbstractCoil},
+        EQ::Nothing,
+        flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+        saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+        ψbound::Real=0.0,
+        fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+        λ_regularize::Float64=0.0,
+        cocos=MXHEquilibrium.cocos(11),
+        Sb=nothing)
+
+Find the currents for `coils` that best match (leas-squares) the flux or saddle control points provided by `flux_cps` and `saddle_cps`
+Vacuume case: assumes no equilibrium plasma current
+Optionally assumes flux from additional `fixed_coils`, whose currents will not change
+`λ_regularize` provides regularization in the least-squares fitting
+"""
 function find_coil_currents!(
     coils::Vector{<:AbstractCoil},
     EQ::Nothing,  # VACUUM case
@@ -149,6 +236,24 @@ function find_coil_currents!(
     return find_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, cocos)
 end
 
+"""
+    find_coil_currents!(
+        coils::Vector{<:AbstractCoil},
+        EQ::Nothing, # VACUUM case
+        image::Nothing,
+        flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+        saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+        ψbound::Real=0.0,
+        fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+        λ_regularize::Float64=0.0,
+        cocos=MXHEquilibrium.cocos(11),
+        Sb=nothing)
+
+Find the currents for `coils` that best match (leas-squares) the flux or saddle control points provided by `flux_cps` and `saddle_cps`
+Vacuume case: assumes no equilibrium plasma current
+Optionally assumes flux from additional `fixed_coils`, whose currents will not change
+`λ_regularize` provides regularization in the least-squares fitting
+"""
 function find_coil_currents!(
     coils::Vector{<:AbstractCoil},
     EQ::Nothing, # VACUUM case
@@ -164,6 +269,20 @@ function find_coil_currents!(
     return find_coil_currents!(coils, flux_cps, saddle_cps; fixed_coils, λ_regularize, cocos)
 end
 
+"""
+    find_coil_currents!(
+        coils::Vector{<:AbstractCoil},
+        flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+        saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+        fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+        λ_regularize::Float64=0.0,
+        cocos=MXHEquilibrium.cocos(11))
+
+Find the currents for `coils` that best match (leas-squares) the flux or saddle control points provided by `flux_cps` and `saddle_cps`
+Vacuume case: assumes no equilibrium plasma current
+Optionally assumes flux from additional `fixed_coils`, whose currents will not change
+`λ_regularize` provides regularization in the least-squares fitting
+"""
 function find_coil_currents!(
     coils::Vector{<:AbstractCoil},
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],

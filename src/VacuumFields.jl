@@ -21,6 +21,7 @@ const IMASelement = IMAS.pf_active__coil___element
 const IMASoutline = Union{IMAS.pf_active__coil___element___geometry__outline, NamedTuple}
 
 include("coils.jl")
+export AbstractCoil, PointCoil, DistributedCoil, encircling_coils
 
 include("integration.jl")
 
@@ -33,14 +34,13 @@ include("elliptic.jl")
 include("green.jl")
 
 include("control.jl")
+export AbstractControlPoint, FluxControlPoint, SaddleControlPoint, FluxControlPoints, SaddleControlPoints
+export find_coil_currents!, boundary_control_points
 
 include("fixed2free.jl")
+export fixed2free, optimal_λ_regularize
 
 include("mutual.jl")
-
-export AbstractCoil, PointCoil, DistributedCoil, coil, encircling_coils, plot_coil
-export AbstractControlPoint, FluxControlPoint, SaddleControlPoint, find_coil_currents!
-export fixed2free, optimal_λ_regularize, encircling_fixed2free
 export mutual, dM_dZ, d2M_dZ2, stability_margin, normalized_growth_rate
 
 const document = Dict()

@@ -1,7 +1,17 @@
+"""
+    AbstractCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real}
+
+Abstract coil type
+"""
 abstract type AbstractCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} end
 (::Type{T})(R, Z; resistance=0.0, turns=1) where {T<:AbstractCoil} = T(R, Z, 0.0, resistance, turns)
 (::Type{T})(R, Z, current; resistance=0.0, turns=1) where {T<:AbstractCoil} = T(R, Z, current, resistance, turns)
 
+"""
+    PointCoil{T1, T2, T3, T4} <:  AbstractCoil{T1, T2, T3, T4}
+
+Point filament coil at scalar (R, Z) location
+"""
 mutable struct PointCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractCoil{T1,T2,T3,T4}
     R::T1
     Z::T1
@@ -23,10 +33,11 @@ turns(coil::AbstractCoil) = coil.turns
 turns(coil::IMAScoil) = abs(sum(element.turns_with_sign for element in coil.element))
 turns(element::IMASelement) = abs(element.turns_with_sign)
 
-"""
-    PointCoil{T1, T2, T3, T4} <:  AbstractCoil{T1, T2, T3, T4}
 
-Point filament coil at scalar (R, Z) location
+"""
+    PointCoil(R, Z, current=0.0; resistance=0.0, turns=1)
+
+Returns PointCoil, a point filament coil at scalar (R, Z) location
 """
 PointCoil(R, Z, current=0.0; resistance=0.0, turns=1) = PointCoil(R, Z, current, resistance, turns)
 
@@ -48,6 +59,11 @@ mutable struct ParallelogramCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: Abstrac
     turns::T4
 end
 
+"""
+    ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current=0.0; resistance=0.0, turns=1)
+
+Construct a ParallelogramCoil
+"""
 ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current=0.0; resistance=0.0, turns=1) = ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current, resistance, turns)
 
 area(C::ParallelogramCoil) = area(C.ΔR, C.ΔZ, C.θ1, C.θ2)
@@ -79,8 +95,18 @@ mutable struct QuadCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real,VT1<:AbstractVector{
     end
 end
 
+"""
+    QuadCoil(R, Z, current=0.0; resistance=0.0, turns=1)
+
+Construct a QuadCoil from corners defined by `R` and `Z`
+"""
 QuadCoil(R, Z, current=0.0; resistance=0.0, turns=1) = QuadCoil(R, Z, current, resistance, turns)
 
+"""
+    QuadCoil(pc::ParallelogramCoil)
+
+Construct a QuadCoil from an existing ParallelogramCoil
+"""
 function QuadCoil(pc::ParallelogramCoil)
     x = SVector(-1.0, 1.0, 1.0, -1.0)
     y = SVector(-1.0, -1.0, 1.0, 1.0)
@@ -121,6 +147,11 @@ function resistance(element::IMASelement, resistivity::Real)
     return 2π * turns(element)^2 * resistivity / integrate((R, Z) -> 1.0 / R, element)
 end
 
+"""
+    DistributedCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractCoil{T1,T2,T3,T4}
+
+Coil consisting of distributed filaments
+"""
 mutable struct DistributedCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractCoil{T1,T2,T3,T4}
     R::Vector{T1}
     Z::Vector{T1}
@@ -129,11 +160,18 @@ mutable struct DistributedCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractC
     turns::T4
 end
 
-DistributedCoil(R, Z, current=0.0; resistance=0.0, turns=1) = DistributedCoil(R, Z, current, resistance, turns)
+"""
+    DistributedCoil(R::Vector{<:Real}, Z::Vector{<:Real}, current=0.0; resistance=0.0, turns=1)
+
+Construct a DistributedCoil from filaments defined by `R` and `Z` vectors
+"""
+DistributedCoil(R::Vector{<:Real}, Z::Vector{<:Real}, current=0.0; resistance=0.0, turns=1) = DistributedCoil(R, Z, current, resistance, turns)
 
 """
     DistributedParallelogramCoil(Rc::T1, Zc::T1, ΔR::T1, ΔZ::T1, θ1::T1, θ2::T1, current::Real=0.0; spacing::Real=0.01, turns::Real=1) where {T1<:Real}
 
+Create a DistributedCoil of filaments with `spacing` separation within
+    a parallelogram defined by the R, Z, ΔR, ΔZ, θ1, θ2 formalism (as used by EFIT, for example)
 NOTE: if spacing <= 0.0 then current filaments are placed at the vertices
 """
 function DistributedParallelogramCoil(Rc::T1, Zc::T1, ΔR::T1, ΔZ::T1, θ1::T1, θ2::T1, current::Real=0.0; spacing::Real=0.01, turns::Real=1) where {T1<:Real}
@@ -163,13 +201,21 @@ function DistributedParallelogramCoil(Rc::T1, Zc::T1, ΔR::T1, ΔZ::T1, θ1::T1,
     return DistributedCoil(R, Z, current; turns)
 end
 
+"""
+    DistributedCoil(C::ParallelogramCoil; spacing::Real=0.01)
+
+Create a DistributedCoil from an existing ParallelogramCoil, with filaments of `spacing` separation
+NOTE: if spacing <= 0.0 then current filaments are placed at the vertices of parallelogram
+"""
 function DistributedCoil(C::ParallelogramCoil; spacing::Real=0.01)
     return DistributedParallelogramCoil(C.R, C.Z, C.ΔR, C.ΔZ, C.θ1, C.θ2, C.current; spacing, C.turns)
 end
 
-# ================ #
-# encircling_coils #
-# ================ #
+"""
+    encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Int)
+
+Returns a Vector of `n_coils` `PointCoil`s distributed outside of `EQfixed`'s boundary
+"""
 function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Int)
     bnd = MXHEquilibrium.plasma_boundary(EQfixed; precision=0.0)
     if bnd === nothing
@@ -180,11 +226,21 @@ function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::
     return encircling_coils(bnd.r, bnd.z, n_coils)
 end
 
+"""
+    encircling_coils(shot::TEQUILA.Shot, n_coils::Int)
+
+Returns a Vector of `n_coils` `PointCoil`s distributed outside of `shot`'s boundary
+"""
 function encircling_coils(shot::TEQUILA.Shot, n_coils::Int)
     bnd_r, bnd_z = MillerExtendedHarmonic.MXH(shot.surfaces[:, end])()
     return encircling_coils(bnd_r, bnd_z, n_coils)
 end
 
+"""
+    encircling_coils(bnd_r::AbstractVector{T}, bnd_z::AbstractVector{T}, n_coils::Int) where {T<:Real}
+
+Returns a Vector of `n_coils` `PointCoil`s distributed outside of closed boundary defined by `bnd_r` and `bnd_z`
+"""
 function encircling_coils(bnd_r::AbstractVector{T}, bnd_z::AbstractVector{T}, n_coils::Int) where {T<:Real}
     mxh = MillerExtendedHarmonic.MXH(bnd_r, bnd_z, 2)
     mxh.R0 = mxh.R0 .* (1.0 + mxh.ϵ)

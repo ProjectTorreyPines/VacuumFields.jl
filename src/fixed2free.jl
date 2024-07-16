@@ -17,6 +17,20 @@ function cost_λ_regularize(
     return cost^2
 end
 
+"""
+    optimal_λ_regularize(
+        coils::Vector{<:AbstractCoil},
+        EQ::MXHEquilibrium.AbstractEquilibrium,
+        image::Image,
+        flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+        saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+        ψbound::Real=0.0,
+        fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+        min_exp::Integer=-20, max_exp::Integer=-10,
+        Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
+
+Find the optimizal `λ_regularize` to be used within `find_coil_currents!` that minimizes the cost
+"""
 function optimal_λ_regularize(
     coils::Vector{<:AbstractCoil},
     EQ::MXHEquilibrium.AbstractEquilibrium,
@@ -106,6 +120,18 @@ end
 
 plasma_boundary_psi_w_fallback(shot::TEQUILA.Shot, args...) = MXHEquilibrium.Boundary(MXHEquilibrium.MXH(shot, 1.0)()...), 0.0
 
+"""
+    fixed2free(
+        EQfixed::MXHEquilibrium.AbstractEquilibrium,
+        coils::AbstractVector{<:AbstractCoil{T,C}},
+        R::AbstractVector{T},
+        Z::AbstractVector{T};
+        ψbound::Real=0.0,
+        kwargs...) where {T<:Real,C<:Real}
+
+Convert the flux of a fixed-boundary equilibrium `EQfixed` to a free-boundary representation on an `(R,Z)` grid,
+    using the flux from `coils` with currents satisfying given control points
+"""
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
     coils::AbstractVector{<:AbstractCoil{T,C}},
@@ -117,6 +143,23 @@ function fixed2free(
     return fixed2free(EQfixed, image, coils, R, Z; ψbound, kwargs...)
 end
 
+"""
+    fixed2free(
+        EQfixed::MXHEquilibrium.AbstractEquilibrium,
+        image::Image,
+        coils::AbstractVector{<:AbstractCoil{T,C}},
+        R::AbstractVector{T},
+        Z::AbstractVector{T};
+        flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+        saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
+        ψbound::Real=0.0,
+        fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+        λ_regularize::Real=0.0) where {T<:Real,C<:Real}
+
+Convert the flux of a fixed-boundary equilibrium `EQfixed` to a free-boundary representation on an `(R,Z)` grid,
+    subtracting out the flux from image currents `image` and adding in the flux from `coils` with currents
+    that best satisfy the flux and saddle control points and `fixed_coils` with predefined coil currents
+"""
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
     image::Image,

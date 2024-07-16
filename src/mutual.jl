@@ -3,26 +3,55 @@
 #      For coils: this cancels out the COCOS dependence in flux, leaving a -2π factor
 #      For image: need the whole factor since the COCOS is buried into the image flux
 
+"""
+    mutual(C1::Union{AbstractCoil, IMASelement}, C2::PointCoil)
+
+Compute the mutual inductance between an arbitrary coil or IMAS.pf_active__coil___element and a PointCoil
+"""
 function mutual(C1::Union{AbstractCoil, IMASelement}, C2::PointCoil)
     fac = -2π * μ₀ * turns(C1) * turns(C2)
     return fac * Green(C1, C2.R, C2.Z)
 end
 
+"""
+    mutual(C1::Union{AbstractCoil, IMASelement}, C2::DistributedCoil)
+
+Compute the mutual inductance between an arbitrary coil or IMAS.pf_active__coil___element and a DistributedCoil
+"""
 function mutual(C1::Union{AbstractCoil, IMASelement}, C2::DistributedCoil)
     fac = -2π * μ₀ * turns(C1) * turns(C2)
     return fac * sum(Green(C1, C2.R[k], C2.Z[k]) for k in eachindex(C2.R)) / length(C2.R)
 end
 
+"""
+    mutual(C1::Union{AbstractCoil, IMASelement}, C2::Union{ParallelogramCoil, QuadCoil, IMASelement}; xorder::Int=3, yorder::Int=3)
+
+Compute the mutual inductance between an arbitrary coil or IMAS.pf_active__coil___element and
+    a ParallelogramCoil, QuadCoil, or IMAS.pf_active__coil___element
+`xorder` and `yorder` give the order of Gauss-Legendre quadrature for integration over the coil area
+"""
 function mutual(C1::Union{AbstractCoil, IMASelement}, C2::Union{ParallelogramCoil, QuadCoil, IMASelement}; xorder::Int=3, yorder::Int=3)
     fac = -2π * μ₀ * turns(C1) * turns(C2)
     f = (r, z) -> Green(C1, r, z; xorder = xorder+1, yorder = yorder+1)
     return fac * integrate(f, C2; xorder, yorder) / area(C2)
 end
 
+"""
+    mutual(C1::Union{AbstractCoil, IMASelement}, C2::IMAScoil; xorder::Int=3, yorder::Int=3)
+
+Compute the mutual inductance between an arbitrary coil or IMAS.pf_active__coil___element and a IMAS.pf_active__coil
+`xorder` and `yorder` give the order of Gauss-Legendre quadrature for integration over the coil area
+"""
 function mutual(C1::Union{AbstractCoil, IMASelement}, C2::IMAScoil; xorder::Int=3, yorder::Int=3)
     return sum(mutual(C1, element; xorder, yorder) for element in C2.element)
 end
 
+"""
+    mutual(C1::IMAScoil, C2::Union{AbstractCoil, IMAScoil, IMASelement}; xorder::Int=3, yorder::Int=3)
+
+Compute the mutual inductance between an IMAS.pf_active__coil and an arbitrary coil, IMAS.pf_active__coil___element, or a IMAS.pf_active__coil
+`xorder` and `yorder` give the order of Gauss-Legendre quadrature for integration over the coil area
+"""
 function mutual(C1::IMAScoil, C2::Union{AbstractCoil, IMAScoil, IMASelement}; xorder::Int=3, yorder::Int=3)
     return sum(mutual(element, C2; xorder, yorder) for element in C1.element)
 end
@@ -55,10 +84,25 @@ function _pfunc(Pfunc, image::Image, C::Union{ParallelogramCoil, QuadCoil, IMASe
     return fac * integrate(f, C; xorder, yorder) / area(C)
 end
 
+"""
+    mutual(EQ::MXHEquilibrium.AbstractEquilibrium, C::Union{AbstractCoil, IMAScoil}, δZ::Real=0.0;
+        COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(EQ), kwargs...)
+
+Compute the mutual inductance between an equilibrium and a coil,
+    where the equilibrium is shifted vertically by `δZ`
+"""
 function mutual(EQ::MXHEquilibrium.AbstractEquilibrium, C::Union{AbstractCoil, IMAScoil}, δZ::Real=0.0;
                 COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(EQ), kwargs...)
     return mutual(Image(EQ), C, plasma_current(EQ), δZ; COCOS, kwargs...)
 end
+
+"""
+    mutual(image::Image, C::Union{AbstractCoil, IMAScoil}, Ip::Real, δZ::Real=0.0;
+           COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), kwargs...)
+
+Compute the mutual inductance between an equilibrium's image current and a coil,
+    where the equilibrium is shifted vertically by `δZ`
+"""
 function mutual(image::Image, C::Union{AbstractCoil, IMAScoil}, Ip::Real, δZ::Real=0.0;
                 COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), kwargs...)
     Ψ = _pfunc(ψ, image, C, δZ; COCOS, kwargs...)
@@ -67,10 +111,25 @@ function mutual(image::Image, C::Union{AbstractCoil, IMAScoil}, Ip::Real, δZ::R
     return -fac * turns(C) * Ψ / Ip
 end
 
+"""
+    dM_dZ(EQ::MXHEquilibrium.AbstractEquilibrium, C::Union{AbstractCoil, IMAScoil}, δZ::Real=0.0;
+          COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(EQ), kwargs...)
+
+Compute the Z derivative of the mutual inductance between an equilibrium and a coil,
+    where the equilibrium is shifted vertically by `δZ`
+"""
 function dM_dZ(EQ::MXHEquilibrium.AbstractEquilibrium, C::Union{AbstractCoil, IMAScoil}, δZ::Real=0.0;
                COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(EQ), kwargs...)
     return dM_dZ(Image(EQ), C, plasma_current(EQ), δZ; COCOS, kwargs...)
 end
+
+"""
+    dM_dZ(image::Image, C::Union{AbstractCoil, IMAScoil}, Ip::Real, δZ::Real=0.0;
+          COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(EQ), kwargs...)
+
+Compute the Z derivative of the mutual inductance between an equilibrium's image current and a coil,
+    where the equilibrium is shifted vertically by `δZ`
+"""
 function dM_dZ(image::Image, C::Union{AbstractCoil, IMAScoil}, Ip::Real, δZ::Real=0.0;
                COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), kwargs...)
     # dψ/d(δZ) = -dψ_dZ
@@ -80,10 +139,25 @@ function dM_dZ(image::Image, C::Union{AbstractCoil, IMAScoil}, Ip::Real, δZ::Re
     return -turns(C) * dΨ_dZ / Ip
 end
 
+"""
+    d2M_dZ2(EQ::MXHEquilibrium.AbstractEquilibrium, C::Union{AbstractCoil, IMAScoil}, δZ::Real=0.0;
+          COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(EQ), kwargs...)
+
+Compute the second Z derivative of the mutual inductance between an equilibrium and a coil,
+    where the equilibrium is shifted vertically by `δZ`
+"""
 function d2M_dZ2(EQ::MXHEquilibrium.AbstractEquilibrium, C::Union{AbstractCoil, IMAScoil}, δZ::Real=0.0;
                  COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(EQ), kwargs...)
     return d2M_dZ2(Image(EQ), C, plasma_current(EQ), δZ; COCOS, kwargs...)
 end
+
+"""
+    d2M_dZ2(image::Image, C::Union{AbstractCoil, IMAScoil}, Ip::Real, δZ::Real=0.0;
+          COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(EQ), kwargs...)
+
+Compute the second Z derivative of the mutual inductance between an equilibrium's image current and a coil,
+    where the equilibrium is shifted vertically by `δZ`
+"""
 function d2M_dZ2(image::Image, C::Union{AbstractCoil, IMAScoil}, Ip::Real, δZ::Real=0.0;
                  COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), kwargs...)
     # d²ψ/d(δZ)² = d²ψ_dZ²
@@ -93,10 +167,24 @@ function d2M_dZ2(image::Image, C::Union{AbstractCoil, IMAScoil}, Ip::Real, δZ::
     return -turns(C) * d2Ψ_dZ2 / Ip
 end
 
-# The m_s inductive stability margin
-# (bᵀ M⁻¹ b) / K - 1
-# Should be greater than 0.15
-stability_margin(EQ, coils; kwargs...) = stability_margin(Image(EQ), coils, MXHEquilibrium.plasma_current(EQ); kwargs...)
+"""
+    stability_margin(EQ::MXHEquilibrium.AbstractEquilibrium, coils::Vector{<:Union{AbstractCoil, IMAScoil}}; kwargs...)
+
+Compute the m_s inductive stability margin for a given equilibrium and coils
+Should be greater than 0.15 for vertical stability
+First introduced in A. Portone, Nucl. Fusion 45 (2005) 926–932. https://doi.org/10.1088/0029-5515/45/8/021
+"""
+function stability_margin(EQ::MXHEquilibrium.AbstractEquilibrium, coils::Vector{<:Union{AbstractCoil, IMAScoil}}; kwargs...)
+    return stability_margin(Image(EQ), coils, MXHEquilibrium.plasma_current(EQ); kwargs...)
+end
+
+"""
+    stability_margin(image::Image, coils::Vector{<:Union{AbstractCoil, IMAScoil}}, Ip::Real; order::Int=default_order)
+
+Compute the m_s inductive stability margin for a given equilibrium's image & plasma current and coils
+Should be greater than 0.15 for vertical stability
+First introduced in A. Portone, Nucl. Fusion 45 (2005) 926–932. https://doi.org/10.1088/0029-5515/45/8/021
+"""
 function stability_margin(image::Image, coils::Vector{<:Union{AbstractCoil, IMAScoil}}, Ip::Real; order::Int=default_order)
     b = [Ip * dM_dZ(image, C, Ip) for C in coils]
     K = Ip * sum(current(C) * d2M_dZ2(image, C, Ip) for C in coils)
@@ -108,15 +196,29 @@ function stability_margin(image::Image, coils::Vector{<:Union{AbstractCoil, IMAS
             (j != k) && (M[j, k] = M[k, j])
         end
     end
+    # (bᵀ M⁻¹ b) / K - 1
     return dot(b, M \ b) / K - 1.0
 end
 
+"""
+    normalized_growth_rate(EQ::MXHEquilibrium.AbstractEquilibrium, coils::Vector{<:Union{AbstractCoil, IMAScoil}}; kwargs...)
 
-# Finds the vertical growth rate (γ) and effective vertical time constant (τ, weighted L/R time)
-# γ * τ < 10 for stability
-# Here we've implemented the massless approximation,
-#    and only use the passive conductors for computing τ (per advice from Olofsson)
-normalized_growth_rate(EQ, coils; kwargs...) = normalized_growth_rate(Image(EQ), coils, MXHEquilibrium.plasma_current(EQ); kwargs...)
+Compute the vertical growth rate (γ) and effective vertical time constant (τ, weighted L/R time) for a given equilibrium and coils
+Returns (γ, τ, γ * τ), where γ * τ < 10 for stability or controllability
+This is the massless approximation and only use the passive conductors for computing τ (per advice from Olofsson)
+"""
+function normalized_growth_rate(EQ::MXHEquilibrium.AbstractEquilibrium, coils::Vector{<:Union{AbstractCoil, IMAScoil}}; kwargs...)
+    return normalized_growth_rate(Image(EQ), coils, MXHEquilibrium.plasma_current(EQ); kwargs...)
+end
+
+"""
+    normalized_growth_rate(image::Image, coils::Vector{<:Union{AbstractCoil, IMAScoil}}, Ip::Real; order::Int=default_order)
+
+Compute the vertical growth rate (γ) and effective vertical time constant (τ, weighted L/R time), for a given
+    equilibrium's image & plasma current and coils
+Returns (γ, τ, γ * τ), where γ * τ < 10 for stability or controllability
+This is the massless approximation and only use the passive conductors for computing τ (per advice from Olofsson)
+"""
 function normalized_growth_rate(image::Image, coils::Vector{<:Union{AbstractCoil, IMAScoil}}, Ip::Real; order::Int=default_order)
     b = [Ip * dM_dZ(image, C, Ip) for C in coils]
     K = Ip * sum(current(C) * d2M_dZ2(image, C, Ip) for C in coils)
