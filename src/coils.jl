@@ -37,14 +37,14 @@ turns(element::IMASelement) = abs(element.turns_with_sign)
 """
     PointCoil(R, Z, current=0.0; resistance=0.0, turns=1)
 
-Returns PointCoil, a point filament coil at scalar (R, Z) location
+Return PointCoil, a point filament coil at scalar (R, Z) location
 """
 PointCoil(R, Z, current=0.0; resistance=0.0, turns=1) = PointCoil(R, Z, current, resistance, turns)
 
 """
     ParallelogramCoil{T1, T2, T3, T4} <:  AbstractCoil{T1, T2, T3, T4}
 
-Parallelogram coil with the R, Z, ΔR, ΔZ, θ1, θ2 formalism (as used by EFIT, for example)
+Parallelogram coil with the R, Z, ΔR, ΔZ, θ1, θ2 formalism (as used by EFIT, for example).
 Here θ1 and θ2 are the shear angles along the x- and y-axes, respectively, in degrees.
 """
 mutable struct ParallelogramCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractCoil{T1,T2,T3,T4}
@@ -172,6 +172,7 @@ DistributedCoil(R::Vector{<:Real}, Z::Vector{<:Real}, current=0.0; resistance=0.
 
 Create a DistributedCoil of filaments with `spacing` separation within
     a parallelogram defined by the R, Z, ΔR, ΔZ, θ1, θ2 formalism (as used by EFIT, for example)
+
 NOTE: if spacing <= 0.0 then current filaments are placed at the vertices
 """
 function DistributedParallelogramCoil(Rc::T1, Zc::T1, ΔR::T1, ΔZ::T1, θ1::T1, θ2::T1, current::Real=0.0; spacing::Real=0.01, turns::Real=1) where {T1<:Real}
@@ -205,6 +206,7 @@ end
     DistributedCoil(C::ParallelogramCoil; spacing::Real=0.01)
 
 Create a DistributedCoil from an existing ParallelogramCoil, with filaments of `spacing` separation
+
 NOTE: if spacing <= 0.0 then current filaments are placed at the vertices of parallelogram
 """
 function DistributedCoil(C::ParallelogramCoil; spacing::Real=0.01)
@@ -214,7 +216,7 @@ end
 """
     encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Int)
 
-Returns a Vector of `n_coils` `PointCoil`s distributed outside of `EQfixed`'s boundary
+Return a Vector of `n_coils` `PointCoil`s distributed outside of `EQfixed`'s boundary
 """
 function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Int)
     bnd = MXHEquilibrium.plasma_boundary(EQfixed; precision=0.0)
@@ -229,7 +231,7 @@ end
 """
     encircling_coils(shot::TEQUILA.Shot, n_coils::Int)
 
-Returns a Vector of `n_coils` `PointCoil`s distributed outside of `shot`'s boundary
+Return a Vector of `n_coils` `PointCoil`s distributed outside of `shot`'s boundary
 """
 function encircling_coils(shot::TEQUILA.Shot, n_coils::Int)
     bnd_r, bnd_z = MillerExtendedHarmonic.MXH(shot.surfaces[:, end])()
@@ -239,7 +241,7 @@ end
 """
     encircling_coils(bnd_r::AbstractVector{T}, bnd_z::AbstractVector{T}, n_coils::Int) where {T<:Real}
 
-Returns a Vector of `n_coils` `PointCoil`s distributed outside of closed boundary defined by `bnd_r` and `bnd_z`
+Return a Vector of `n_coils` `PointCoil`s distributed outside of closed boundary defined by `bnd_r` and `bnd_z`
 """
 function encircling_coils(bnd_r::AbstractVector{T}, bnd_z::AbstractVector{T}, n_coils::Int) where {T<:Real}
     mxh = MillerExtendedHarmonic.MXH(bnd_r, bnd_z, 2)

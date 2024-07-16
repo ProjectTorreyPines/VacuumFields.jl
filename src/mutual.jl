@@ -6,7 +6,7 @@
 """
     mutual(C1::Union{AbstractCoil, IMASelement}, C2::PointCoil)
 
-Compute the mutual inductance between an arbitrary coil or IMAS.pf_active__coil___element and a PointCoil
+Compute the mutual inductance between an arbitrary coil or `IMAS.pf_active__coil___element` and a PointCoil
 """
 function mutual(C1::Union{AbstractCoil, IMASelement}, C2::PointCoil)
     fac = -2π * μ₀ * turns(C1) * turns(C2)
@@ -16,7 +16,7 @@ end
 """
     mutual(C1::Union{AbstractCoil, IMASelement}, C2::DistributedCoil)
 
-Compute the mutual inductance between an arbitrary coil or IMAS.pf_active__coil___element and a DistributedCoil
+Compute the mutual inductance between an arbitrary coil or `IMAS.pf_active__coil___element` and a DistributedCoil
 """
 function mutual(C1::Union{AbstractCoil, IMASelement}, C2::DistributedCoil)
     fac = -2π * μ₀ * turns(C1) * turns(C2)
@@ -26,8 +26,9 @@ end
 """
     mutual(C1::Union{AbstractCoil, IMASelement}, C2::Union{ParallelogramCoil, QuadCoil, IMASelement}; xorder::Int=3, yorder::Int=3)
 
-Compute the mutual inductance between an arbitrary coil or IMAS.pf_active__coil___element and
-    a ParallelogramCoil, QuadCoil, or IMAS.pf_active__coil___element
+Compute the mutual inductance between an arbitrary coil or `IMAS.pf_active__coil___element` and
+    a ParallelogramCoil, QuadCoil, or `IMAS.pf_active__coil___element`
+
 `xorder` and `yorder` give the order of Gauss-Legendre quadrature for integration over the coil area
 """
 function mutual(C1::Union{AbstractCoil, IMASelement}, C2::Union{ParallelogramCoil, QuadCoil, IMASelement}; xorder::Int=3, yorder::Int=3)
@@ -39,7 +40,8 @@ end
 """
     mutual(C1::Union{AbstractCoil, IMASelement}, C2::IMAScoil; xorder::Int=3, yorder::Int=3)
 
-Compute the mutual inductance between an arbitrary coil or IMAS.pf_active__coil___element and a IMAS.pf_active__coil
+Compute the mutual inductance between an arbitrary coil or `IMAS.pf_active__coil___element` and a `IMAS.pf_active__coil`
+
 `xorder` and `yorder` give the order of Gauss-Legendre quadrature for integration over the coil area
 """
 function mutual(C1::Union{AbstractCoil, IMASelement}, C2::IMAScoil; xorder::Int=3, yorder::Int=3)
@@ -49,7 +51,8 @@ end
 """
     mutual(C1::IMAScoil, C2::Union{AbstractCoil, IMAScoil, IMASelement}; xorder::Int=3, yorder::Int=3)
 
-Compute the mutual inductance between an IMAS.pf_active__coil and an arbitrary coil, IMAS.pf_active__coil___element, or a IMAS.pf_active__coil
+Compute the mutual inductance between an `IMAS.pf_active__coil` and an arbitrary coil, `IMAS.pf_active__coil___element`, or a `IMAS.pf_active__coil`
+
 `xorder` and `yorder` give the order of Gauss-Legendre quadrature for integration over the coil area
 """
 function mutual(C1::IMAScoil, C2::Union{AbstractCoil, IMAScoil, IMASelement}; xorder::Int=3, yorder::Int=3)
@@ -170,8 +173,9 @@ end
 """
     stability_margin(EQ::MXHEquilibrium.AbstractEquilibrium, coils::Vector{<:Union{AbstractCoil, IMAScoil}}; kwargs...)
 
-Compute the m_s inductive stability margin for a given equilibrium and coils
-Should be greater than 0.15 for vertical stability
+Compute the m_s inductive stability margin for a given equilibrium and coils.
+    Should be greater than 0.15 for vertical stability
+
 First introduced in A. Portone, Nucl. Fusion 45 (2005) 926–932. https://doi.org/10.1088/0029-5515/45/8/021
 """
 function stability_margin(EQ::MXHEquilibrium.AbstractEquilibrium, coils::Vector{<:Union{AbstractCoil, IMAScoil}}; kwargs...)
@@ -181,8 +185,9 @@ end
 """
     stability_margin(image::Image, coils::Vector{<:Union{AbstractCoil, IMAScoil}}, Ip::Real; order::Int=default_order)
 
-Compute the m_s inductive stability margin for a given equilibrium's image & plasma current and coils
-Should be greater than 0.15 for vertical stability
+Compute the m_s inductive stability margin for a given equilibrium's image & plasma current and coils.
+    Should be greater than 0.15 for vertical stability
+
 First introduced in A. Portone, Nucl. Fusion 45 (2005) 926–932. https://doi.org/10.1088/0029-5515/45/8/021
 """
 function stability_margin(image::Image, coils::Vector{<:Union{AbstractCoil, IMAScoil}}, Ip::Real; order::Int=default_order)
@@ -204,7 +209,9 @@ end
     normalized_growth_rate(EQ::MXHEquilibrium.AbstractEquilibrium, coils::Vector{<:Union{AbstractCoil, IMAScoil}}; kwargs...)
 
 Compute the vertical growth rate (γ) and effective vertical time constant (τ, weighted L/R time) for a given equilibrium and coils
-Returns (γ, τ, γ * τ), where γ * τ < 10 for stability or controllability
+
+Return (γ, τ, γ * τ), where γ * τ < 10 for stability or controllability
+
 This is the massless approximation and only use the passive conductors for computing τ (per advice from Olofsson)
 """
 function normalized_growth_rate(EQ::MXHEquilibrium.AbstractEquilibrium, coils::Vector{<:Union{AbstractCoil, IMAScoil}}; kwargs...)
@@ -215,8 +222,10 @@ end
     normalized_growth_rate(image::Image, coils::Vector{<:Union{AbstractCoil, IMAScoil}}, Ip::Real; order::Int=default_order)
 
 Compute the vertical growth rate (γ) and effective vertical time constant (τ, weighted L/R time), for a given
-    equilibrium's image & plasma current and coils
-Returns (γ, τ, γ * τ), where γ * τ < 10 for stability or controllability
+equilibrium's image & plasma current and coils
+
+Return (γ, τ, γ * τ), where γ * τ < 10 for stability or controllability
+
 This is the massless approximation and only use the passive conductors for computing τ (per advice from Olofsson)
 """
 function normalized_growth_rate(image::Image, coils::Vector{<:Union{AbstractCoil, IMAScoil}}, Ip::Real; order::Int=default_order)
