@@ -1,17 +1,14 @@
 using VacuumFields
 using Test
-using EFIT
 using MXHEquilibrium
+import MXHEquilibrium: readg
 import DelimitedFiles
 using Plots
+using MAT
 
-const active = [
-    "current_cocos",
-    "current_BtIp",
-    "current_Solovev",
-    "current_breakdown",
-    "current_xpoint"
-]
+const Ip = 1e5
+const resistance = 1e-6
+const turns = 2
 
 const coils_D3D_matrix = [
     [8.6080e-01 1.6830e-01 5.0800e-02 3.2110e-01 0.0000e+00 9.0000e+01]
@@ -33,227 +30,219 @@ const coils_D3D_matrix = [
     [1.2524e+00 -1.6027e+00 2.3490e-01 8.5100e-02 0.0000e+00 9.0000e+01]
     [1.6889e+00 -1.5780e+00 1.6940e-01 1.3310e-01 0.0000e+00 9.0000e+01]]
 
-const coils_D3D_points = [PointCoil(coils_D3D_matrix[i, 1], coils_D3D_matrix[i, 2]) for i in 1:size(coils_D3D_matrix)[1]]
-const coils_D3D = [ParallelogramCoil(coils_D3D_matrix[i, :]...) for i in 1:size(coils_D3D_matrix)[1]]
-
-# Change to coils_D3D_points to run with singular coils
-const coils = coils_D3D
-
-if "current_cocos" in active
-    @testset "current_cocos" begin
-        fixed_geqdsk = (@__DIR__) * "/equilibria/g163303.03170_fix"
-        free_geqdsk = (@__DIR__) * "/equilibria/g163303.03170_free"
-
-        # These are the currents computed by EFIT, without the E-coils included
-        eqdsk_currents = [
-            -118002.985, -95272.9804, 9404.27229,
-            45974.8807, 27840.9167, -206295.043,
-            -141605.015, 13459.9473, -1087.47886,
-            -113719.456, -59571.7105, -69097.6062,
-            98250.1947, 143905.727, -230652.605,
-            -225334.449, 116828.799, 8614.80714]
-
-        if coils == coils_D3D_points
-            good_currents = [
-                -116235.28907610463, -98586.2314474624, 65689.70513193491,
-                -469345.0846858057, 1.429593664421151e6, -204968.27495366192,
-                -145109.5456392649, -868933.9278994281, 119612.3742593849,
-                -117495.15065519481, -56048.70738466947, -78894.1800648648,
-                108238.61937784836, 159156.2152710073, -230654.60093398875,
-                -221695.36575228465, 89848.68347638033, 13032.984674759902]
-        elseif coils == coils_D3D
-            good_currents_sd = [
-                -123635.83053274715, -101040.44981352903, -8692.175095363986,
-                99456.30564584397, 44148.55159103844, -212076.3721057026,
-                -136048.95577378047, -41156.17734011926, 14409.220391036204,
-                -131177.93090524126, -47934.92152827256, -93944.56599139964,
-                119624.81517763663, 164320.37132246612, -235830.7658811443,
-                -221515.04511039687, 97744.20420786832, 11170.040045183569]
-            good_currents_dd = [
-                -123796.43108312064, -101086.71033357759, 6330.115901381709,
-                -55169.25566862989, 512296.8855078304, -211651.50879072546,
-                -139010.09620696527, -359186.05410263385, 65945.91628320269,
-                -131121.50001405698, -48038.765505325864, -92503.48058979367,
-                110876.6061240047, 186605.5564113924, -235893.39824374302,
-                -221782.0227385224, 82690.44538168146, 14080.376817403361]
-        end
-
-        gfixed = readg(fixed_geqdsk)
-        cc0 = cocos(gfixed; clockwise_phi=false).cocos
-        gfree = readg(free_geqdsk)
-
-        ccs = collect([1:8; 11:18])
-        ccp = rand(ccs)
-
-        for cc in ccs
-            println("Testing for COCOS ", cc)
-            Gfixed = efit(transform_cocos(gfixed, cc0, cc), cc)
-            Gfree = efit(transform_cocos(gfree, cc0, cc), cc)
-            _, ψbound = psi_limits(Gfree)
-            currents = fixed_eq_currents(Gfixed, coils, AbstractCoil[], ψbound)
-            if cc < 10
-                good_currents = good_currents_sd
-            else
-                good_currents = good_currents_dd
-            end
-
-            if cc == cc0
-                p = plot(eqdsk_currents; linewidth=3, linecolor=:black)
-                plot!(currents; linewidth=3, linecolor=:blue)
-                display(p)
-            end
-
-            if cc == ccp
-                println("Plotting for COCOS ", cc)
-                p = check_fixed_eq_currents(Gfixed, coils, Gfree)
-                display(p)
-            end
-
-            @test currents ≈ Gfixed.cocos.sigma_RpZ * good_currents
-        end
-    end
+function load_par(params)
+    R = params[2]
+    Z = params[1]
+    ΔR = params[4]
+    ΔZ = params[3]
+    θ₁ = params[5]
+    #θ₂ = params[6] - 90.0
+    # ??? What's the equation here?
+    θ₂ = (params[6] == 0.0) ? 90.0 : params[6]
+    return R, Z, ΔR, ΔZ, θ₁, θ₂
 end
 
-if "current_BtIp" in active
-    @testset "current_BtIp" begin
-        fixed_pp = (@__DIR__) * "/equilibria/g150219.03200_fix"
-        free_pp = (@__DIR__) * "/equilibria/g150219.03200_free"
+@testset "VacuumFields.jl" begin
 
-        fixed_pm = (@__DIR__) * "/equilibria/g159177.02700_fix"
-        free_pm = (@__DIR__) * "/equilibria/g159177.02700_free"
+    @test PointCoil(coils_D3D_matrix[1, 1], coils_D3D_matrix[1, 2], Ip; resistance, turns) isa PointCoil
+    parcoil = ParallelogramCoil(coils_D3D_matrix[1, :]..., Ip; resistance, turns)
+    @test parcoil isa ParallelogramCoil
+    @test QuadCoil(parcoil) isa QuadCoil
+    qcoil = QuadCoil([1.0, 2.0, 3.0, 1.0], [-1.0, -1.0, 2.0, 1.0], Ip; resistance, turns)
+    @test VacuumFields.area(qcoil) ≈ 3.5
+    R, Z = 10.0, 10.0
+    @test 2π * VacuumFields.μ₀ * VacuumFields.Green(qcoil, R, Z) * VacuumFields.current(qcoil) ≈ VacuumFields.ψ(qcoil, R, Z)
+    @test DistributedCoil(parcoil) isa DistributedCoil
 
-        fixed_mp = (@__DIR__) * "/equilibria/g133221.01151_fix"
-        free_mp = (@__DIR__) * "/equilibria/g133221.01151_free"
 
-        fixed_mm = (@__DIR__) * "/equilibria/g153298.04400_fix"
-        free_mm = (@__DIR__) * "/equilibria/g153298.04400_free"
+    geqdsk = readg((@__DIR__) * "/equilibria/g184250.01740")
+    cc0 = cocos(geqdsk; clockwise_phi=false).cocos
+    EQ = efit(transform_cocos(geqdsk, cc0, 11), 11)
 
-        C = DelimitedFiles.readdlm((@__DIR__) * "/equilibria/currents.txt")
+    vars = matread((@__DIR__) * "/equilibria/d3d_vs_eq3_.mat")
+    coils = [ParallelogramCoil(load_par(vars["fcdata"][:,k])..., vars["Ic"][2+k]; resistance=vars["Rc"][k], turns=Int(vars["fcnturn"][k])) for k in eachindex(vars["fcnturn"])]
+    append!(coils, ParallelogramCoil(load_par(vars["vvdata"][:,k])...; resistance=vars["Rv"][k]) for k in eachindex(vars["Rv"]))
 
-        EQs_fixed = [fixed_pp, fixed_pm, fixed_mp, fixed_mm]
-        EQs_free = [free_pp, free_pm, free_mp, free_mm]
+    @test isapprox(stability_margin(EQ, coils), vars["stability"]["m_s_noe"]; rtol=5e-2)
+    γ, τ, _ = normalized_growth_rate(EQ, coils)
+    γ_ts, τ_ts = vars["stability"]["gamma_massless_noe"], vars["stability"]["tauv_massless"]
+    @test isapprox(γ, γ_ts; rtol=5e-2)
+    @test isapprox(τ, τ_ts; rtol=5e-2)
+end
 
-        for i in 1:4
-            gfixed = readg(EQs_fixed[i])
-            cc = cocos(gfixed; clockwise_phi=false).cocos
-            Gfixed = efit(gfixed, cc)
+const coils = [QuadCoil(ParallelogramCoil(coils_D3D_matrix[i, :]..., Ip; resistance, turns)) for i in 1:size(coils_D3D_matrix)[1]]
 
-            gfree = readg(EQs_free[i])
-            Gfree = efit(gfree, cc)
-            _, ψbound = psi_limits(Gfree)
 
-            #  Currents from EFIT
-            p = plot(C[i, :]; linewidth=3, linecolor=:black)
+@testset "current_cocos" begin
+    fixed_geqdsk = (@__DIR__) * "/equilibria/g163303.03170_fix"
+    free_geqdsk = (@__DIR__) * "/equilibria/g163303.03170_free"
 
-            # Currents with ψbound=0
-            c0 = fixed_eq_currents(Gfixed, coils, AbstractCoil[], 0.0)
-            plot!(c0; linewidth=3, linecolor=:red)
+    # These are the currents computed by EFIT, without the E-coils included
+    eqdsk_currents = [
+        -118002.985, -95272.9804, 9404.27229,
+        45974.8807, 27840.9167, -206295.043,
+        -141605.015, 13459.9473, -1087.47886,
+        -113719.456, -59571.7105, -69097.6062,
+        98250.1947, 143905.727, -230652.605,
+        -225334.449, 116828.799, 8614.80714]
 
-            # Currents with ψbound from EFIT
-            cb = fixed_eq_currents(Gfixed, coils, AbstractCoil[], ψbound)
-            plot!(cb; linewidth=3, linecolor=:blue)
 
-            # Currents minimized
-            # cm = fixed_eq_currents(Gfixed, coils, AbstractCoil[], ψbound, minimize_currents=0.01)
-            # plot!(currents)
+    good_currents_sd = [
+        -125255.22802038345, -85732.61193982523, 6908.577576682961,
+        29275.365128753736, 25359.985822088915, -211204.251865932,
+        -134448.83811184048, 23488.525199361036, -5294.195981690289,
+        -107043.98891397915, -75142.7511909334, -48739.08096675255,
+        77599.0070426326, 150830.88444440905, -221402.16070576818,
+        -228650.7045731426, 123465.62290190649, 926.6664242527331
+        ]
+    good_currents_dd = [
+        -115274.78058122244, -100066.62138053821, 16066.723028895212,
+        31472.34544931911, 30233.29453776579, -212811.09342069676,
+        -131915.01608336507, 25955.390168425336, -12890.287314473018,
+        -116340.44880288554, -64577.55852943135, -47485.319472859,
+        31959.71428826521, 249319.4096091399, -217067.7110646716,
+        -240216.66971257926, 46785.55843708216, 33063.62059136332
+        ]
+
+    gfixed = readg(fixed_geqdsk)
+    cc0 = cocos(gfixed; clockwise_phi=false).cocos
+    gfree = readg(free_geqdsk)
+
+    ccs = collect([1:8; 11:18])
+
+    ix = argmin(gfree.zbbbs)
+    Rx, Zx = gfree.rbbbs[ix], gfree.zbbbs[ix]
+
+    for cc in ccs
+        println("Testing for COCOS ", cc)
+        Gfixed = efit(transform_cocos(gfixed, cc0, cc), cc)
+        Gfree = efit(transform_cocos(gfree, cc0, cc), cc)
+        _, ψbound = psi_limits(Gfree)
+        flux_cps = boundary_control_points(Gfree, 0.999, ψbound)
+        saddle_cps = [SaddleControlPoint(Rx, Zx)]
+        currents, _ = find_coil_currents!(coils, Gfixed, flux_cps, saddle_cps; λ_regularize=1e-14)
+        if cc < 10
+            good_currents = good_currents_sd
+        else
+            good_currents = good_currents_dd
+        end
+
+        if cc == cc0
+            p = plot(eqdsk_currents; linewidth=3, linecolor=:black)
+            plot!(currents; linewidth=3, linecolor=:blue)
             display(p)
-
-            # p = check_fixed_eq_currents(Gfixed,coils,Gfree)
-            # display(p)
-            # p = check_fixed_eq_currents(Gfixed,coils,Gfree)
-            # display(p)
-
         end
+
+        @test currents ≈ Gfixed.cocos.sigma_RpZ * good_currents
     end
 end
 
-if "current_Solovev" in active
-    @testset "current_Solovev" begin
-        δ = 0.5
-        ϵ = 0.32
-        κ = 1.7
-        B0 = 2.0
-        R0 = 1.8
-        qstar = 1.57
-        alpha = -0.155
-        S = solovev(B0, R0, ϵ, δ, κ, alpha, qstar; B0_dir=1, Ip_dir=1)
-        currents = fixed_eq_currents(S, coils)
-        p = check_fixed_eq_currents(S, coils)
-        display(p)
-    end
+@testset "fixed2free" begin
+    fixed_geqdsk = (@__DIR__) * "/equilibria/g163303.03170_fix"
+    free_geqdsk = (@__DIR__) * "/equilibria/g163303.03170_free"
+
+    gfixed = readg(fixed_geqdsk)
+    cc0 = cocos(gfixed; clockwise_phi=false).cocos
+    gfree = readg(free_geqdsk)
+    Gfixed = efit(transform_cocos(gfixed, cc0, 11), 11)
+    Gfree = efit(transform_cocos(gfree, cc0, 11), 11)
+
+    _, ψbound = psi_limits(Gfree)
+    Rs, Zs = gfree.r, gfree.z
+
+    ix = argmin(gfree.zbbbs)
+    Rx, Zx = gfree.rbbbs[ix], gfree.zbbbs[ix]
+
+    flux_cps = boundary_control_points(Gfree, 0.999, ψbound)
+    saddle_cps = [SaddleControlPoint(Rx, Zx)]
+    fixed2free(Gfixed, coils, Rs, Zs; flux_cps, saddle_cps);
 end
 
-if "current_breakdown" in active
-    @testset "current_breakdown" begin
+@testset "current_BtIp" begin
+    fixed_pp = (@__DIR__) * "/equilibria/g150219.03200_fix"
+    free_pp = (@__DIR__) * "/equilibria/g150219.03200_free"
 
-        # OH coils
-        coils_OH = coils_D3D[[1, 2, 3, 4, 10, 11, 12, 13]]
-        for coil in coils_OH
-            coil.current = 10000.0
-        end
+    fixed_pm = (@__DIR__) * "/equilibria/g159177.02700_fix"
+    free_pm = (@__DIR__) * "/equilibria/g159177.02700_free"
 
-        # PF coils
-        # From DIII-D, but remove coils along CS
-        coils_PF = coils_D3D[[5, 6, 7, 8, 9, 14, 15, 16, 17, 18]]
+    fixed_mp = (@__DIR__) * "/equilibria/g133221.01151_fix"
+    free_mp = (@__DIR__) * "/equilibria/g133221.01151_free"
 
-        # boundary of field null
-        # arbitrary ellipse
-        θ = range(-π, π; length=129)
-        R₀ = 1.6
-        Z₀ = 0.0
-        a₀ = 0.3
-        ϵ = 1.5
-        Rp = R₀ .+ a₀ .* cos.(θ)
-        Zp = Z₀ .+ ϵ * a₀ .* sin.(θ)
+    fixed_mm = (@__DIR__) * "/equilibria/g153298.04400_fix"
+    free_mm = (@__DIR__) * "/equilibria/g153298.04400_free"
 
-        # ψ we want on this boundary
-        # HOW DOES THIS GET DETERMINED?
-        # Probably the highest \psi from the OH coils?
-        ψp_constant = -0.012
+    C = DelimitedFiles.readdlm((@__DIR__) * "/equilibria/currents.txt")
 
-        # account for effect of fixed coils on ψp_constant
-        Bp_fac, ψp, Rp, Zp = field_null_on_boundary(ψp_constant, Rp, Zp, coils_OH)
+    EQs_fixed = [fixed_pp, fixed_pm, fixed_mp, fixed_mm]
+    EQs_free = [free_pp, free_pm, free_mp, free_mm]
 
-        # Find PF coil currents to make field null
-        currents_PF = currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils_PF)
+    for i in 1:4
+        gfixed = MXHEquilibrium.readg(EQs_fixed[i])
+        cc = MXHEquilibrium.cocos(gfixed; clockwise_phi=false).cocos
+        Gfixed = MXHEquilibrium.efit(gfixed, cc)
 
-        # Plot flux from all coils
-        coils_all = vcat(coils_PF, coils_OH)
-        p = plot_coil_flux(Bp_fac, coils_all, ψp_constant; clim=(2.0 * ψp_constant, 0.0), Rmin=0.5, Rmax=3.0, Zmin=-1.8, Zmax=1.8)
-        for coil in coils_all
-            plot_coil(coil)
-        end
-        plot!(p, Rp, Zp)
-        display(p)
-    end
-end
-
-if "current_xpoint" in active
-    @testset "current_xpoint" begin
-
-        fixed_geqdsk = (@__DIR__) * "/equilibria/g163303.03170_fix"
-        free_geqdsk = (@__DIR__) * "/equilibria/g163303.03170_free"
-        gfixed = readg(fixed_geqdsk)
-        gfree = readg(free_geqdsk)
-        cc = cocos(gfixed; clockwise_phi=false).cocos
-        Gfixed = efit(gfixed, cc)
-        Gfree = efit(gfree, cc)
+        gfree = MXHEquilibrium.readg(EQs_free[i])
+        Gfree = MXHEquilibrium.efit(gfree, cc)
         _, ψbound = psi_limits(Gfree)
 
-        Rx = [1.7]
-        Zx = [-1.5]
-        Bp_fac, ψp, Rp, Zp = ψp_on_fixed_eq_boundary(Gfixed, AbstractCoil[], ψbound; Rx=Rx, Zx=Zx)
+        #  Currents from EFIT
+        p = plot(C[i, :]; linewidth=3, linecolor=:black)
 
-        weights = ones(length(Rp))
-        weights[end] = 1.0
+        # Currents with ψbound=0
+        flux_cps = boundary_control_points(Gfixed, 0.999, 0.0)
+        c0, _ = find_coil_currents!(coils, Gfixed, flux_cps; λ_regularize=1e-14)
 
-        # X points can't get added later
-        # Outside the LCFS, there's still a flux contribution
-        # from the image currents (IS THAT TRUE???)
+        plot!(c0; linewidth=3, linecolor=:red)
 
-        currents = currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils; weights=weights, λ_regularize=1E-14)
+        # Currents with ψbound from EFIT
+        flux_cps = boundary_control_points(Gfixed, 0.999, ψbound)
+        cb, _ = find_coil_currents!(coils, Gfixed, flux_cps; λ_regularize=1e-14)
+        plot!(cb; linewidth=3, linecolor=:blue)
 
-        p = check_fixed_eq_currents(Gfixed, coils, Gfree; Rmin=0.5, Rmax=3.0, Zmin=-2.0, Zmax=2.0)
         display(p)
+
     end
 end
+
+# @testset "current_breakdown" begin
+
+#     # OH coils
+#     coils_OH = coils_D3D[[1, 2, 3, 4, 10, 11, 12, 13]]
+#     for coil in coils_OH
+#         coil.current = 10000.0
+#     end
+
+#     # PF coils
+#     # From DIII-D, but remove coils along CS
+#     coils_PF = coils_D3D[[5, 6, 7, 8, 9, 14, 15, 16, 17, 18]]
+
+#     # boundary of field null
+#     # arbitrary ellipse
+#     θ = range(-π, π; length=129)
+#     R₀ = 1.6
+#     Z₀ = 0.0
+#     a₀ = 0.3
+#     ϵ = 1.5
+#     Rp = R₀ .+ a₀ .* cos.(θ)
+#     Zp = Z₀ .+ ϵ * a₀ .* sin.(θ)
+
+#     # ψ we want on this boundary
+#     # HOW DOES THIS GET DETERMINED?
+#     # Probably the highest \psi from the OH coils?
+#     ψp_constant = -0.012
+
+#     # account for effect of fixed coils on ψp_constant
+#     Bp_fac, ψp, Rp, Zp = field_null_on_boundary(ψp_constant, Rp, Zp, coils_OH)
+
+#     # Find PF coil currents to make field null
+#     currents_PF = currents_to_match_ψp(Bp_fac, ψp, Rp, Zp, coils_PF)
+
+#     # Plot flux from all coils
+#     coils_all = vcat(coils_PF, coils_OH)
+#     p = plot_coil_flux(Bp_fac, coils_all, ψp_constant; clim=(2.0 * ψp_constant, 0.0), Rmin=0.5, Rmax=3.0, Zmin=-1.8, Zmax=1.8)
+#     for coil in coils_all
+#         plot_coil(coil)
+#     end
+#     plot!(p, Rp, Zp)
+#     display(p)
+# end
