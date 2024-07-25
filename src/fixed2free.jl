@@ -42,9 +42,9 @@ function optimal_λ_regularize(
     min_exp::Integer=-20, max_exp::Integer=-10,
     Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
-    λ_range_exp = collect(min_exp:0.5:max_exp)
-    cost_λ = [cost_λ_regularize(λ, coils, EQ, image, flux_cps, saddle_cps; ψbound, fixed_coils, Sb) for λ in λ_range_exp]
-    return 10^λ_range_exp[argmin(cost_λ)]
+    λ_range_exp = min_exp:0.5:max_exp
+    cost_λ = λ -> cost_λ_regularize(λ, coils, EQ, image, flux_cps, saddle_cps; ψbound, fixed_coils, Sb)
+    return 10^λ_range_exp[argmin(cost_λ(λ) for λ in λ_range_exp)]
 end
 
 # ***************************************************
