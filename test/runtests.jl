@@ -1,7 +1,7 @@
 using VacuumFields
 using Test
 using MXHEquilibrium
-import MXHEquilibrium: readg
+import EFIT: readg
 import DelimitedFiles
 using Plots
 using MAT
@@ -55,7 +55,7 @@ end
     @test DistributedCoil(parcoil) isa DistributedCoil
 
 
-    geqdsk = readg((@__DIR__) * "/equilibria/g184250.01740")
+    geqdsk = readg((@__DIR__) * "/equilibria/g184250.01740"; set_time=0.0)
     cc0 = cocos(geqdsk; clockwise_phi=false).cocos
     EQ = efit(transform_cocos(geqdsk, cc0, 11), 11)
 
@@ -104,9 +104,9 @@ const coils = [QuadCoil(ParallelogramCoil(coils_D3D_matrix[i, :]..., Ip; resista
         -240216.66971257926, 46785.55843708216, 33063.62059136332
         ]
 
-    gfixed = readg(fixed_geqdsk)
+    gfixed = readg(fixed_geqdsk; set_time=0.0)
     cc0 = cocos(gfixed; clockwise_phi=false).cocos
-    gfree = readg(free_geqdsk)
+    gfree = readg(free_geqdsk; set_time=0.0)
 
     ccs = collect([1:8; 11:18])
 
@@ -141,9 +141,9 @@ end
     fixed_geqdsk = (@__DIR__) * "/equilibria/g163303.03170_fix"
     free_geqdsk = (@__DIR__) * "/equilibria/g163303.03170_free"
 
-    gfixed = readg(fixed_geqdsk)
+    gfixed = readg(fixed_geqdsk; set_time=0.0)
     cc0 = cocos(gfixed; clockwise_phi=false).cocos
-    gfree = readg(free_geqdsk)
+    gfree = readg(free_geqdsk; set_time=0.0)
     Gfixed = efit(transform_cocos(gfixed, cc0, 11), 11)
     Gfree = efit(transform_cocos(gfree, cc0, 11), 11)
 
@@ -177,11 +177,11 @@ end
     EQs_free = [free_pp, free_pm, free_mp, free_mm]
 
     for i in 1:4
-        gfixed = MXHEquilibrium.readg(EQs_fixed[i])
+        gfixed = MXHEquilibrium.readg(EQs_fixed[i]; set_time=0.0)
         cc = MXHEquilibrium.cocos(gfixed; clockwise_phi=false).cocos
         Gfixed = MXHEquilibrium.efit(gfixed, cc)
 
-        gfree = MXHEquilibrium.readg(EQs_free[i])
+        gfree = MXHEquilibrium.readg(EQs_free[i]; set_time=0.0)
         Gfree = MXHEquilibrium.efit(gfree, cc)
         _, ψbound = psi_limits(Gfree)
 
