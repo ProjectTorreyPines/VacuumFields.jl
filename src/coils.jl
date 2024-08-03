@@ -294,7 +294,7 @@ end
 
 function convex_hull!(xy_points::AbstractVector; closed_polygon::Bool)
     hull = grahamscan!(xy_points)
-    if closed_polygon
+    if closed_polygon && !isempty(hull)
         return push!(hull, hull[1])
     else
         return hull
