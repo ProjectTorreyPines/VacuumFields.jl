@@ -1,7 +1,7 @@
 #= ==================================== =#
 #  IMAS.pf_active__coil to VacuumFields  #
 #= ==================================== =#
-mutable struct GS_IMAS_pf_active__coil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractCoil{T1,T2,T3,T4}
+mutable struct GS_IMAS_pf_active__coil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractSingleCoil{T1,T2,T3,T4}
     imas::IMAS.pf_active__coil{T1}
     tech::IMAS.build__pf_active__technology{T1}
     time0::Float64
@@ -205,10 +205,11 @@ end
 
 @recipe function plot_coil(coil::GS_IMAS_pf_active__coil)
     @series begin
-        seriestype := :scatter
-        marker --> :circle
+        #seriestype := :scatter
+        #marker --> :circle
         label --> ""
-        [coil.r], [coil.z]
+        #[coil.r], [coil.z]
+        coil.imas
     end
 end
 
