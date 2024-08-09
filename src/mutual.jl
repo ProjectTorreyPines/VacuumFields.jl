@@ -37,6 +37,10 @@ function mutual(C1::Union{AbstractCoil, IMASelement}, C2::Union{ParallelogramCoi
     return fac * integrate(f, C2; xorder, yorder) / area(C2)
 end
 
+function mutual(C1::Union{AbstractCoil, IMASelement}, mcoil::MultiCoil; kwargs...)
+    return sum(mutual(C1, C2; kwargs...) for C2 in mcoil.coils)
+end
+
 """
     mutual(C1::Union{AbstractCoil, IMASelement}, C2::IMAScoil; xorder::Int=3, yorder::Int=3)
 

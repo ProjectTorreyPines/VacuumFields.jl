@@ -19,8 +19,13 @@ end
 function _gfunc(Gfunc::Function, element::IMASelement, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)
     return _gfunc(Gfunc, IMAS.outline(element), R, Z, scale_factor; xorder, yorder)
 end
+
 function _gfunc(Gfunc::Function, ol::IMASoutline, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)
     return integrate((X, Y) -> Gfunc(X, Y, R, Z, scale_factor), ol; xorder, yorder) / area(ol)
+end
+
+function _gfunc(Gfunc::Function, mcoil::MultiCoil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
+    return sum(current(coil) * _gfunc(Gfunc, coil, R, Z, scale_factor; kwargs...) for coil in mcoil.coils) / current(mcoil)
 end
 
 # Generalized wrapper functions for all coil types

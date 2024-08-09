@@ -123,22 +123,22 @@ plasma_boundary_psi_w_fallback(shot::TEQUILA.Shot, args...) = MXHEquilibrium.Bou
 """
     fixed2free(
         EQfixed::MXHEquilibrium.AbstractEquilibrium,
-        coils::AbstractVector{<:AbstractCoil{T,C}},
+        coils::AbstractVector{<:AbstractCoil},
         R::AbstractVector{T},
         Z::AbstractVector{T};
         ψbound::Real=0.0,
-        kwargs...) where {T<:Real,C<:Real}
+        kwargs...) where {T<:Real}
 
 Convert the flux of a fixed-boundary equilibrium `EQfixed` to a free-boundary representation on an `(R,Z)` grid,
     using the flux from `coils` with currents satisfying given control points
 """
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
-    coils::AbstractVector{<:AbstractCoil{T,C}},
+    coils::AbstractVector{<:AbstractCoil},
     R::AbstractVector{T},
     Z::AbstractVector{T};
     ψbound::Real=0.0,
-    kwargs...) where {T<:Real,C<:Real}
+    kwargs...) where {T<:Real}
     image = Image(EQfixed)
     return fixed2free(EQfixed, image, coils, R, Z; ψbound, kwargs...)
 end
@@ -147,14 +147,14 @@ end
     fixed2free(
         EQfixed::MXHEquilibrium.AbstractEquilibrium,
         image::Image,
-        coils::AbstractVector{<:AbstractCoil{T,C}},
+        coils::AbstractVector{<:AbstractCoil},
         R::AbstractVector{T},
         Z::AbstractVector{T};
         flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
         saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
         ψbound::Real=0.0,
         fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-        λ_regularize::Real=0.0) where {T<:Real,C<:Real}
+        λ_regularize::Real=0.0) where {T<:Real}
 
 Convert the flux of a fixed-boundary equilibrium `EQfixed` to a free-boundary representation on an `(R,Z)` grid,
     subtracting out the flux from image currents `image` and adding in the flux from `coils` with currents
@@ -163,14 +163,14 @@ Convert the flux of a fixed-boundary equilibrium `EQfixed` to a free-boundary re
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
     image::Image,
-    coils::AbstractVector{<:AbstractCoil{T,C}},
+    coils::AbstractVector{<:AbstractCoil},
     R::AbstractVector{T},
     Z::AbstractVector{T};
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    λ_regularize::Real=0.0) where {T<:Real,C<:Real}
+    λ_regularize::Real=0.0) where {T<:Real}
 
     Sb, ψb = plasma_boundary_psi_w_fallback(EQfixed)
     ψ_f2f = T[MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) - ψb + ψbound : ψbound for z in Z, r in R]

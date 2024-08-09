@@ -308,7 +308,7 @@ function find_coil_currents!(
 
     # First reset current in coils to unity
     for coil in coils
-        coil.current = 1.0
+        set_current!(coil, 1.0)
     end
 
     N = length(flux_cps) + 2 * length(saddle_cps)
@@ -328,7 +328,7 @@ function find_coil_currents!(
 
     # update values of coils current
     for (k, coil) in enumerate(coils)
-        coil.current = Ic0[k]
+        set_current!(coil, Ic0[k])
     end
 
     cost = norm(A * Ic0 .- b) / norm(b)

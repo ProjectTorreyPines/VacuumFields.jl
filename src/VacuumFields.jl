@@ -22,7 +22,7 @@ const IMASelement = IMAS.pf_active__coil___element
 const IMASoutline = Union{IMAS.pf_active__coil___element___geometry__outline, NamedTuple}
 
 include("coils.jl")
-export AbstractCoil, PointCoil, ParallelogramCoil, QuadCoil, DistributedCoil, encircling_coils
+export AbstractCoil, PointCoil, ParallelogramCoil, QuadCoil, DistributedCoil, MultiCoil, encircling_coils
 
 
 include("integration.jl")
