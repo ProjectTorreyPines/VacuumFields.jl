@@ -30,6 +30,9 @@ const coils_D3D_matrix = [
     [1.2524e+00 -1.6027e+00 2.3490e-01 8.5100e-02 0.0000e+00 9.0000e+01]
     [1.6889e+00 -1.5780e+00 1.6940e-01 1.3310e-01 0.0000e+00 9.0000e+01]]
 
+const coils = [QuadCoil(ParallelogramCoil(pg..., Ip; resistance, turns)) for pg in eachrow(coils_D3D_matrix)]
+
+
 function load_par(params)
     R = params[2]
     Z = params[1]
@@ -51,26 +54,36 @@ end
     qcoil = QuadCoil([1.0, 2.0, 3.0, 1.0], [-1.0, -1.0, 2.0, 1.0], Ip; resistance, turns)
     @test VacuumFields.area(qcoil) ≈ 3.5
     R, Z = 10.0, 10.0
-    @test 2π * VacuumFields.μ₀ * VacuumFields.Green(qcoil, R, Z) * VacuumFields.current(qcoil) ≈ VacuumFields.ψ(qcoil, R, Z)
+    @test 2π * VacuumFields.μ₀ * VacuumFields.Green(qcoil, R, Z) * VacuumFields.VacuumFields.current(qcoil) ≈ VacuumFields.ψ(qcoil, R, Z)
     @test DistributedCoil(parcoil) isa DistributedCoil
 
+    mcoil = MultiCoil(coils)
+    Nc = length(coils)
+    @test VacuumFields.ψ(mcoil, 2.0, 0.0) ≈ sum(VacuumFields.ψ(coil, 2.0, 0.0) for coil in coils)
+    @test VacuumFields.current(mcoil) ≈ Nc * Ip
+    @test VacuumFields.resistance(mcoil) ≈ Nc * resistance
+    @test VacuumFields.turns(mcoil) == Nc * turns
+    Ic1 = VacuumFields.current(coils[1])
+    VacuumFields.set_current!(mcoil, Ip)
+    @test VacuumFields.current(mcoil.coils[1]) ≈ VacuumFields.current(coils[1]) ≈ Ip / Nc
+    VacuumFields.set_current!(mcoil, Nc * Ip)
+    @test VacuumFields.current(mcoil.coils[1]) ≈ VacuumFields.current(coils[1]) ≈ Ip
 
     geqdsk = readg((@__DIR__) * "/equilibria/g184250.01740"; set_time=0.0)
     cc0 = cocos(geqdsk; clockwise_phi=false).cocos
     EQ = efit(transform_cocos(geqdsk, cc0, 11), 11)
 
     vars = matread((@__DIR__) * "/equilibria/d3d_vs_eq3_.mat")
-    coils = [ParallelogramCoil(load_par(vars["fcdata"][:,k])..., vars["Ic"][2+k]; resistance=vars["Rc"][k], turns=Int(vars["fcnturn"][k])) for k in eachindex(vars["fcnturn"])]
-    append!(coils, ParallelogramCoil(load_par(vars["vvdata"][:,k])...; resistance=vars["Rv"][k]) for k in eachindex(vars["Rv"]))
+    matcoils = [ParallelogramCoil(load_par(vars["fcdata"][:,k])..., vars["Ic"][2+k]; resistance=vars["Rc"][k], turns=Int(vars["fcnturn"][k])) for k in eachindex(vars["fcnturn"])]
+    append!(matcoils, ParallelogramCoil(load_par(vars["vvdata"][:,k])...; resistance=vars["Rv"][k]) for k in eachindex(vars["Rv"]))
 
-    @test isapprox(stability_margin(EQ, coils), vars["stability"]["m_s_noe"]; rtol=5e-2)
-    γ, τ, _ = normalized_growth_rate(EQ, coils)
+    @test isapprox(stability_margin(EQ, matcoils), vars["stability"]["m_s_noe"]; rtol=5e-2)
+    γ, τ, _ = normalized_growth_rate(EQ, matcoils)
     γ_ts, τ_ts = vars["stability"]["gamma_massless_noe"], vars["stability"]["tauv_massless"]
     @test isapprox(γ, γ_ts; rtol=5e-2)
     @test isapprox(τ, τ_ts; rtol=5e-2)
 end
 
-const coils = [QuadCoil(ParallelogramCoil(coils_D3D_matrix[i, :]..., Ip; resistance, turns)) for i in 1:size(coils_D3D_matrix)[1]]
 
 
 @testset "current_cocos" begin
