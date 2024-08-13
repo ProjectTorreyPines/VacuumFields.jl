@@ -133,7 +133,7 @@ end
         _, ψbound = psi_limits(Gfree)
         flux_cps = boundary_control_points(Gfree, 0.999, ψbound)
         saddle_cps = [SaddleControlPoint(Rx, Zx)]
-        currents, _ = find_coil_currents!(coils, Gfixed, flux_cps, saddle_cps; λ_regularize=1e-14)
+        currents, _ = find_coil_currents!(coils, Gfixed; flux_cps, saddle_cps, λ_regularize=1e-14)
         if cc < 10
             good_currents = good_currents_sd
         else
@@ -203,13 +203,13 @@ end
 
         # Currents with ψbound=0
         flux_cps = boundary_control_points(Gfixed, 0.999, 0.0)
-        c0, _ = find_coil_currents!(coils, Gfixed, flux_cps; λ_regularize=1e-14)
+        c0, _ = find_coil_currents!(coils, Gfixed; flux_cps, λ_regularize=1e-14)
 
         plot!(c0; linewidth=3, linecolor=:red)
 
         # Currents with ψbound from EFIT
         flux_cps = boundary_control_points(Gfixed, 0.999, ψbound)
-        cb, _ = find_coil_currents!(coils, Gfixed, flux_cps; λ_regularize=1e-14)
+        cb, _ = find_coil_currents!(coils, Gfixed; flux_cps, λ_regularize=1e-14)
         plot!(cb; linewidth=3, linecolor=:blue)
 
         display(p)
