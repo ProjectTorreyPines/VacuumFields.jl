@@ -5,14 +5,15 @@ function cost_λ_regularize(
     λ_exp::Float64,
     coils::Vector{<:AbstractCoil},
     EQ::MXHEquilibrium.AbstractEquilibrium,
-    image::Image,
+    image::Image;
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
-    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
+    iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
-    _, cost = find_coil_currents!(coils, EQ, image, flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize=10^λ_exp, Sb)
+    _, cost = find_coil_currents!(coils, EQ, image; flux_cps, saddle_cps, iso_cps, ψbound, fixed_coils, λ_regularize=10^λ_exp, Sb)
 
     return cost^2
 end
@@ -21,9 +22,10 @@ end
     optimal_λ_regularize(
         coils::Vector{<:AbstractCoil},
         EQ::MXHEquilibrium.AbstractEquilibrium,
-        image::Image,
+        image::Image;
         flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
-        saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+        saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
+        iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
         ψbound::Real=0.0,
         fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
         min_exp::Integer=-20, max_exp::Integer=-10,
@@ -34,16 +36,17 @@ Find the optimizal `λ_regularize` to be used within `find_coil_currents!` that 
 function optimal_λ_regularize(
     coils::Vector{<:AbstractCoil},
     EQ::MXHEquilibrium.AbstractEquilibrium,
-    image::Image,
+    image::Image;
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
-    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
+    iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     min_exp::Integer=-20, max_exp::Integer=-10,
     Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
     λ_range_exp = min_exp:0.5:max_exp
-    cost_λ = λ -> cost_λ_regularize(λ, coils, EQ, image, flux_cps, saddle_cps; ψbound, fixed_coils, Sb)
+    cost_λ = λ -> cost_λ_regularize(λ, coils, EQ, image; flux_cps, saddle_cps, iso_cps, ψbound, fixed_coils, Sb)
     return 10^λ_range_exp[argmin(cost_λ(λ) for λ in λ_range_exp)]
 end
 
@@ -89,6 +92,7 @@ function encircling_fixed2free(
     Zgrid::AbstractVector{Float64}=EQfixed.z;
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
+    iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
     fraction_inside::Float64=0.999,
     λ_regularize::Float64=0.0,
     ψbound::Float64=0.0)
@@ -96,11 +100,11 @@ function encircling_fixed2free(
     image = Image(EQfixed)
     coils = encircling_coils(EQfixed, n_coils)
     if λ_regularize < 0.0
-        λ_regularize = optimal_λ_regularize(coils, EQfixed, image, flux_cps, saddle_cps; ψbound)
+        λ_regularize = optimal_λ_regularize(coils, EQfixed, image; flux_cps, saddle_cps, iso_cps, ψbound)
     end
     append!(flux_cps, boundary_control_points(EQfixed, fraction_inside, ψbound))
 
-    find_coil_currents!(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, λ_regularize)
+    find_coil_currents!(coils, EQfixed, image; flux_cps, saddle_cps, iso_cps, ψbound, λ_regularize)
 
     return fixed2free(EQfixed, coils, Rgrid, Zgrid)
 end
@@ -152,13 +156,14 @@ end
         Z::AbstractVector{T};
         flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
         saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
+        iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
         ψbound::Real=0.0,
         fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
         λ_regularize::Real=0.0) where {T<:Real}
 
 Convert the flux of a fixed-boundary equilibrium `EQfixed` to a free-boundary representation on an `(R,Z)` grid,
     subtracting out the flux from image currents `image` and adding in the flux from `coils` with currents
-    that best satisfy the flux and saddle control points and `fixed_coils` with predefined coil currents
+    that best satisfy the control points and `fixed_coils` with predefined coil currents
 """
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
@@ -168,6 +173,7 @@ function fixed2free(
     Z::AbstractVector{T};
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
+    iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
     ψbound::Real=0.0,
     fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Real=0.0) where {T<:Real}
@@ -175,11 +181,11 @@ function fixed2free(
     Sb, ψb = plasma_boundary_psi_w_fallback(EQfixed)
     ψ_f2f = T[MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) - ψb + ψbound : ψbound for z in Z, r in R]
 
-    if (!isempty(flux_cps) || !isempty(saddle_cps))
+    if (!isempty(flux_cps) || !isempty(saddle_cps) || !isempty(iso_cps))
         if λ_regularize < 0.0
-            λ_regularize = optimal_λ_regularize(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, fixed_coils, Sb)
+            λ_regularize = optimal_λ_regularize(coils, EQfixed, image; flux_cps, saddle_cps, iso_cps, ψbound, fixed_coils, Sb)
         end
-        find_coil_currents!(coils, EQfixed, image, flux_cps, saddle_cps; ψbound, fixed_coils, λ_regularize, Sb)
+        find_coil_currents!(coils, EQfixed, image; flux_cps, saddle_cps, iso_cps, ψbound, fixed_coils, λ_regularize, Sb)
     end
 
     # ψ from image and coil currents
@@ -206,9 +212,10 @@ end
     R::AbstractVecOrMat{<:Real},
     Z::AbstractVecOrMat{<:Real},
     free::AbstractVecOrMat{<:Real},
-    coils::Vector{<:AbstractCoil},
-    flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
-    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[];
+    coils::Vector{<:AbstractCoil};
+    flux_cps=FluxControlPoint{Float64}[],
+    saddle_cps=SaddleControlPoint{Float64}[],
+    iso_cps=IsoControlPoint{Float64}[],
     clims=(-1, 1) .* maximum(abs, free))
 
     aspect_ratio --> :equal
@@ -249,6 +256,15 @@ end
             [cp.R], [cp.Z]
         end
     end
+
+    for (k, cp) in enumerate(iso_cps)
+    @series begin
+        seriestype --> :scatter
+        color --> :yellow
+        label --> ((k == 1) ? "Iso CP" : :none)
+        [cp.R1, cp.R2], [cp.Z1, cp.Z2]
+    end
+end
 
     @series begin
         seriestype --> :contour
