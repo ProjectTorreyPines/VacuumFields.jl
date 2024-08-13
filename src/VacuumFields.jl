@@ -11,6 +11,7 @@ import FastGaussQuadrature: gausslegendre
 import StaticArrays: SMatrix, SVector
 import IMAS
 import FusionMaterials
+import Interpolations
 
 const μ₀ = 4e-7 * π
 const inv4π = 0.25 / π
@@ -36,7 +37,8 @@ include("elliptic.jl")
 include("green.jl")
 
 include("control.jl")
-export AbstractControlPoint, FluxControlPoint, SaddleControlPoint, FluxControlPoints, SaddleControlPoints
+export AbstractControlPoint, FluxControlPoint, SaddleControlPoint, IsoControlPoint
+export FluxControlPoints, SaddleControlPoints, IsoControlPoints
 export find_coil_currents!, boundary_control_points
 
 include("fixed2free.jl")
