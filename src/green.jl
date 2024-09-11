@@ -13,7 +13,7 @@ function _gfunc(Gfunc::Function, C::DistributedCoil, R::Real, Z::Real, scale_fac
 end
 
 function _gfunc(Gfunc::Function, C::IMAScoil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)
-    return sum(_gfunc(Gfunc, element, R, Z, scale_factor; xorder, yorder) for element in C.element)
+    return sum(_gfunc(Gfunc, element, R, Z, scale_factor; xorder, yorder) for element in elements(C))
 end
 
 function _gfunc(Gfunc::Function, element::IMASelement, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)
@@ -25,7 +25,11 @@ function _gfunc(Gfunc::Function, ol::IMASoutline, R::Real, Z::Real, scale_factor
 end
 
 function _gfunc(Gfunc::Function, mcoil::MultiCoil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
-    return sum(current(coil) * _gfunc(Gfunc, coil, R, Z, scale_factor; kwargs...) for coil in mcoil.coils) / current(mcoil)
+    Ic = current(mcoil)
+    Ic == 0.0 && set_current!(mcoil, 1.0)
+    G = sum(current(coil) * _gfunc(Gfunc, coil, R, Z, scale_factor; kwargs...) for coil in mcoil.coils) / current(mcoil)
+    Ic == 0.0 && set_current!(mcoil, Ic)
+    return G
 end
 
 # Generalized wrapper functions for all coil types

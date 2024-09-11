@@ -8,9 +8,9 @@
 
 Compute the mutual inductance between an arbitrary coil or `IMAS.pf_active__coil___element` and a PointCoil
 """
-function mutual(C1::Union{AbstractCoil, IMASelement}, C2::PointCoil)
+function mutual(C1::Union{AbstractCoil, IMASelement}, C2::PointCoil; kwargs...)
     fac = -2π * μ₀ * turns(C1) * turns(C2)
-    return fac * Green(C1, C2.R, C2.Z)
+    return fac * Green(C1, C2.R, C2.Z; kwargs...)
 end
 
 """
@@ -18,9 +18,9 @@ end
 
 Compute the mutual inductance between an arbitrary coil or `IMAS.pf_active__coil___element` and a DistributedCoil
 """
-function mutual(C1::Union{AbstractCoil, IMASelement}, C2::DistributedCoil)
+function mutual(C1::Union{AbstractCoil, IMASelement}, C2::DistributedCoil; kwargs...)
     fac = -2π * μ₀ * turns(C1) * turns(C2)
-    return fac * sum(Green(C1, C2.R[k], C2.Z[k]) for k in eachindex(C2.R)) / length(C2.R)
+    return fac * sum(Green(C1, C2.R[k], C2.Z[k]; kwargs...) for k in eachindex(C2.R)) / length(C2.R)
 end
 
 """
@@ -49,7 +49,7 @@ Compute the mutual inductance between an arbitrary coil or `IMAS.pf_active__coil
 `xorder` and `yorder` give the order of Gauss-Legendre quadrature for integration over the coil area
 """
 function mutual(C1::Union{AbstractCoil, IMASelement}, C2::IMAScoil; xorder::Int=3, yorder::Int=3)
-    return sum(mutual(C1, element; xorder, yorder) for element in C2.element)
+    return sum(mutual(C1, element; xorder, yorder) for element in elements(C2))
 end
 
 """
@@ -60,7 +60,7 @@ Compute the mutual inductance between an `IMAS.pf_active__coil` and an arbitrary
 `xorder` and `yorder` give the order of Gauss-Legendre quadrature for integration over the coil area
 """
 function mutual(C1::IMAScoil, C2::Union{AbstractCoil, IMAScoil, IMASelement}; xorder::Int=3, yorder::Int=3)
-    return sum(mutual(element, C2; xorder, yorder) for element in C1.element)
+    return sum(mutual(element, C2; xorder, yorder) for element in elements(C1))
 end
 
 
@@ -80,7 +80,7 @@ end
 function _pfunc(Pfunc, image::Image, coil::IMAScoil, δZ;
                 COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
                 xorder::Int=default_order, yorder::Int=default_order)
-    return sum(_pfunc(Pfunc, image, element, δZ; COCOS, xorder, yorder) for element in coil.element)
+    return sum(_pfunc(Pfunc, image, element, δZ; COCOS, xorder, yorder) for element in elements(coil))
 end
 
 function _pfunc(Pfunc, image::Image, C::Union{ParallelogramCoil, QuadCoil, IMASelement}, δZ;
