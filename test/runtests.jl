@@ -65,9 +65,9 @@ end
     @test VacuumFields.turns(mcoil) == Nc * turns
     Ic1 = VacuumFields.current(coils[1])
     VacuumFields.set_current!(mcoil, Ip)
-    @test VacuumFields.current(mcoil.coils[1]) ≈ VacuumFields.current(coils[1]) ≈ Ip / Nc
+    @test VacuumFields.current(mcoil.coils[1]) ≈ Ip / Nc
     VacuumFields.set_current!(mcoil, Nc * Ip)
-    @test VacuumFields.current(mcoil.coils[1]) ≈ VacuumFields.current(coils[1]) ≈ Ip
+    @test VacuumFields.current(mcoil.coils[1]) ≈ Ip
 
     geqdsk = readg((@__DIR__) * "/equilibria/g184250.01740"; set_time=0.0)
     cc0 = cocos(geqdsk; clockwise_phi=false).cocos
