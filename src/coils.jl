@@ -29,6 +29,8 @@ end
 
 current(coil::AbstractSingleCoil) = coil.current
 
+elements(coil::IMAScoil) = Iterators.filter(!isempty, coil.element)
+
 # BCL 2/27/24
 # N.B.: Not sure about sign with turns and such
 function current(coil::IMAScoil)
@@ -36,7 +38,7 @@ function current(coil::IMAScoil)
     if cur_per_turn == 0.0
         return cur_per_turn
     else
-        return cur_per_turn * sum(element.turns_with_sign for element in coil.element)
+        return cur_per_turn * sum(element.turns_with_sign for element in elements(coil))
     end
 end
 
@@ -45,7 +47,7 @@ end
 end
 
 function set_current!(coil::IMAScoil, current::Real)
-    turns = sum(element.turns_with_sign for element in coil.element)
+    turns = sum(element.turns_with_sign for element in elements(coil))
     ipt = current / turns
     IMAS.@ddtime(coil.current.data = ipt)
     return coil
@@ -67,8 +69,8 @@ end
 
 turns(coil::AbstractSingleCoil) = coil.turns
 # VacuumFields turns are sign-less
-turns(coil::IMAScoil) = abs(sum(element.turns_with_sign for element in coil.element))
-turns(element::IMASelement) = abs(element.turns_with_sign)
+turns(coil::IMAScoil) = abs(sum(element.turns_with_sign for element in elements(coil)))
+turns(element::IMASelement) = isempty(element) ? 0 : abs(element.turns_with_sign)
 
 
 """
@@ -169,7 +171,7 @@ function area(R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
 end
 
 area(C::QuadCoil) = area(C.R, C.Z)
-area(coil::IMAScoil) = sum(area(element) for element in coil.element)
+area(coil::IMAScoil) = sum(area(element) for element in elements(coil))
 area(element::IMASelement) = area(IMAS.outline(element))
 area(ol::IMASoutline) = area(ol.r, ol.z)
 
@@ -180,9 +182,9 @@ end
 
 function resistance(coil::IMAScoil, resistivity::Real, element_connection::Symbol)
     if element_connection === :series
-        eta = sum(resistance(element, resistivity) for element in coil.element)
+        eta = sum(resistance(element, resistivity) for element in elements(coil))
     elseif element_connection === :parallel
-        eta = 1.0 / sum(1.0 / resistance(element, resistivity) for element in coil.element)
+        eta = 1.0 / sum(1.0 / resistance(element, resistivity) for element in elements(coil))
     else
         error("element_connection should be :series or :parallel")
     end
@@ -262,6 +264,13 @@ end
 
 mutable struct MultiCoil{SC<:AbstractSingleCoil} <: AbstractCoil
     coils::Vector{SC}
+    function MultiCoil(coils::Vector{SC}; copy_coils::Bool=true) where {SC<:AbstractSingleCoil}
+        Ic = sum(current(coil) for coil in coils)
+        new_coils = copy_coils ? deepcopy(coils) : coils
+        mcoil = new{SC}(new_coils)
+        set_current!(mcoil, Ic)
+        return mcoil
+    end
 end
 
 function MultiCoil(icoil::IMAScoil)
@@ -269,7 +278,7 @@ function MultiCoil(icoil::IMAScoil)
     resistance_per_turn = resistance(icoil) / total_turns
 
     current_per_turn = current(icoil) / total_turns
-    return MultiCoil([QuadCoil(elm, current_per_turn, resistance_per_turn) for elm in icoil.element])
+    return MultiCoil([QuadCoil(elm, current_per_turn, resistance_per_turn) for elm in elements(icoil)])
 end
 
 
@@ -278,7 +287,7 @@ function is_active(coil::IMAScoil)
     return (:shaping in funcs) && current(coil) != 0.0
 end
 
-function MultiCoils(dd::IMAS.dd{D}; active_only::Bool=true) where {D<:Real}
+function MultiCoils(dd::IMAS.dd{D}; active_only::Bool=false) where {D<:Real}
     if active_only
         coils = [MultiCoil(coil) for coil in filter(is_active, dd.pf_active.coil)]
     else

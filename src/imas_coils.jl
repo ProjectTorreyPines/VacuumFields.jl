@@ -156,21 +156,6 @@ function mutual(C1::GS_IMAS_pf_active__coil, C2::GS_IMAS_pf_active__coil; xorder
     end
 end
 
-function mutual(C1::GS_IMAS_pf_active__coil, C2::AbstractCoil; xorder::Int=3, yorder::Int=3)
-
-    green_model = getfield(C1, :green_model)
-    if green_model == :point # fastest
-        fac = -2π * μ₀ * turns(C2) * C1.turns
-        return fac * Green(C2, C1.r, C1.z)
-
-    elseif green_model == :quad # high-fidelity
-        return mutual(C1.imas, C2; xorder, yorder)
-
-    else
-        error("$(typeof(C2)) green_model can only be (in order of accuracy) :quad and :point")
-    end
-end
-
 function mutual(C1::AbstractCoil, C2::GS_IMAS_pf_active__coil; xorder::Int=3, yorder::Int=3)
 
     green_model = getfield(C2, :green_model)
