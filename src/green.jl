@@ -49,6 +49,33 @@ function d2G_dZ2(coil::Union{AbstractCoil, IMAScoil, IMASelement}, R::Real, Z::R
     return _gfunc(d2G_dZ2, coil, R, Z, scale_factor; kwargs...)
 end
 
+# Function for circuits
+@inline function _gfunc(Pfunc, series::SeriesCircuit, R::Real, Z::Real, scale_factor::Real=1.0;
+    COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp)
+    Ic = series.current_per_turn
+    try
+        update_coil_currents!(series, 1.0)
+        return scale_factor * Pfunc(series, R, Z; COCOS, Bp_fac) / (μ₀ * Bp_fac)
+    finally
+        update_coil_currents!(series, Ic)
+    end
+end
+
+function Green(series::SeriesCircuit, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
+    return _gfunc(ψ, series, R, Z, scale_factor; kwargs...)
+end
+
+function dG_dR(series::SeriesCircuit, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
+    return _gfunc(dψ_dR, series, R, Z, scale_factor; kwargs...)
+end
+
+function dG_dZ(series::SeriesCircuit, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
+    return _gfunc(dψ_dZ, series, R, Z, scale_factor; kwargs...)
+end
+
+function d2G_dZ2(series::SeriesCircuit, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
+    return _gfunc(d2ψ_dZ2, series, R, Z, scale_factor; kwargs...)
+end
 
 # Point-to-point Green's functions
 

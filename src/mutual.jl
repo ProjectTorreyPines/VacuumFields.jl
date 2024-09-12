@@ -64,6 +64,18 @@ function mutual(C1::IMAScoil, C2::Union{AbstractCoil, IMAScoil, IMASelement}; xo
 end
 
 
+# Circuit
+
+function mutual(C1::Union{AbstractCoil, IMASelement}, SC2::SeriesCircuit; kwargs...)
+    return sum(SC2.signs[k] * mutual(C1, C2; kwargs...) for (k, C2) in enumerate(SC2.coils))
+end
+
+function mutual(SC1::SeriesCircuit, C2::Union{AbstractCoil, IMASelement, SeriesCircuit}; kwargs...)
+    return sum(SC1.signs[k] * mutual(C1, C2; kwargs...) for (k, C1) in enumerate(SC1.coils))
+end
+
+
+
 # Plasma-coil mutuals
 
 # Shifting plasma up by δZ is the same as shifting the coil down by δZ
