@@ -26,3 +26,9 @@ end
     image._Vb[tid] .= image.dψdn_R .* Gfunc.(image.Rb, image.Zb, R, Z)
     return -trapz(image.Lb, image._Vb[tid])
 end
+
+# series flux
+@inline ψ(series::SeriesCircuit, R::Real, Z::Real; kwargs...)       = sum(ψ(coil, R, Z; kwargs...) for coil in series.coils)
+@inline dψ_dR(series::SeriesCircuit, R::Real, Z::Real; kwargs...)   = sum(dψ_dR(coil, R, Z; kwargs...) for coil in series.coils)
+@inline dψ_dZ(series::SeriesCircuit, R::Real, Z::Real; kwargs...)   = sum(dψ_dZ(coil, R, Z; kwargs...) for coil in series.coils)
+@inline d2ψ_dZ2(series::SeriesCircuit, R::Real, Z::Real; kwargs...) = sum(d2ψ_dZ2(coil, R, Z; kwargs...) for coil in series.coils)
