@@ -34,6 +34,9 @@ elements(coil::IMAScoil) = Iterators.filter(!isempty, coil.element)
 # BCL 2/27/24
 # N.B.: Not sure about sign with turns and such
 function current(coil::IMAScoil)
+    if ismissing(coil.current, :data)
+        return 0.0
+    end
     cur_per_turn = IMAS.@ddtime(coil.current.data)
     if cur_per_turn == 0.0
         return cur_per_turn
