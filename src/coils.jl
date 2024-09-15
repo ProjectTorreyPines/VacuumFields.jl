@@ -284,7 +284,6 @@ function MultiCoil(icoil::IMAScoil)
     return MultiCoil([QuadCoil(elm, current_per_turn, resistance_per_turn) for elm in elements(icoil)])
 end
 
-
 function is_active(coil::IMAScoil)
     funcs = (IMAS.index_2_name(coil.function)[f.index] for f in coil.function)
     return (:shaping in funcs) && current(coil) != 0.0
@@ -292,9 +291,9 @@ end
 
 function MultiCoils(dd::IMAS.dd{D}; active_only::Bool=false) where {D<:Real}
     if active_only
-        coils = [MultiCoil(coil) for coil in filter(is_active, dd.pf_active.coil)]
+        coils = MultiCoil[MultiCoil(coil) for coil in filter(is_active, dd.pf_active.coil)]
     else
-        coils = [MultiCoil(coil) for coil in dd.pf_active.coil]
+        coils = MultiCoil[MultiCoil(coil) for coil in dd.pf_active.coil]
     end
     return coils
 end
