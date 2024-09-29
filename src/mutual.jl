@@ -81,12 +81,12 @@ end
 # Shifting plasma up by δZ is the same as shifting the coil down by δZ
 function _pfunc(Pfunc, image::Image, C::PointCoil, δZ; COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11))
     fac = -COCOS.sigma_Bp * (2π)^(1 - COCOS.exp_Bp)
-    return fac * Pfunc(image, C.R, C.Z - δZ)
+    return fac * turns(C) * Pfunc(image, C.R, C.Z - δZ)
 end
 
 function _pfunc(Pfunc, image::Image, C::DistributedCoil, δZ; COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11))
     fac = -COCOS.sigma_Bp * (2π)^(1 - COCOS.exp_Bp)
-    return fac * sum(Pfunc(image, C.R[k], C.Z[k] - δZ) for k in eachindex(C.R)) / length(C.R)
+    return fac * turns(C) * sum(Pfunc(image, C.R[k], C.Z[k] - δZ) for k in eachindex(C.R)) / length(C.R)
 end
 
 function _pfunc(Pfunc, image::Image, coil::IMAScoil, δZ;
@@ -95,12 +95,18 @@ function _pfunc(Pfunc, image::Image, coil::IMAScoil, δZ;
     return sum(_pfunc(Pfunc, image, element, δZ; COCOS, xorder, yorder) for element in elements(coil))
 end
 
+function _pfunc(Pfunc, image::Image, mcoil::MultiCoil, δZ;
+                COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
+                xorder::Int=default_order, yorder::Int=default_order)
+    return sum(_pfunc(Pfunc, image, coil, δZ; COCOS, xorder, yorder) for coil in mcoil.coils)
+end
+
 function _pfunc(Pfunc, image::Image, C::Union{ParallelogramCoil, QuadCoil, IMASelement}, δZ;
                 COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
                 xorder::Int=default_order, yorder::Int=default_order)
     fac = -COCOS.sigma_Bp * (2π)^(1 - COCOS.exp_Bp)
     f = (r, z) -> Pfunc(image, r, z - δZ)
-    return fac * integrate(f, C; xorder, yorder) / area(C)
+    return fac * turns(C) * integrate(f, C; xorder, yorder) / area(C)
 end
 
 """
@@ -127,7 +133,7 @@ function mutual(image::Image, C::Union{AbstractCoil, IMAScoil}, Ip::Real, δZ::R
     Ψ = _pfunc(ψ, image, C, δZ; COCOS, kwargs...)
 
     # negative sign since image flux is opposite plasma flux
-    return -fac * turns(C) * Ψ / Ip
+    return - Ψ / Ip
 end
 
 """
@@ -155,7 +161,7 @@ function dM_dZ(image::Image, C::Union{AbstractCoil, IMAScoil}, Ip::Real, δZ::Re
     dΨ_dZ = -_pfunc(dψ_dZ, image, C, δZ; COCOS, kwargs...)
 
     # negative sign since image flux is opposite plasma flux
-    return -turns(C) * dΨ_dZ / Ip
+    return -dΨ_dZ / Ip
 end
 
 """
@@ -183,7 +189,7 @@ function d2M_dZ2(image::Image, C::Union{AbstractCoil, IMAScoil}, Ip::Real, δZ::
     d2Ψ_dZ2 = _pfunc(d2ψ_dZ2, image, C, δZ; COCOS, kwargs...)
 
     # negative sign since image flux is opposite plasma flux
-    return -turns(C) * d2Ψ_dZ2 / Ip
+    return -d2Ψ_dZ2 / Ip
 end
 
 """

@@ -291,9 +291,9 @@ end
 
 function MultiCoils(dd::IMAS.dd{D}; active_only::Bool=false) where {D<:Real}
     if active_only
-        coils = MultiCoil[MultiCoil(coil) for coil in filter(is_active, dd.pf_active.coil)]
+        coils = [MultiCoil(coil) for coil in filter(is_active, dd.pf_active.coil)]
     else
-        coils = MultiCoil[MultiCoil(coil) for coil in dd.pf_active.coil]
+        coils = [MultiCoil(coil) for coil in dd.pf_active.coil]
     end
     return coils
 end
