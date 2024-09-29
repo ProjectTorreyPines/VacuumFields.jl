@@ -29,7 +29,7 @@ end
 
 current(coil::AbstractSingleCoil) = coil.current
 
-elements(coil::IMAScoil) = Iterators.filter(!isempty, coil.element)
+elements(coil::Union{IMAScoil, IMASloop}) = Iterators.filter(!isempty, coil.element)
 
 # BCL 2/27/24
 # N.B.: Not sure about sign with turns and such
@@ -41,7 +41,19 @@ function current(coil::IMAScoil)
     if cur_per_turn == 0.0
         return cur_per_turn
     else
-        return cur_per_turn * sum(element.turns_with_sign for element in elements(coil))
+        return cur_per_turn * sum(turns(element; with_sign=true) for element in elements(coil))
+    end
+end
+
+function current(loop::IMASloop)
+    if ismissing(loop, :current)
+        return 0.0
+    end
+    cur_per_turn = IMAS.@ddtime(loop.current)
+    if cur_per_turn == 0.0
+        return cur_per_turn
+    else
+        return cur_per_turn * sum(turns(element; with_sign=true) for element in elements(loop))
     end
 end
 
@@ -72,9 +84,16 @@ end
 
 turns(coil::AbstractSingleCoil) = coil.turns
 # VacuumFields turns are sign-less
-turns(coil::IMAScoil) = abs(sum(element.turns_with_sign for element in elements(coil)))
-turns(element::IMASelement) = isempty(element) ? 0 : abs(element.turns_with_sign)
+function turns(coil::IMAScoil; with_sign=false)
+    Nt = sum(element.turns_with_sign for element in elements(coil))
+    return with_sign ? Nt : abs(Nt)
+end
 
+function turns(element::IMASelement; with_sign=false)
+    isempty(element) && return 0.0
+    Nt = ismissing(element, :turns_with_sign) ? 1.0 : element.turns_with_sign
+    return with_sign ? Nt : abs(Nt)
+end
 
 """
     PointCoil(R, Z, current=0.0; resistance=0.0, turns=1)
@@ -164,7 +183,6 @@ function QuadCoil(elm::IMASelement, current_per_turn::Real = 0.0, resistance_per
     Nt = turns(elm)
     return QuadCoil(R, Z, current_per_turn * Nt, resistance_per_turn * Nt, Nt)
 end
-
 
 function area(R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
     @assert length(R) == length(Z) == 4
@@ -284,18 +302,51 @@ function MultiCoil(icoil::IMAScoil)
     return MultiCoil([QuadCoil(elm, current_per_turn, resistance_per_turn) for elm in elements(icoil)])
 end
 
+function MultiCoil(loop::IMASloop)
+    total_turns = sum(abs(ismissing(element, :turns_with_sign) ? 1.0 : element.turns_with_sign) for element in elements(loop))
+    if !ismissing(loop, :resistance)
+        resistance_per_turn = loop.resistance / total_turns
+    else
+        resistance_per_turn = 0.0
+    end
+
+    # I'm assuming that pf_passive is like pf_passive and loop.current is current/turn like coil.current is
+    current_per_turn = ismissing(loop, :current) ? 0.0 : IMAS.@ddtime(loop.current)
+
+    coils = [QuadCoil(elm, current_per_turn, resistance_per_turn) for elm in elements(loop)]
+    if resistance_per_turn == 0.0 && !ismissing(loop, :resistivity)
+        for coil in coils
+            coil.resistance = resistance(coil, loop.resistivity)
+        end
+    end
+
+    return MultiCoil(coils)
+end
+
 function is_active(coil::IMAScoil)
     funcs = (IMAS.index_2_name(coil.function)[f.index] for f in coil.function)
     return (:shaping in funcs) && current(coil) != 0.0
 end
 
-function MultiCoils(dd::IMAS.dd{D}; active_only::Bool=false) where {D<:Real}
-    if active_only
-        coils = [MultiCoil(coil) for coil in filter(is_active, dd.pf_active.coil)]
-    else
-        coils = [MultiCoil(coil) for coil in dd.pf_active.coil]
+function MultiCoils(dd::IMAS.dd{D}; load_pf_active::Bool=true, active_only::Bool=false, load_pf_passive::Bool=false) where {D<:Real}
+    if load_pf_active
+        active_coils = MultiCoils(dd.pf_active; active_only)
+        !load_pf_passive && return active_coils
     end
-    return coils
+    if load_pf_passive
+        passive_coils = MultiCoils(dd.pf_passive)
+        !load_pf_active && return passive_coils
+    end
+    return vcat(active_coils, passive_coils)
+end
+
+function MultiCoils(pf_active::IMAS.pf_active; active_only::Bool=false)
+    pf_coils = active_only ? filter(is_active, pf_active.coil) : pf_active.coil
+    return [MultiCoil(coil) for coil in pf_coils]
+end
+
+function MultiCoils(pf_passive::IMAS.pf_passive)
+    return [MultiCoil(loop) for loop in pf_passive.loop]
 end
 
 current(mcoil::MultiCoil) = sum(current(coil) for coil in mcoil.coils)
