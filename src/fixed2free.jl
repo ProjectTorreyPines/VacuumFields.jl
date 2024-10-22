@@ -50,63 +50,6 @@ function optimal_λ_regularize(
     return 10^λ_range_exp[argmin(cost_λ(λ) for λ in λ_range_exp)]
 end
 
-# ***************************************************
-# Transform fixed-boundary ψ to free-boundary ψ
-# ***************************************************
-"""
-    encircling_fixed2free(
-        EQfixed::MXHEquilibrium.AbstractEquilibrium,
-        n_coils::Integer;
-        Rx::AbstractVector{Float64}=Float64[],
-        Zx::AbstractVector{Float64}=Float64[],
-        fraction_inside::Float64=1.0 - 1E-4,
-        λ_regularize::Float64=-1.0,
-        Rgrid::AbstractVector{Float64}=EQfixed.r,
-        Zgrid::AbstractVector{Float64}=EQfixed.z)
-
-Distribute n point coils around fixed boundary plasma to get a free boundary ψ map
-"""
-function encircling_fixed2free(
-    shot::TEQUILA.Shot,
-    n_coils::Integer;
-    n_grid=129,
-    scale::Float64=1.2,
-    kwargs...)
-
-    R0 = shot.surfaces[1, end]
-    Z0 = shot.surfaces[2, end]
-    ϵ = shot.surfaces[3, end]
-    κ = shot.surfaces[4, end]
-    a = R0 * ϵ * scale
-    b = κ * a
-
-    Rgrid = range(max(R0 - a, 0.0), R0 + a, n_grid)
-    Zgrid = range(Z0 - b, Z0 + b, n_grid)
-    return Rgrid, Zgrid, encircling_fixed2free(shot, n_coils, Rgrid, Zgrid; kwargs...)
-end
-
-function encircling_fixed2free(
-    EQfixed::MXHEquilibrium.AbstractEquilibrium,
-    n_coils::Integer,
-    Rgrid::AbstractVector{Float64}=EQfixed.r,
-    Zgrid::AbstractVector{Float64}=EQfixed.z;
-    flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
-    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
-    iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
-    fraction_inside::Float64=0.999,
-    λ_regularize::Float64=0.0,
-    ψbound::Float64=0.0)
-
-    image = Image(EQfixed)
-    coils = encircling_coils(EQfixed, n_coils)
-    if λ_regularize < 0.0
-        λ_regularize = optimal_λ_regularize(coils, EQfixed, image; flux_cps, saddle_cps, iso_cps, ψbound)
-    end
-    append!(flux_cps, boundary_control_points(EQfixed, fraction_inside, ψbound))
-
-    find_coil_currents!(coils, EQfixed, image; flux_cps, saddle_cps, iso_cps, ψbound, λ_regularize)
-
-    return fixed2free(EQfixed, coils, Rgrid, Zgrid)
 end
 
 # ***************************************************
