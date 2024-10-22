@@ -42,14 +42,17 @@ function optimal_λ_regularize(
     iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
     ψbound::Real=0.0,
     fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    min_exp::Integer=-20, max_exp::Integer=-10,
+    min_exp::Integer=-30,
+    max_exp::Integer=-10,
     Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
     λ_range_exp = min_exp:0.5:max_exp
     cost_λ = λ -> cost_λ_regularize(λ, coils, EQ, image; flux_cps, saddle_cps, iso_cps, ψbound, fixed_coils, Sb)
-    return 10^λ_range_exp[argmin(cost_λ(λ) for λ in λ_range_exp)]
-end
-
+    costs = log10.([cost_λ(λ) for λ in λ_range_exp])
+    costs = costs .- minimum(costs)
+    costs = costs .+ λ_range_exp ./ max_exp .* maximum(costs) * 0.01
+    opti_λ = λ_range_exp[argmin(costs)]
+    return 10^opti_λ
 end
 
 # ***************************************************
@@ -76,6 +79,7 @@ plasma_boundary_psi_w_fallback(shot::TEQUILA.Shot, args...) = MXHEquilibrium.Bou
         kwargs...) where {T<:Real}
 
 Convert the flux of a fixed-boundary equilibrium `EQfixed` to a free-boundary representation on an `(R,Z)` grid,
+using the flux from `coils` with currents satisfying given control points
 """
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
