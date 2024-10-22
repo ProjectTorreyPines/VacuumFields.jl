@@ -52,29 +52,30 @@ IsoControlPoint(R1::Real, Z1::Real, R2::Real, Z2::Real, weight::Real=1.0) = IsoC
 @recipe function plot_SaddleControlPoint(cp::SaddleControlPoint)
     @series begin
         marker := :star
-        cp, nothing
+        seriestype := :scatter
+        aspect_ratio := :equal
+        label --> ""
+        [cp.R], [cp.Z]
     end
 end
 
 @recipe function plot_FluxControlPoint(cp::FluxControlPoint)
     @series begin
         marker := :circle
-        cp, nothing
+        seriestype := :scatter
+        aspect_ratio := :equal
+        label --> ""
+        [cp.R], [cp.Z]
     end
 end
 
 @recipe function plot_IsoControlPoint(cp::IsoControlPoint)
     @series begin
         marker := :diamond
-        cp, nothing
-    end
-end
-
-@recipe function plot_control_point(cp::AbstractControlPoint, dispatch::Nothing=nothing)
-    @series begin
-        seriestype := :scatter
+        linestyle := :dash
+        aspect_ratio := :equal
         label --> ""
-        [cp.R], [cp.Z]
+        [cp.R1, cp.R2], [cp.Z1, cp.Z2]
     end
 end
 

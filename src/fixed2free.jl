@@ -112,7 +112,6 @@ end
 # ***************************************************
 # Transform fixed-boundary ψ to free-boundary ψ given currents in coils
 # ***************************************************
-
 function plasma_boundary_psi_w_fallback(EQ::MXHEquilibrium.AbstractEquilibrium)
     Sb, ψb = MXHEquilibrium.plasma_boundary_psi(EQ; precision=0.0)
     if Sb === nothing
@@ -134,7 +133,6 @@ plasma_boundary_psi_w_fallback(shot::TEQUILA.Shot, args...) = MXHEquilibrium.Bou
         kwargs...) where {T<:Real}
 
 Convert the flux of a fixed-boundary equilibrium `EQfixed` to a free-boundary representation on an `(R,Z)` grid,
-    using the flux from `coils` with currents satisfying given control points
 """
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
@@ -162,8 +160,8 @@ end
         λ_regularize::Real=0.0) where {T<:Real}
 
 Convert the flux of a fixed-boundary equilibrium `EQfixed` to a free-boundary representation on an `(R,Z)` grid,
-    subtracting out the flux from image currents `image` and adding in the flux from `coils` with currents
-    that best satisfy the control points and `fixed_coils` with predefined coil currents
+subtracting out the flux from image currents `image` and adding in the flux from `coils` with currents
+that best satisfy the control points and `fixed_coils` with predefined coil currents
 """
 function fixed2free(
     EQfixed::MXHEquilibrium.AbstractEquilibrium,
@@ -258,13 +256,13 @@ end
     end
 
     for (k, cp) in enumerate(iso_cps)
-    @series begin
-        seriestype --> :scatter
-        color --> :yellow
-        label --> ((k == 1) ? "Iso CP" : :none)
-        [cp.R1, cp.R2], [cp.Z1, cp.Z2]
+        @series begin
+            seriestype --> :scatter
+            color --> :yellow
+            label --> ((k == 1) ? "Iso CP" : :none)
+            [cp.R1, cp.R2], [cp.Z1, cp.Z2]
+        end
     end
-end
 
     @series begin
         seriestype --> :contour
