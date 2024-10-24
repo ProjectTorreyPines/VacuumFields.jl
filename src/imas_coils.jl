@@ -18,7 +18,9 @@ function GS_IMAS_pf_active__coil(
     # type in GS_IMAS_pf_active__coil is defined at compile time
     coil_tech = IMAS.build__pf_active__technology{T}()
     for field in keys(oh_pf_coil_tech)
-        setproperty!(coil_tech, field, getproperty(oh_pf_coil_tech, field))
+        if !isempty(oh_pf_coil_tech, field)
+            setproperty!(coil_tech, field, getproperty(oh_pf_coil_tech, field))
+        end
     end
 
     coil = GS_IMAS_pf_active__coil{T,T,T,T}(
