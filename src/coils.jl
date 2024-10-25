@@ -125,7 +125,10 @@ end
 
 Construct a ParallelogramCoil
 """
-ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current=0.0; resistance=0.0, turns=1) = ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current, resistance, turns)
+function ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current=0.0; resistance=0.0, turns=1)
+    R, Z, ΔR, ΔZ, θ1, θ2 = promote(R, Z, ΔR, ΔZ, θ1, θ2)
+    ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current, resistance, turns)
+end
 
 area(C::ParallelogramCoil) = area(C.ΔR, C.ΔZ, C.θ1, C.θ2)
 
