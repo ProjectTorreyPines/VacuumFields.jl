@@ -130,7 +130,8 @@ end
         println("Testing for COCOS ", cc)
         Gfixed = efit(transform_cocos(gfixed, cc0, cc), cc)
         Gfree = efit(transform_cocos(gfree, cc0, cc), cc)
-        flux_cps = boundary_control_points(Gfree, 0.999)
+        _, ψbound = psi_limits(Gfree)
+        flux_cps = boundary_control_points(Gfree, 0.999, ψbound)
         saddle_cps = [SaddleControlPoint(Rx, Zx)]
         currents, _ = find_coil_currents!(coils, Gfixed; flux_cps, saddle_cps, λ_regularize=1e-14)
         if cc < 10
@@ -159,12 +160,15 @@ end
     Gfixed = efit(transform_cocos(gfixed, cc0, 11), 11)
     Gfree = efit(transform_cocos(gfree, cc0, 11), 11)
 
+    _, ψbound = psi_limits(Gfree)
+    Rs, Zs = gfree.r, gfree.z
+
     ix = argmin(gfree.zbbbs)
     Rx, Zx = gfree.rbbbs[ix], gfree.zbbbs[ix]
 
-    flux_cps = boundary_control_points(Gfree, 0.999)
+    flux_cps = boundary_control_points(Gfree, 0.999, ψbound)
     saddle_cps = [SaddleControlPoint(Rx, Zx)]
-    fixed2free(Gfixed, coils, gfree.r, gfree.z; flux_cps, saddle_cps);
+    fixed2free(Gfixed, coils, Rs, Zs; flux_cps, saddle_cps)
 end
 
 @testset "current_BtIp" begin
@@ -192,17 +196,23 @@ end
 
         gfree = MXHEquilibrium.readg(EQs_free[i]; set_time=0.0)
         Gfree = MXHEquilibrium.efit(gfree, cc)
+        _, ψbound = psi_limits(Gfree)
 
         #  Currents from EFIT
         p = plot(C[i, :]; linewidth=3, linecolor=:black)
 
         # Currents with ψbound=0
-        flux_cps = boundary_control_points(Gfixed, 0.999)
+        flux_cps = boundary_control_points(Gfixed, 0.999, 0.0)
         c0, _ = find_coil_currents!(coils, Gfixed; flux_cps, λ_regularize=1e-14)
 
         plot!(c0; linewidth=3, linecolor=:red)
 
+        # Currents with ψbound from EFIT
+        flux_cps = boundary_control_points(Gfixed, 0.999, ψbound)
+        cb, _ = find_coil_currents!(coils, Gfixed; flux_cps, λ_regularize=1e-14)
+        plot!(cb; linewidth=3, linecolor=:blue)
         display(p)
+
     end
 end
 
