@@ -27,6 +27,74 @@ mutable struct PointCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractSingleC
     turns::T4
 end
 
+"""
+    ParallelogramCoil{T1, T2, T3, T4} <:  AbstractSingleCoil{T1, T2, T3, T4}
+
+Parallelogram coil with the R, Z, ΔR, ΔZ, θ1, θ2 formalism (as used by EFIT, for example).
+Here θ1 and θ2 are the shear angles along the x- and y-axes, respectively, in degrees.
+"""
+mutable struct ParallelogramCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractSingleCoil{T1,T2,T3,T4}
+    R::T1
+    Z::T1
+    ΔR::T1
+    ΔZ::T1
+    θ1::T1
+    θ2::T1
+    current::T2
+    resistance::T3
+    turns::T4
+end
+
+"""
+    QuadCoil{T1, T2, T3, T4} <:  AbstractSingleCoil{T1, T2, T3, T4}
+
+Quadrilateral coil with counter-clockwise corners (starting from lower left) at R and Z
+"""
+mutable struct QuadCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real,VT1<:AbstractVector{T1}} <: AbstractSingleCoil{T1,T2,T3,T4}
+    R::VT1
+    Z::VT1
+    current::T2
+    resistance::T3
+    turns::T4
+    function QuadCoil(R::VT1, Z::VT1, current::T2, resistance::T3, turns::T4) where {VT1,T2,T3,T4}
+        @assert length(R) == length(Z) == 4
+        points = reverse!(grahamscan!(collect(zip(R, Z)))) # reverse to make ccw
+        a, b = zip(points...)
+        R = VT1(collect(a))
+        Z = VT1(collect(b))
+        return new{eltype(VT1),T2,T3,T4,VT1}(R, Z, current, resistance, turns)
+    end
+end
+
+"""
+    DistributedCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractSingleCoil{T1,T2,T3,T4}
+
+Coil consisting of distributed filaments
+"""
+mutable struct DistributedCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractSingleCoil{T1,T2,T3,T4}
+    R::Vector{T1}
+    Z::Vector{T1}
+    current::T2
+    resistance::T3
+    turns::T4
+end
+
+"""
+    MultiCoil{SC<:AbstractSingleCoil} <: AbstractCoil
+
+A coil consisting of multiple coils linke in series
+"""
+mutable struct MultiCoil{SC<:AbstractSingleCoil} <: AbstractCoil
+    coils::Vector{SC}
+    function MultiCoil(coils::Vector{SC}; copy_coils::Bool=true) where {SC<:AbstractSingleCoil}
+        Ic = sum(current(coil) for coil in coils)
+        new_coils = copy_coils ? deepcopy(coils) : coils
+        mcoil = new{SC}(new_coils)
+        set_current!(mcoil, Ic)
+        return mcoil
+    end
+end
+
 current(coil::AbstractSingleCoil) = coil.current
 
 elements(coil::Union{IMAScoil, IMASloop}) = Iterators.filter(!isempty, coil.element)
@@ -102,23 +170,7 @@ Return PointCoil, a point filament coil at scalar (R, Z) location
 """
 PointCoil(R, Z, current=0.0; resistance=0.0, turns=1) = PointCoil(R, Z, current, resistance, turns)
 
-"""
-    ParallelogramCoil{T1, T2, T3, T4} <:  AbstractSingleCoil{T1, T2, T3, T4}
 
-Parallelogram coil with the R, Z, ΔR, ΔZ, θ1, θ2 formalism (as used by EFIT, for example).
-Here θ1 and θ2 are the shear angles along the x- and y-axes, respectively, in degrees.
-"""
-mutable struct ParallelogramCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractSingleCoil{T1,T2,T3,T4}
-    R::T1
-    Z::T1
-    ΔR::T1
-    ΔZ::T1
-    θ1::T1
-    θ2::T1
-    current::T2
-    resistance::T3
-    turns::T4
-end
 
 """
     ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current=0.0; resistance=0.0, turns=1)
@@ -138,26 +190,6 @@ function area(ΔR, ΔZ, θ1, θ2)
     return (1.0 + α1 * α2) * ΔR * ΔZ
 end
 
-"""
-    QuadCoil{T1, T2, T3, T4} <:  AbstractSingleCoil{T1, T2, T3, T4}
-
-Quadrilateral coil with counter-clockwise corners (starting from lower left) at R and Z
-"""
-mutable struct QuadCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real,VT1<:AbstractVector{T1}} <: AbstractSingleCoil{T1,T2,T3,T4}
-    R::VT1
-    Z::VT1
-    current::T2
-    resistance::T3
-    turns::T4
-    function QuadCoil(R::VT1, Z::VT1, current::T2, resistance::T3, turns::T4) where {VT1,T2,T3,T4}
-        @assert length(R) == length(Z) == 4
-        points = reverse!(grahamscan!(collect(zip(R, Z)))) # reverse to make ccw
-        a, b = zip(points...)
-        R = VT1(collect(a))
-        Z = VT1(collect(b))
-        return new{eltype(VT1),T2,T3,T4,VT1}(R, Z, current, resistance, turns)
-    end
-end
 
 """
     QuadCoil(R, Z, current=0.0; resistance=0.0, turns=1)
@@ -200,11 +232,11 @@ area(element::IMASelement) = area(IMAS.outline(element))
 area(ol::IMASoutline) = area(ol.r, ol.z)
 
 # compute the resistance given a resistitivity
-function resistance(C::Union{ParallelogramCoil,QuadCoil}, resistivity::Real)
-    return 2π * C.turns^2 * resistivity / integrate((R, Z) -> 1.0 / R, C)
+function resistance(coil::Union{ParallelogramCoil,QuadCoil, IMASelement}, resistivity::Real)
+    return 2π * turns(coil)^2 * resistivity / integrate((R, Z) -> 1.0 / R, coil)
 end
 
-function resistance(coil::IMAScoil, resistivity::Real, element_connection::Symbol)
+function resistance(coil::IMAScoil, resistivity::Real, element_connection::Symbol=:series)
     if element_connection === :series
         eta = sum(resistance(element, resistivity) for element in elements(coil))
     elseif element_connection === :parallel
@@ -215,22 +247,45 @@ function resistance(coil::IMAScoil, resistivity::Real, element_connection::Symbo
     return eta
 end
 
-function resistance(element::IMASelement, resistivity::Real)
-    return 2π * turns(element)^2 * resistivity / integrate((R, Z) -> 1.0 / R, element)
+function resistance(mcoil::MultiCoil, resistivity::Real)
+    return sum(resistance(coil, resistivity) for coil in mcoil.coils)
 end
 
-"""
-    DistributedCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractSingleCoil{T1,T2,T3,T4}
-
-Coil consisting of distributed filaments
-"""
-mutable struct DistributedCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractSingleCoil{T1,T2,T3,T4}
-    R::Vector{T1}
-    Z::Vector{T1}
-    current::T2
-    resistance::T3
-    turns::T4
+function set_resistance!(coil::Union{ParallelogramCoil,QuadCoil}, resistivity::Real)
+    coil.resistance = resistance(coil, resistivity)
 end
+
+function set_resistance!(coil::IMAScoil, resistivity::Real, element_connection::Symbol=:series)
+    coil.resistance = resistance(coil, resistivity, element_connection)
+end
+
+function set_resistance!(mcoil::MultiCoil, resistivity::Real)
+    for coil in mcoil.coils
+        coil.resistance = resistance(coil, resistivity)
+    end
+end
+
+
+# compute the resistivity of a coil based on it's resistance
+function resistivity(coil::Union{ParallelogramCoil,QuadCoil, IMASelement})
+    return resistance(coil) * integrate((R, Z) -> 1.0 / R, coil) / (2π * turns(coil)^2)
+end
+
+function resistivity(coil::IMAScoil, element_connection::Symbol)
+    if element_connection === :series
+        rho = resistance(coil, element_connection) / sum(resistance(element, 1.0) for element in elements(coil))
+    elseif element_connection === :parallel
+        rho = resistance(coil, element_connection) * sum(1.0 / resistance(element, 1.0) for element in elements(coil))
+    else
+        error("element_connection should be :series or :parallel")
+    end
+    return rho
+end
+
+function resistivity(mcoil::MultiCoil)
+    return resistance(mcoil) / sum(resistance(coil, 1.0) for coil in mcoil.coils)
+end
+
 
 """
     DistributedCoil(R::Vector{<:Real}, Z::Vector{<:Real}, current=0.0; resistance=0.0, turns=1)
@@ -286,16 +341,7 @@ function DistributedCoil(C::ParallelogramCoil; spacing::Real=0.01)
 end
 
 
-mutable struct MultiCoil{SC<:AbstractSingleCoil} <: AbstractCoil
-    coils::Vector{SC}
-    function MultiCoil(coils::Vector{SC}; copy_coils::Bool=true) where {SC<:AbstractSingleCoil}
-        Ic = sum(current(coil) for coil in coils)
-        new_coils = copy_coils ? deepcopy(coils) : coils
-        mcoil = new{SC}(new_coils)
-        set_current!(mcoil, Ic)
-        return mcoil
-    end
-end
+# MultiCoil
 
 function MultiCoil(icoil::IMAScoil)
     total_turns = turns(icoil)
