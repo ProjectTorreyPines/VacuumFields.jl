@@ -14,7 +14,7 @@ end
 const N_gl = 50
 const gξ_pa, gw_pa = gl_preallocate(N_gl)
 
-function integrate(f, lims, order::Integer)
+function integrate(f::F1, lims, order::Integer) where {F1 <: Function}
     @assert order <= N_gl
     I = 0.0
     dxdξ = 0.5*(lims[2] - lims[1])
@@ -25,7 +25,7 @@ function integrate(f, lims, order::Integer)
     return I
 end
 
-function integrate(f, xlims, ylims; xorder=3, yorder=3)
+function integrate(f::F1, xlims, ylims; xorder=3, yorder=3) where {F1 <: Function}
     @assert xorder <= N_gl
     @assert yorder <= N_gl
 
@@ -74,11 +74,11 @@ end
 end
 
 # integrate over a parallelogram
-function integrate(f, C::ParallelogramCoil; xorder=default_order, yorder=default_order)
+function integrate(f::F1, C::ParallelogramCoil; xorder=default_order, yorder=default_order) where {F1 <: Function}
     return integrate(f, C.R, C.Z, C.ΔR, C.ΔZ, C.θ1, C.θ2; xorder, yorder)
 end
 
-function integrate(f, R, Z, ΔR, ΔZ, θ1, θ2; xorder=default_order, yorder=default_order)
+function integrate(f::F1, R, Z, ΔR, ΔZ, θ1, θ2; xorder=default_order, yorder=default_order) where {F1 <: Function}
     @assert xorder <= N_gl
     @assert yorder <= N_gl
 
@@ -144,21 +144,21 @@ function Jacobian(x::Real, y::Real, R::AbstractVector{<:Real}, Z::AbstractVector
 end
 
 
-function Jf(f, x, y, C::QuadCoil)
+function Jf(f::F1, x, y, C::QuadCoil) where {F1 <: Function}
     R, Z = RZq(x, y, C)
     return Jacobian(x, y, C)  * f(R, Z)
 end
 
-function Jf(f, x, y, rs, zs)
+function Jf(f::F1, x, y, rs, zs) where {F1 <: Function}
     R, Z = RZq(x, y, rs, zs)
     return Jacobian(x, y, rs, zs)  * f(R, Z)
 end
 
-function integrate(f::F, element::IMASelement; xorder=default_order, yorder=default_order) where {F<:Function}
+function integrate(f::F1, element::IMASelement; xorder=default_order, yorder=default_order) where {F1<:Function}
     return integrate(f, IMAS.outline(element); xorder, yorder)
 end
 
-function integrate(f::F, ol::IMASoutline; xorder=default_order, yorder=default_order) where {F<:Function}
+function integrate(f::F1, ol::IMASoutline; xorder=default_order, yorder=default_order) where {F1<:Function}
     @assert xorder <= N_gl
     @assert yorder <= N_gl
 
@@ -173,7 +173,7 @@ function integrate(f::F, ol::IMASoutline; xorder=default_order, yorder=default_o
     return I
 end
 
-function integrate(f::F, C::QuadCoil; xorder=default_order, yorder=default_order) where {F<:Function}
+function integrate(f::F1, C::QuadCoil; xorder=default_order, yorder=default_order) where {F1<:Function}
     @assert xorder <= N_gl
     @assert yorder <= N_gl
 

@@ -117,7 +117,7 @@ function dG_dZ(coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Re
     return _gfunc(dG_dZ, coil, R, Z)
 end
 
-function _gfunc(Gfunc::Function, coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=3, yorder::Int=3)
+function _gfunc(Gfunc::F1, coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=3, yorder::Int=3) where {F1 <: Function}
     green_model = getfield(coil, :green_model)
 
     if green_model == :point # low-fidelity
