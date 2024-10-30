@@ -134,22 +134,44 @@ function IsoControlPoints(Rs::AbstractVector{T}, Zs::AbstractVector{T}) where {T
 end
 
 """
-    boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999; Npts::Integer=99)
+    boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
+Return a Vector of FluxControlPoint, each with target `ψbound`, at `Npts` equally distributed `fraction_inside` percent inside the the boundary of `EQfixed`
+"""
+function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
+    ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
+    Sp = MXHEquilibrium.flux_surface(EQfixed, fraction_inside * (ψb - ψ0) + ψ0; n_interp=Npts)
+    ψtarget = fraction_inside * (ψb - ψ0) + ψ0 - ψb + ψbound
+    return [FluxControlPoint(Sp.r[k], Sp.z[k], ψtarget, 1.0 / Npts) for k in 1:length(Sp.r)-1]
+end
+
+"""
+    boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
+Return a Vector of FluxControlPoint, each with target `ψbound`, at `Npts` equally distributed `fraction_inside` percent inside the the boundary of `shot`
+"""
+function boundary_control_points(shot::TEQUILA.Shot, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
+    bnd = MillerExtendedHarmonic.MXH(shot, fraction_inside)
+    θs = LinRange(0, 2π, Npts + 1)
+    ψtarget = ψbound + TEQUILA.psi_ρθ(shot, fraction_inside, 0.0)
+    return [FluxControlPoint(bnd(θ)..., ψtarget, 1.0 / Npts) for θ in θs[1:end-1]]
+end
+
+"""
+    boundary_iso_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999; Npts::Integer=99)
 
 Return a Vector of IsoControlPoints, at `Npts` equally distributed `fraction_inside` percent inside the the boundary of `EQfixed`
 """
-function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999; Npts::Integer=99)
+function boundary_iso_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999; Npts::Integer=99)
     ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
     Sp = MXHEquilibrium.flux_surface(EQfixed, fraction_inside * (ψb - ψ0) + ψ0; n_interp=Npts)
     return VacuumFields.IsoControlPoints(Sp.r, Sp.z)
 end
 
 """
-    boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999; Npts::Integer=99)
+    boundary_iso_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999; Npts::Integer=99)
 
 Return a Vector of IsoControlPoints, at `Npts` equally distributed `fraction_inside` percent inside the the boundary of `shot`
 """
-function boundary_control_points(shot::TEQUILA.Shot, fraction_inside::Float64=0.999; Npts::Integer=99)
+function boundary_iso_control_points(shot::TEQUILA.Shot, fraction_inside::Float64=0.999; Npts::Integer=99)
     bnd = MillerExtendedHarmonic.MXH(shot, fraction_inside)
     θs = LinRange(0, 2π, Npts + 1)
     r = [bnd(θ)[1] for θ in θs[1:end-1]]
