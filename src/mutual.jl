@@ -8,9 +8,9 @@
 
 Compute the mutual inductance between an arbitrary coil or `IMAS.pf_active__coil___element` and a PointCoil
 """
-function mutual(C1::Union{AbstractCoil, IMASelement}, C2::PointCoil)
+function mutual(C1::Union{AbstractCoil, IMASelement}, C2::PointCoil; kwargs...)
     fac = -2π * μ₀ * turns(C1) * turns(C2)
-    return fac * Green(C1, C2.R, C2.Z)
+    return fac * Green(C1, C2.R, C2.Z; kwargs...)
 end
 
 """
@@ -18,9 +18,9 @@ end
 
 Compute the mutual inductance between an arbitrary coil or `IMAS.pf_active__coil___element` and a DistributedCoil
 """
-function mutual(C1::Union{AbstractCoil, IMASelement}, C2::DistributedCoil)
+function mutual(C1::Union{AbstractCoil, IMASelement}, C2::DistributedCoil; kwargs...)
     fac = -2π * μ₀ * turns(C1) * turns(C2)
-    return fac * sum(Green(C1, C2.R[k], C2.Z[k]) for k in eachindex(C2.R)) / length(C2.R)
+    return fac * sum(Green(C1, C2.R[k], C2.Z[k]; kwargs...) for k in eachindex(C2.R)) / length(C2.R)
 end
 
 """
@@ -38,7 +38,12 @@ function mutual(C1::Union{AbstractCoil, IMASelement}, C2::Union{ParallelogramCoi
 end
 
 function mutual(C1::Union{AbstractCoil, IMASelement}, mcoil::MultiCoil; kwargs...)
-    return sum(mutual(C1, C2; kwargs...) for C2 in mcoil.coils)
+    M = mutual(C1, mcoil.coils[1]; kwargs...)
+    for k in eachindex(mcoil.coils)[2:end]
+        M += mutual(C1, mcoil.coils[k]; kwargs...)
+    end
+    return M
+    #return sum(mutual(C1, C2; kwargs...) for C2 in mcoil.coils)
 end
 
 """
@@ -49,7 +54,7 @@ Compute the mutual inductance between an arbitrary coil or `IMAS.pf_active__coil
 `xorder` and `yorder` give the order of Gauss-Legendre quadrature for integration over the coil area
 """
 function mutual(C1::Union{AbstractCoil, IMASelement}, C2::IMAScoil; xorder::Int=3, yorder::Int=3)
-    return sum(mutual(C1, element; xorder, yorder) for element in C2.element)
+    return sum(mutual(C1, element; xorder, yorder) for element in elements(C2))
 end
 
 """
@@ -60,35 +65,53 @@ Compute the mutual inductance between an `IMAS.pf_active__coil` and an arbitrary
 `xorder` and `yorder` give the order of Gauss-Legendre quadrature for integration over the coil area
 """
 function mutual(C1::IMAScoil, C2::Union{AbstractCoil, IMAScoil, IMASelement}; xorder::Int=3, yorder::Int=3)
-    return sum(mutual(element, C2; xorder, yorder) for element in C1.element)
+    return sum(mutual(element, C2; xorder, yorder) for element in elements(C1))
 end
+
+
+# Circuit
+
+function mutual(C1::Union{AbstractCoil, IMASelement}, SC2::SeriesCircuit; kwargs...)
+    return sum(SC2.signs[k] * mutual(C1, C2; kwargs...) for (k, C2) in enumerate(SC2.coils))
+end
+
+function mutual(SC1::SeriesCircuit, C2::Union{AbstractCoil, IMASelement, SeriesCircuit}; kwargs...)
+    return sum(SC1.signs[k] * mutual(C1, C2; kwargs...) for (k, C1) in enumerate(SC1.coils))
+end
+
 
 
 # Plasma-coil mutuals
 
 # Shifting plasma up by δZ is the same as shifting the coil down by δZ
-function _pfunc(Pfunc, image::Image, C::PointCoil, δZ; COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11))
+function _pfunc(Pfunc::F1, image::Image, C::PointCoil, δZ; COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11)) where {F1 <: Function}
     fac = -COCOS.sigma_Bp * (2π)^(1 - COCOS.exp_Bp)
-    return fac * Pfunc(image, C.R, C.Z - δZ)
+    return fac * turns(C) * Pfunc(image, C.R, C.Z - δZ)
 end
 
-function _pfunc(Pfunc, image::Image, C::DistributedCoil, δZ; COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11))
+function _pfunc(Pfunc::F1, image::Image, C::DistributedCoil, δZ; COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11)) where {F1 <: Function}
     fac = -COCOS.sigma_Bp * (2π)^(1 - COCOS.exp_Bp)
-    return fac * sum(Pfunc(image, C.R[k], C.Z[k] - δZ) for k in eachindex(C.R)) / length(C.R)
+    return fac * turns(C) * sum(Pfunc(image, C.R[k], C.Z[k] - δZ) for k in eachindex(C.R)) / length(C.R)
 end
 
-function _pfunc(Pfunc, image::Image, coil::IMAScoil, δZ;
+function _pfunc(Pfunc::F1, image::Image, coil::IMAScoil, δZ;
                 COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
-                xorder::Int=default_order, yorder::Int=default_order)
-    return sum(_pfunc(Pfunc, image, element, δZ; COCOS, xorder, yorder) for element in coil.element)
+                xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
+    return sum(_pfunc(Pfunc, image, element, δZ; COCOS, xorder, yorder) for element in elements(coil))
 end
 
-function _pfunc(Pfunc, image::Image, C::Union{ParallelogramCoil, QuadCoil, IMASelement}, δZ;
+function _pfunc(Pfunc::F1, image::Image, mcoil::MultiCoil, δZ;
                 COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
-                xorder::Int=default_order, yorder::Int=default_order)
+                xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
+    return sum(_pfunc(Pfunc, image, coil, δZ; COCOS, xorder, yorder) for coil in mcoil.coils)
+end
+
+function _pfunc(Pfunc::F1, image::Image, C::Union{ParallelogramCoil, QuadCoil, IMASelement}, δZ;
+                COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
+                xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
     fac = -COCOS.sigma_Bp * (2π)^(1 - COCOS.exp_Bp)
     f = (r, z) -> Pfunc(image, r, z - δZ)
-    return fac * integrate(f, C; xorder, yorder) / area(C)
+    return fac * turns(C) * integrate(f, C; xorder, yorder) / area(C)
 end
 
 """
@@ -115,7 +138,7 @@ function mutual(image::Image, C::Union{AbstractCoil, IMAScoil}, Ip::Real, δZ::R
     Ψ = _pfunc(ψ, image, C, δZ; COCOS, kwargs...)
 
     # negative sign since image flux is opposite plasma flux
-    return -fac * turns(C) * Ψ / Ip
+    return - Ψ / Ip
 end
 
 """
@@ -143,7 +166,7 @@ function dM_dZ(image::Image, C::Union{AbstractCoil, IMAScoil}, Ip::Real, δZ::Re
     dΨ_dZ = -_pfunc(dψ_dZ, image, C, δZ; COCOS, kwargs...)
 
     # negative sign since image flux is opposite plasma flux
-    return -turns(C) * dΨ_dZ / Ip
+    return -dΨ_dZ / Ip
 end
 
 """
@@ -171,7 +194,7 @@ function d2M_dZ2(image::Image, C::Union{AbstractCoil, IMAScoil}, Ip::Real, δZ::
     d2Ψ_dZ2 = _pfunc(d2ψ_dZ2, image, C, δZ; COCOS, kwargs...)
 
     # negative sign since image flux is opposite plasma flux
-    return -turns(C) * d2Ψ_dZ2 / Ip
+    return -d2Ψ_dZ2 / Ip
 end
 
 """

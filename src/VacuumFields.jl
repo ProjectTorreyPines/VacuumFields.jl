@@ -12,6 +12,7 @@ import StaticArrays: SMatrix, SVector
 import IMAS
 import FusionMaterials
 import Interpolations
+import PlotUtils
 
 const μ₀ = 4e-7 * π
 const inv4π = 0.25 / π
@@ -19,12 +20,15 @@ const deg2rad = π / 180.0
 const default_order = 10
 
 const IMAScoil = IMAS.pf_active__coil
-const IMASelement = IMAS.pf_active__coil___element
-const IMASoutline = Union{IMAS.pf_active__coil___element___geometry__outline, NamedTuple}
+const IMASloop = IMAS.pf_passive__loop
+const IMASelement = Union{IMAS.pf_active__coil___element, IMAS.pf_passive__loop___element}
+const IMASoutline = Union{IMAS.pf_active__coil___element___geometry__outline, IMAS.pf_passive__loop___element___geometry__outline, NamedTuple}
 
 include("coils.jl")
 export AbstractCoil, PointCoil, ParallelogramCoil, QuadCoil, DistributedCoil, MultiCoil, encircling_coils
 
+include("circuit.jl")
+export AbstractCircuit, SeriesCircuit, update_coil_currents!
 
 include("integration.jl")
 

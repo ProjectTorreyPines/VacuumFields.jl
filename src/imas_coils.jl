@@ -18,7 +18,9 @@ function GS_IMAS_pf_active__coil(
     # type in GS_IMAS_pf_active__coil is defined at compile time
     coil_tech = IMAS.build__pf_active__technology{T}()
     for field in keys(oh_pf_coil_tech)
-        setproperty!(coil_tech, field, getproperty(oh_pf_coil_tech, field))
+        if !isempty(oh_pf_coil_tech, field)
+            setproperty!(coil_tech, field, getproperty(oh_pf_coil_tech, field))
+        end
     end
 
     coil = GS_IMAS_pf_active__coil{T,T,T,T}(
@@ -115,7 +117,7 @@ function dG_dZ(coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Re
     return _gfunc(dG_dZ, coil, R, Z)
 end
 
-function _gfunc(Gfunc::Function, coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=3, yorder::Int=3)
+function _gfunc(Gfunc::F1, coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=3, yorder::Int=3) where {F1 <: Function}
     green_model = getfield(coil, :green_model)
 
     if green_model == :point # low-fidelity
@@ -153,21 +155,6 @@ function mutual(C1::GS_IMAS_pf_active__coil, C2::GS_IMAS_pf_active__coil; xorder
         else
             return fac * Green(C1.imas, C2.r, C2.r)
         end
-    end
-end
-
-function mutual(C1::GS_IMAS_pf_active__coil, C2::AbstractCoil; xorder::Int=3, yorder::Int=3)
-
-    green_model = getfield(C1, :green_model)
-    if green_model == :point # fastest
-        fac = -2π * μ₀ * turns(C2) * C1.turns
-        return fac * Green(C2, C1.r, C1.z)
-
-    elseif green_model == :quad # high-fidelity
-        return mutual(C1.imas, C2; xorder, yorder)
-
-    else
-        error("$(typeof(C2)) green_model can only be (in order of accuracy) :quad and :point")
     end
 end
 

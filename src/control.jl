@@ -52,29 +52,30 @@ IsoControlPoint(R1::Real, Z1::Real, R2::Real, Z2::Real, weight::Real=1.0) = IsoC
 @recipe function plot_SaddleControlPoint(cp::SaddleControlPoint)
     @series begin
         marker := :star
-        cp, nothing
+        seriestype := :scatter
+        aspect_ratio := :equal
+        label --> ""
+        [cp.R], [cp.Z]
     end
 end
 
 @recipe function plot_FluxControlPoint(cp::FluxControlPoint)
     @series begin
         marker := :circle
-        cp, nothing
+        seriestype := :scatter
+        aspect_ratio := :equal
+        label --> ""
+        [cp.R], [cp.Z]
     end
 end
 
 @recipe function plot_IsoControlPoint(cp::IsoControlPoint)
     @series begin
         marker := :diamond
-        cp, nothing
-    end
-end
-
-@recipe function plot_control_point(cp::AbstractControlPoint, dispatch::Nothing=nothing)
-    @series begin
-        seriestype := :scatter
+        linestyle := :dash
+        aspect_ratio := :equal
         label --> ""
-        [cp.R], [cp.Z]
+        [cp.R1, cp.R2], [cp.Z1, cp.Z2]
     end
 end
 
@@ -123,11 +124,11 @@ end
 
 Return a Vector of IsoControlPoints between each pair of `Rs` and `Zs` points
 """
-function IsoControlPoints(Rs::AbstractVector{T}, Zs::AbstractVector{T}) where {T <: Real}
+function IsoControlPoints(Rs::AbstractVector{T}, Zs::AbstractVector{T}) where {T<:Real}
     N = length(Rs)
     @assert length(Zs) == N
     is_closed = (Rs[1] ≈ Rs[end]) && (Zs[1] ≈ Zs[end])
-    Nmax = is_closed ? N-1 : N
+    Nmax = is_closed ? N - 1 : N
     iso_cps = [IsoControlPoint(Rs[k], Zs[k], Rs[1], Zs[1]) for k in eachindex(Rs)[2:Nmax]]
     return iso_cps
 end
@@ -155,14 +156,38 @@ function boundary_control_points(shot::TEQUILA.Shot, fraction_inside::Float64=0.
 end
 
 """
+    boundary_iso_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999; Npts::Integer=99)
+
+Return a Vector of IsoControlPoints, at `Npts` equally distributed `fraction_inside` percent inside the the boundary of `EQfixed`
+"""
+function boundary_iso_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999; Npts::Integer=99)
+    ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
+    Sp = MXHEquilibrium.flux_surface(EQfixed, fraction_inside * (ψb - ψ0) + ψ0; n_interp=Npts)
+    return VacuumFields.IsoControlPoints(Sp.r, Sp.z)
+end
+
+"""
+    boundary_iso_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999; Npts::Integer=99)
+
+Return a Vector of IsoControlPoints, at `Npts` equally distributed `fraction_inside` percent inside the the boundary of `shot`
+"""
+function boundary_iso_control_points(shot::TEQUILA.Shot, fraction_inside::Float64=0.999; Npts::Integer=99)
+    bnd = MillerExtendedHarmonic.MXH(shot, fraction_inside)
+    θs = LinRange(0, 2π, Npts + 1)
+    r = [bnd(θ)[1] for θ in θs[1:end-1]]
+    z = [bnd(θ)[2] for θ in θs[1:end-1]]
+    return VacuumFields.IsoControlPoints(r, z)
+end
+
+"""
     find_coil_currents!(
-        coils::Vector{<:AbstractCoil},
+        coils::AbstractVector{<:AbstractCoil},
         EQ::MXHEquilibrium.AbstractEquilibrium;
         flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
         saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
         iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
         ψbound::Real=0.0,
-        fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+        fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
         λ_regularize::Float64=0.0,
         Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
@@ -175,13 +200,13 @@ Optionally assumes flux from additional `fixed_coils`, whose currents will not c
 `λ_regularize` provides regularization in the least-squares fitting
 """
 function find_coil_currents!(
-    coils::Vector{<:AbstractCoil},
+    coils::AbstractVector{<:AbstractCoil},
     EQ::MXHEquilibrium.AbstractEquilibrium;
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
     iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
     ψbound::Real=0.0,
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+    fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
     Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
@@ -190,14 +215,14 @@ end
 
 """
     find_coil_currents!(
-        coils::Vector{<:AbstractCoil},
+        coils::AbstractVector{<:AbstractCoil},
         EQ::MXHEquilibrium.AbstractEquilibrium,
         image::Image;
         flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
         saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
         iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
         ψbound::Real=0.0,
-        fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+        fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
         λ_regularize::Float64=0.0,
         Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
@@ -210,14 +235,14 @@ Optionally assumes flux from additional `fixed_coils`, whose currents will not c
 `λ_regularize` provides regularization in the least-squares fitting
 """
 function find_coil_currents!(
-    coils::Vector{<:AbstractCoil},
+    coils::AbstractVector{<:AbstractCoil},
     EQ::MXHEquilibrium.AbstractEquilibrium,
     image::Image;
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
     iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
     ψbound::Real=0.0,
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+    fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
     Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
@@ -255,14 +280,14 @@ end
 
 """
     find_coil_currents!(
-        coils::Vector{<:AbstractCoil},
+        coils::AbstractVector{<:AbstractCoil},
         EQ::MXHEquilibrium.AbstractEquilibrium,
         image::Image;
         flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
         saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
         iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
         ψbound::Real=0.0,
-        fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+        fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
         λ_regularize::Float64=0.0,
         Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
@@ -275,15 +300,15 @@ Optionally assumes flux from additional `fixed_coils`, whose currents will not c
 `λ_regularize` provides regularization in the least-squares fitting
 """
 function find_coil_currents!(
-    coils::Vector{<:AbstractCoil},
+    coils::AbstractVector{<:AbstractCoil},
     ψpl::Interpolations.AbstractInterpolation,
-    dψpl_dR::Union{Function, Interpolations.AbstractInterpolation} = (r, z) -> Interpolations.gradient(ψpl, r, z)[1],
-    dψpl_dZ::Union{Function, Interpolations.AbstractInterpolation} = (r, z) -> Interpolations.gradient(ψpl, r, z)[2];
+    dψpl_dR::Union{Function,Interpolations.AbstractInterpolation}=(r, z) -> Interpolations.gradient(ψpl, r, z)[1],
+    dψpl_dZ::Union{Function,Interpolations.AbstractInterpolation}=(r, z) -> Interpolations.gradient(ψpl, r, z)[2];
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
     iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
     ψbound::Real=0.0,
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+    fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
     cocos=MXHEquilibrium.cocos(11),
     Sb=nothing)
@@ -321,13 +346,13 @@ end
 
 """
     find_coil_currents!(
-        coils::Vector{<:AbstractCoil},
+        coils::AbstractVector{<:AbstractCoil},
         EQ::Nothing;
         flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
         saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
         iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
         ψbound::Real=0.0,
-        fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+        fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
         λ_regularize::Float64=0.0,
         cocos=MXHEquilibrium.cocos(11),
         Sb=nothing)
@@ -341,13 +366,13 @@ Optionally assumes flux from additional `fixed_coils`, whose currents will not c
 `λ_regularize` provides regularization in the least-squares fitting
 """
 function find_coil_currents!(
-    coils::Vector{<:AbstractCoil},
+    coils::AbstractVector{<:AbstractCoil},
     EQ::Nothing;  # VACUUM case
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
     iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
     ψbound::Real=0.0,
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+    fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
     cocos=MXHEquilibrium.cocos(11),
     Sb=nothing)
@@ -357,14 +382,14 @@ end
 
 """
     find_coil_currents!(
-        coils::Vector{<:AbstractCoil},
+        coils::AbstractVector{<:AbstractCoil},
         EQ::Nothing, # VACUUM case
         image::Nothing;
         flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
         saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
         iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
         ψbound::Real=0.0,
-        fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+        fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
         λ_regularize::Float64=0.0,
         cocos=MXHEquilibrium.cocos(11),
         Sb=nothing)
@@ -378,14 +403,14 @@ Optionally assumes flux from additional `fixed_coils`, whose currents will not c
 `λ_regularize` provides regularization in the least-squares fitting
 """
 function find_coil_currents!(
-    coils::Vector{<:AbstractCoil},
+    coils::AbstractVector{<:AbstractCoil},
     EQ::Nothing, # VACUUM case
     image::Nothing;
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
     iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
     ψbound::Real=0.0,
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+    fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
     cocos=MXHEquilibrium.cocos(11),
     Sb=nothing)
@@ -395,11 +420,11 @@ end
 
 """
     find_coil_currents!(
-        coils::Vector{<:AbstractCoil};
+        coils::AbstractVector{<:AbstractCoil};
         flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
         saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
         iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
-        fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+        fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
         λ_regularize::Float64=0.0,
         cocos=MXHEquilibrium.cocos(11))
 
@@ -412,11 +437,11 @@ Optionally assumes flux from additional `fixed_coils`, whose currents will not c
 `λ_regularize` provides regularization in the least-squares fitting
 """
 function find_coil_currents!(
-    coils::Vector{<:AbstractCoil};
+    coils::AbstractVector{<:AbstractCoil};
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
     iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+    fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
     cocos=MXHEquilibrium.cocos(11))
 
@@ -458,26 +483,26 @@ function init_b!(
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
     iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
     ψbound::Real=0.0,
-    Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1]) where {T <: Real}
+    Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1]) where {T<:Real}
 
     _, ψb = MXHEquilibrium.psi_limits(EQ)
 
-    ψpl  = (r, z) -> (MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQ(r, z) : ψb) +  ψbound - ψb - ψ(image, r, z)
+    ψpl = (r, z) -> (MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQ(r, z) : ψb) + ψbound - ψb - ψ(image, r, z)
     dψpl_dR = (r, z) -> -dψ_dR(image, r, z)
     dψpl_dZ = (r, z) -> -dψ_dZ(image, r, z)
 
-    init_b!(b, ψpl, dψpl_dR, dψpl_dZ; flux_cps, saddle_cps, iso_cps)
+    return init_b!(b, ψpl, dψpl_dR, dψpl_dZ; flux_cps, saddle_cps, iso_cps)
 
 end
 
 function init_b!(
     b::AbstractVector{T},
-    ψpl::Union{Function, Interpolations.AbstractInterpolation},
-    dψpl_dR::Union{Function, Interpolations.AbstractInterpolation},
-    dψpl_dZ::Union{Function, Interpolations.AbstractInterpolation};
+    ψpl::Union{Function,Interpolations.AbstractInterpolation},
+    dψpl_dR::Union{Function,Interpolations.AbstractInterpolation},
+    dψpl_dZ::Union{Function,Interpolations.AbstractInterpolation};
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
-    iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[]) where {T <: Real}
+    iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[]) where {T<:Real}
 
 
     b .= 0.0
@@ -544,12 +569,12 @@ function init_b!(
 end
 
 function populate_Ab!(A::AbstractMatrix{T}, b::AbstractVector{T},
-    coils::Vector{<:AbstractCoil};
+    coils::AbstractVector{<:AbstractCoil};
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
     iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
-    fixed_coils::Vector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    cocos=MXHEquilibrium.cocos(11)) where {T <: Real}
+    fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+    cocos=MXHEquilibrium.cocos(11)) where {T<:Real}
 
     Nflux = length(flux_cps)
     Nsaddle = length(saddle_cps)

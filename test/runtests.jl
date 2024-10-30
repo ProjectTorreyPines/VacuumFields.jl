@@ -65,9 +65,9 @@ end
     @test VacuumFields.turns(mcoil) == Nc * turns
     Ic1 = VacuumFields.current(coils[1])
     VacuumFields.set_current!(mcoil, Ip)
-    @test VacuumFields.current(mcoil.coils[1]) ≈ VacuumFields.current(coils[1]) ≈ Ip / Nc
+    @test VacuumFields.current(mcoil.coils[1]) ≈ Ip / Nc
     VacuumFields.set_current!(mcoil, Nc * Ip)
-    @test VacuumFields.current(mcoil.coils[1]) ≈ VacuumFields.current(coils[1]) ≈ Ip
+    @test VacuumFields.current(mcoil.coils[1]) ≈ Ip
 
     geqdsk = readg((@__DIR__) * "/equilibria/g184250.01740"; set_time=0.0)
     cc0 = cocos(geqdsk; clockwise_phi=false).cocos
@@ -168,7 +168,7 @@ end
 
     flux_cps = boundary_control_points(Gfree, 0.999, ψbound)
     saddle_cps = [SaddleControlPoint(Rx, Zx)]
-    fixed2free(Gfixed, coils, Rs, Zs; flux_cps, saddle_cps);
+    fixed2free(Gfixed, coils, Rs, Zs; flux_cps, saddle_cps)
 end
 
 @testset "current_BtIp" begin
@@ -211,7 +211,6 @@ end
         flux_cps = boundary_control_points(Gfixed, 0.999, ψbound)
         cb, _ = find_coil_currents!(coils, Gfixed; flux_cps, λ_regularize=1e-14)
         plot!(cb; linewidth=3, linecolor=:blue)
-
         display(p)
 
     end

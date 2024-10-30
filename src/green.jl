@@ -1,31 +1,36 @@
 # Generalized functions for specific coil types
 
-function _gfunc(Gfunc::Function, C::PointCoil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)
+function _gfunc(Gfunc::F1, C::PointCoil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
     return Gfunc(C.R, C.Z, R, Z, scale_factor)
 end
 
-function _gfunc(Gfunc::Function, C::Union{ParallelogramCoil, QuadCoil}, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)
+function _gfunc(Gfunc::F1, C::Union{ParallelogramCoil, QuadCoil}, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)  where {F1 <: Function}
     return integrate((X, Y) -> Gfunc(X, Y, R, Z, scale_factor), C; xorder, yorder) / area(C)
 end
 
-function _gfunc(Gfunc::Function, C::DistributedCoil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)
+function _gfunc(Gfunc::F1, C::DistributedCoil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
     return sum(Gfunc(C.R[k], C.Z[k], R, Z, scale_factor) for k in eachindex(C.R)) / length(C.R)
 end
 
-function _gfunc(Gfunc::Function, C::IMAScoil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)
-    return sum(_gfunc(Gfunc, element, R, Z, scale_factor; xorder, yorder) for element in C.element)
+function _gfunc(Gfunc::F1, C::IMAScoil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
+    Nt = turns(C)
+    return sum(turns(element) * _gfunc(Gfunc, element, R, Z, scale_factor; xorder, yorder) for element in elements(C)) / Nt
 end
 
-function _gfunc(Gfunc::Function, element::IMASelement, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)
+function _gfunc(Gfunc::F1, element::IMASelement, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
     return _gfunc(Gfunc, IMAS.outline(element), R, Z, scale_factor; xorder, yorder)
 end
 
-function _gfunc(Gfunc::Function, ol::IMASoutline, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)
+function _gfunc(Gfunc::F1, ol::IMASoutline, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
     return integrate((X, Y) -> Gfunc(X, Y, R, Z, scale_factor), ol; xorder, yorder) / area(ol)
 end
 
-function _gfunc(Gfunc::Function, mcoil::MultiCoil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
-    return sum(current(coil) * _gfunc(Gfunc, coil, R, Z, scale_factor; kwargs...) for coil in mcoil.coils) / current(mcoil)
+function _gfunc(Gfunc::F1, mcoil::MultiCoil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...) where {F1 <: Function}
+    Ic = current(mcoil)
+    Ic == 0.0 && set_current!(mcoil, 1.0)
+    G = sum(current(coil) * _gfunc(Gfunc, coil, R, Z, scale_factor; kwargs...) for coil in mcoil.coils) / current(mcoil)
+    Ic == 0.0 && set_current!(mcoil, Ic)
+    return G
 end
 
 # Generalized wrapper functions for all coil types
@@ -45,6 +50,33 @@ function d2G_dZ2(coil::Union{AbstractCoil, IMAScoil, IMASelement}, R::Real, Z::R
     return _gfunc(d2G_dZ2, coil, R, Z, scale_factor; kwargs...)
 end
 
+# Function for circuits
+@inline function _gfunc(Pfunc, series::SeriesCircuit, R::Real, Z::Real, scale_factor::Real=1.0;
+    COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp)
+    Ic = series.current_per_turn
+    try
+        update_coil_currents!(series, 1.0)
+        return scale_factor * Pfunc(series, R, Z; COCOS, Bp_fac) / (μ₀ * Bp_fac)
+    finally
+        update_coil_currents!(series, Ic)
+    end
+end
+
+function Green(series::SeriesCircuit, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
+    return _gfunc(ψ, series, R, Z, scale_factor; kwargs...)
+end
+
+function dG_dR(series::SeriesCircuit, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
+    return _gfunc(dψ_dR, series, R, Z, scale_factor; kwargs...)
+end
+
+function dG_dZ(series::SeriesCircuit, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
+    return _gfunc(dψ_dZ, series, R, Z, scale_factor; kwargs...)
+end
+
+function d2G_dZ2(series::SeriesCircuit, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
+    return _gfunc(d2ψ_dZ2, series, R, Z, scale_factor; kwargs...)
+end
 
 # Point-to-point Green's functions
 
