@@ -38,7 +38,12 @@ function mutual(C1::Union{AbstractCoil, IMASelement}, C2::Union{ParallelogramCoi
 end
 
 function mutual(C1::Union{AbstractCoil, IMASelement}, mcoil::MultiCoil; kwargs...)
-    return sum(mutual(C1, C2; kwargs...) for C2 in mcoil.coils)
+    M = mutual(C1, mcoil.coils[1]; kwargs...)
+    for k in eachindex(mcoil.coils)[2:end]
+        M += mutual(C1, mcoil.coils[k]; kwargs...)
+    end
+    return M
+    #return sum(mutual(C1, C2; kwargs...) for C2 in mcoil.coils)
 end
 
 """
@@ -79,31 +84,31 @@ end
 # Plasma-coil mutuals
 
 # Shifting plasma up by δZ is the same as shifting the coil down by δZ
-function _pfunc(Pfunc, image::Image, C::PointCoil, δZ; COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11))
+function _pfunc(Pfunc::F1, image::Image, C::PointCoil, δZ; COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11)) where {F1 <: Function}
     fac = -COCOS.sigma_Bp * (2π)^(1 - COCOS.exp_Bp)
     return fac * turns(C) * Pfunc(image, C.R, C.Z - δZ)
 end
 
-function _pfunc(Pfunc, image::Image, C::DistributedCoil, δZ; COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11))
+function _pfunc(Pfunc::F1, image::Image, C::DistributedCoil, δZ; COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11)) where {F1 <: Function}
     fac = -COCOS.sigma_Bp * (2π)^(1 - COCOS.exp_Bp)
     return fac * turns(C) * sum(Pfunc(image, C.R[k], C.Z[k] - δZ) for k in eachindex(C.R)) / length(C.R)
 end
 
-function _pfunc(Pfunc, image::Image, coil::IMAScoil, δZ;
+function _pfunc(Pfunc::F1, image::Image, coil::IMAScoil, δZ;
                 COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
-                xorder::Int=default_order, yorder::Int=default_order)
+                xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
     return sum(_pfunc(Pfunc, image, element, δZ; COCOS, xorder, yorder) for element in elements(coil))
 end
 
-function _pfunc(Pfunc, image::Image, mcoil::MultiCoil, δZ;
+function _pfunc(Pfunc::F1, image::Image, mcoil::MultiCoil, δZ;
                 COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
-                xorder::Int=default_order, yorder::Int=default_order)
+                xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
     return sum(_pfunc(Pfunc, image, coil, δZ; COCOS, xorder, yorder) for coil in mcoil.coils)
 end
 
-function _pfunc(Pfunc, image::Image, C::Union{ParallelogramCoil, QuadCoil, IMASelement}, δZ;
+function _pfunc(Pfunc::F1, image::Image, C::Union{ParallelogramCoil, QuadCoil, IMASelement}, δZ;
                 COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
-                xorder::Int=default_order, yorder::Int=default_order)
+                xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
     fac = -COCOS.sigma_Bp * (2π)^(1 - COCOS.exp_Bp)
     f = (r, z) -> Pfunc(image, r, z - δZ)
     return fac * turns(C) * integrate(f, C; xorder, yorder) / area(C)
