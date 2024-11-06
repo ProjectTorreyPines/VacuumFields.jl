@@ -82,6 +82,8 @@ As suggested in this paper, the domain is restricted to ``(-\infty,1]``.
     elseif m >= 0.0
         x = m
         flag_is_m_neg = false
+    else
+        error("ellipk(m): m is $(m)")
     end
 
     if x == 0.0
@@ -257,6 +259,8 @@ function ellipe(m::Real)
     elseif m >= 0.0
         x = m
         flag_is_m_neg = false
+    else
+        error("ellipe(m): m is $(m)")
     end
 
     if x == 0.0
