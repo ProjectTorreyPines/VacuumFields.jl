@@ -74,11 +74,11 @@ end
 end
 
 # integrate over a parallelogram
-function integrate(f::F1, C::ParallelogramCoil; xorder=default_order, yorder=default_order) where {F1 <: Function}
+function integrate(f::F1, C::ParallelogramCoil; xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
     return integrate(f, C.R, C.Z, C.ΔR, C.ΔZ, C.θ1, C.θ2; xorder, yorder)
 end
 
-function integrate(f::F1, R, Z, ΔR, ΔZ, θ1, θ2; xorder=default_order, yorder=default_order) where {F1 <: Function}
+function integrate(f::F1, R, Z, ΔR, ΔZ, θ1, θ2; xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
     @assert xorder <= N_gl
     @assert yorder <= N_gl
 
@@ -154,11 +154,11 @@ function Jf(f::F1, x, y, rs, zs) where {F1 <: Function}
     return Jacobian(x, y, rs, zs)  * f(R, Z)
 end
 
-function integrate(f::F1, element::IMASelement; xorder=default_order, yorder=default_order) where {F1<:Function}
+function integrate(f::F1, element::IMASelement; xorder::Int=default_order, yorder::Int=default_order) where {F1<:Function}
     return integrate(f, IMAS.outline(element); xorder, yorder)
 end
 
-function integrate(f::F1, ol::IMASoutline; xorder=default_order, yorder=default_order) where {F1<:Function}
+function integrate(f::F1, ol::IMASoutline; xorder::Int=default_order, yorder::Int=default_order) where {F1<:Function}
     @assert xorder <= N_gl
     @assert yorder <= N_gl
 
@@ -173,7 +173,7 @@ function integrate(f::F1, ol::IMASoutline; xorder=default_order, yorder=default_
     return I
 end
 
-function integrate(f::F1, C::QuadCoil; xorder=default_order, yorder=default_order) where {F1<:Function}
+function integrate(f::F1, C::QuadCoil; xorder::Int=default_order, yorder::Int=default_order) where {F1<:Function}
     @assert xorder <= N_gl
     @assert yorder <= N_gl
 
