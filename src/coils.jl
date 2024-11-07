@@ -97,7 +97,7 @@ end
 
 current(coil::AbstractSingleCoil) = coil.current
 
-elements(coil::Union{IMAScoil, IMASloop}) = Iterators.filter(!isempty, coil.element)
+elements(coil::Union{IMAScoil,IMASloop}) = Iterators.filter(!isempty, coil.element)
 
 # BCL 2/27/24
 # N.B.: Not sure about sign with turns and such
@@ -126,7 +126,7 @@ function current(loop::IMASloop)
 end
 
 @inline function set_current!(coil::AbstractSingleCoil, current::Real)
-    coil.current = current
+    return coil.current = current
 end
 
 function set_current!(coil::IMAScoil, current::Real)
@@ -179,7 +179,7 @@ Construct a ParallelogramCoil
 """
 function ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current=0.0; resistance=0.0, turns=1)
     R, Z, ΔR, ΔZ, θ1, θ2 = promote(R, Z, ΔR, ΔZ, θ1, θ2)
-    ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current, resistance, turns)
+    return ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current, resistance, turns)
 end
 
 area(C::ParallelogramCoil) = area(C.ΔR, C.ΔZ, C.θ1, C.θ2)
@@ -211,8 +211,7 @@ function QuadCoil(pc::ParallelogramCoil)
     return QuadCoil(R, Z, pc.current; pc.resistance, pc.turns)
 end
 
-
-function QuadCoil(elm::IMASelement, current_per_turn::Real = 0.0, resistance_per_turn::Real = 0.0)
+function QuadCoil(elm::IMASelement, current_per_turn::Real=0.0, resistance_per_turn::Real=0.0)
     R, Z = IMAS.outline(elm)
     @assert length(R) == length(Z) == 4
     Nt = turns(elm)
@@ -232,7 +231,7 @@ area(element::IMASelement) = area(IMAS.outline(element))
 area(ol::IMASoutline) = area(ol.r, ol.z)
 
 # compute the resistance given a resistitivity
-function resistance(coil::Union{ParallelogramCoil,QuadCoil, IMASelement}, resistivity::Real)
+function resistance(coil::Union{ParallelogramCoil,QuadCoil,IMASelement}, resistivity::Real)
     return 2π * turns(coil)^2 * resistivity / integrate((R, Z) -> 1.0 / R, coil)
 end
 
@@ -252,11 +251,11 @@ function resistance(mcoil::MultiCoil, resistivity::Real)
 end
 
 function set_resistance!(coil::Union{ParallelogramCoil,QuadCoil}, resistivity::Real)
-    coil.resistance = resistance(coil, resistivity)
+    return coil.resistance = resistance(coil, resistivity)
 end
 
 function set_resistance!(coil::IMAScoil, resistivity::Real, element_connection::Symbol=:series)
-    coil.resistance = resistance(coil, resistivity, element_connection)
+    return coil.resistance = resistance(coil, resistivity, element_connection)
 end
 
 function set_resistance!(mcoil::MultiCoil, resistivity::Real)
@@ -267,7 +266,7 @@ end
 
 
 # compute the resistivity of a coil based on it's resistance
-function resistivity(coil::Union{ParallelogramCoil,QuadCoil, IMASelement})
+function resistivity(coil::Union{ParallelogramCoil,QuadCoil,IMASelement})
     return resistance(coil) * integrate((R, Z) -> 1.0 / R, coil) / (2π * turns(coil)^2)
 end
 
@@ -298,7 +297,7 @@ DistributedCoil(R::Vector{<:Real}, Z::Vector{<:Real}, current=0.0; resistance=0.
     DistributedParallelogramCoil(Rc::T1, Zc::T1, ΔR::T1, ΔZ::T1, θ1::T1, θ2::T1, current::Real=0.0; spacing::Real=0.01, turns::Real=1) where {T1<:Real}
 
 Create a DistributedCoil of filaments with `spacing` separation within
-    a parallelogram defined by the R, Z, ΔR, ΔZ, θ1, θ2 formalism (as used by EFIT, for example)
+a parallelogram defined by the R, Z, ΔR, ΔZ, θ1, θ2 formalism (as used by EFIT, for example)
 
 NOTE: if spacing <= 0.0 then current filaments are placed at the vertices
 """
