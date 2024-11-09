@@ -222,7 +222,7 @@ function area(R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
     @assert length(R) == length(Z) == 4
     A = R[1] * Z[2] + R[2] * Z[3] + R[3] * Z[4] + R[4] * Z[1]
     A -= R[2] * Z[1] + R[3] * Z[2] + R[4] * Z[3] + R[1] * Z[4]
-    return 0.5 * A
+    return 0.5 * abs(A)
 end
 
 area(C::QuadCoil) = area(C.R, C.Z)
