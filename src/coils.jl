@@ -232,7 +232,7 @@ area(ol::IMASoutline) = area(ol.r, ol.z)
 
 # compute the resistance given a resistitivity
 function resistance(coil::Union{ParallelogramCoil,QuadCoil,IMASelement}, resistivity::Real)
-    return 2π * turns(coil)^2 * resistivity / abs(integrate((R, Z) -> 1.0 / R, coil))
+    return 2π * turns(coil)^2 * resistivity / integrate((R, Z) -> 1.0 / R, coil)
 end
 
 function resistance(coil::IMAScoil, resistivity::Real, element_connection::Symbol=:series)
