@@ -385,6 +385,8 @@ function MultiCoils(dd::IMAS.dd{D}; load_pf_active::Bool=true, active_only::Bool
         passive_coils = MultiCoils(dd.pf_passive)
         !load_pf_active && return passive_coils
     end
+    isempty(active_coils) && return passive_coils
+    isempty(passive_coils) && return active_coils
     return vcat(active_coils, passive_coils)
 end
 
