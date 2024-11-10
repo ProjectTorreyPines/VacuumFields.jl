@@ -222,7 +222,7 @@ function area(R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
     @assert length(R) == length(Z) == 4
     A = R[1] * Z[2] + R[2] * Z[3] + R[3] * Z[4] + R[4] * Z[1]
     A -= R[2] * Z[1] + R[3] * Z[2] + R[4] * Z[3] + R[1] * Z[4]
-    return 0.5 * A
+    return 0.5 * abs(A)
 end
 
 area(C::QuadCoil) = area(C.R, C.Z)
@@ -385,6 +385,8 @@ function MultiCoils(dd::IMAS.dd{D}; load_pf_active::Bool=true, active_only::Bool
         passive_coils = MultiCoils(dd.pf_passive)
         !load_pf_active && return passive_coils
     end
+    isempty(active_coils) && return passive_coils
+    isempty(passive_coils) && return active_coils
     return vcat(active_coils, passive_coils)
 end
 
@@ -558,54 +560,56 @@ end
 end
 
 max_current(coil::AbstractCoil) = abs(current(coil))
-max_current(mcoil::MultiCoil) = maximum(abs, current(coil) for coil in mcoil.coils)
-max_current(icoil::IMAScoil) = abs(IMAS.@ddtime(icoil.current.data[index]) * maximum(turns(elm) for elm in icoil.element))
+max_current(mcoil::MultiCoil) = isempty(mcoil.coils) ? 0.0 : maximum(abs, current(coil) for coil in mcoil.coils)
+max_current(icoil::IMAScoil) = ismissing(icoil.current, :data) ? 0.0 : (abs(IMAS.@ddtime(icoil.current.data) * maximum(turns(elm) for elm in icoil.element)))
 
-@recipe function plot_coils(coils::AbstractVector{<:Union{AbstractCoil,IMAScoil}}; color_by=:current, cname=:diverging)
-    @assert color_by in (nothing, :current)
-    if color_by === :current
-        alpha --> nothing
-        currents = [current(coil) for coil in coils]
-        CURRENT = maximum(max_current(coil) for coil in coils)
-        if CURRENT > 1e6
-            currents = currents .* 1e-6
-            CURRENT = CURRENT .* 1e-6
-            c_unit = "MA"
-        elseif CURRENT > 1e3
-            currents = currents .* 1e-3
-            CURRENT = CURRENT .* 1e-3
-            c_unit = "kA"
-        else
-            c_unit = "A"
-        end
-
-        @series begin
-            colorbar_title := " \nPF currents [$c_unit]"
-            seriestype --> :scatter
-            color --> cname
-            clim --> (-CURRENT, CURRENT)
-            marker_z --> [-CURRENT, CURRENT]
-            [(NaN, NaN), (NaN, NaN)]
-        end
-    end
-
-    for (k, coil) in enumerate(coils)
-        @series begin
-            if color_by === :current
-                colorbar_title := " \nPF currents [$c_unit]"
-                colorbar_entry := false
-                if CURRENT == 0.0
-                    color --> :black
-                else
-                    current_color_index = (currents[k] + CURRENT) / (2 * CURRENT)
-                    color --> PlotUtils.cgrad(cname)[current_color_index]
-                end
+@recipe function plot_coils(coils::AbstractVector{<:AbstractCoil}; color_by=:current, cname=:diverging)
+    if !isempty(coils)
+        @assert color_by in (nothing, :current)
+        if color_by === :current
+            alpha --> nothing
+            currents = [current(coil) for coil in coils]
+            CURRENT = maximum(max_current(coil) for coil in coils)
+            if CURRENT > 1e6
+                currents = currents .* 1e-6
+                CURRENT = CURRENT .* 1e-6
+                c_unit = "MA"
+            elseif CURRENT > 1e3
+                currents = currents .* 1e-3
+                CURRENT = CURRENT .* 1e-3
+                c_unit = "kA"
             else
-                primary := (k == 1)
+                c_unit = "A"
             end
-            aspect_ratio := :equal
-            label --> ""
-            coil
+
+            @series begin
+                colorbar_title := " \nPF currents [$c_unit]"
+                seriestype --> :scatter
+                color --> cname
+                clim --> (-CURRENT, CURRENT)
+                marker_z --> [-CURRENT, CURRENT]
+                [(NaN, NaN), (NaN, NaN)]
+            end
+        end
+
+        for (k, coil) in enumerate(coils)
+            @series begin
+                if color_by === :current
+                    colorbar_title := " \nPF currents [$c_unit]"
+                    colorbar_entry := false
+                    if CURRENT == 0.0
+                        color --> :black
+                    else
+                        current_color_index = (currents[k] + CURRENT) / (2 * CURRENT)
+                        color --> PlotUtils.cgrad(cname)[current_color_index]
+                    end
+                else
+                    primary := (k == 1)
+                end
+                aspect_ratio := :equal
+                label --> ""
+                coil
+            end
         end
     end
 end

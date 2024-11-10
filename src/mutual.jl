@@ -219,7 +219,7 @@ First introduced in A. Portone, Nucl. Fusion 45 (2005) 926–932. https://doi.or
 """
 function stability_margin(image::Image, coils::Vector{<:Union{AbstractCoil, IMAScoil}}, Ip::Real; order::Int=default_order)
     b = [Ip * dM_dZ(image, C, Ip) for C in coils]
-    K = Ip * sum(current(C) * d2M_dZ2(image, C, Ip) for C in coils)
+    K = Ip * sum(current(C) / turns(C) * d2M_dZ2(image, C, Ip) for C in coils)
     M = zeros(length(coils), length(coils))
     for j in eachindex(coils)
         for k in eachindex(coils)
@@ -257,7 +257,7 @@ This is the massless approximation and only use the passive conductors for compu
 """
 function normalized_growth_rate(image::Image, coils::Vector{<:Union{AbstractCoil, IMAScoil}}, Ip::Real; order::Int=default_order)
     b = [Ip * dM_dZ(image, C, Ip) for C in coils]
-    K = Ip * sum(current(C) * d2M_dZ2(image, C, Ip) for C in coils)
+    K = Ip * sum(current(C) / turns(C) * d2M_dZ2(image, C, Ip) for C in coils)
     M = zeros(length(coils), length(coils))
     for j in eachindex(coils)
         for k in eachindex(coils)
@@ -277,7 +277,7 @@ function normalized_growth_rate(image::Image, coils::Vector{<:Union{AbstractCoil
 
     # reuse b vector for resistances
     for j in eachindex(coils)
-        b[j] = coils[j].resistance
+        b[j] = resistance(coils[j])
     end
     R = Diagonal(b)
 

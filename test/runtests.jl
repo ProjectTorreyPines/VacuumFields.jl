@@ -74,7 +74,7 @@ end
     EQ = efit(transform_cocos(geqdsk, cc0, 11), 11)
 
     vars = matread((@__DIR__) * "/equilibria/d3d_vs_eq3_.mat")
-    matcoils = [ParallelogramCoil(load_par(vars["fcdata"][:,k])..., vars["Ic"][2+k]; resistance=vars["Rc"][k], turns=Int(vars["fcnturn"][k])) for k in eachindex(vars["fcnturn"])]
+    matcoils = [ParallelogramCoil(load_par(vars["fcdata"][:,k])..., vars["Ic"][2+k] * Int(vars["fcnturn"][k]); resistance=vars["Rc"][k], turns=Int(vars["fcnturn"][k])) for k in eachindex(vars["fcnturn"])]
     append!(matcoils, ParallelogramCoil(load_par(vars["vvdata"][:,k])...; resistance=vars["Rv"][k]) for k in eachindex(vars["Rv"]))
 
     @test isapprox(stability_margin(EQ, matcoils), vars["stability"]["m_s_noe"]; rtol=5e-2)

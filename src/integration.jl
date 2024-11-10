@@ -140,7 +140,7 @@ function Jacobian(x::Real, y::Real, R::AbstractVector{<:Real}, Z::AbstractVector
     dZdy = a + b * x
 
     # All these need to be divided by 4
-    return 0.0625 * (dRdx * dZdy - dRdy * dZdx)
+    return 0.0625 * abs(dRdx * dZdy - dRdy * dZdx)
 end
 
 
