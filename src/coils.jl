@@ -56,9 +56,10 @@ mutable struct QuadCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real,VT1<:AbstractVector{
     current::T2
     resistance::T3
     turns::T4
+
     function QuadCoil(R::VT1, Z::VT1, current::T2, resistance::T3, turns::T4) where {VT1,T2,T3,T4}
         @assert length(R) == length(Z) == 4
-        points = reverse!(grahamscan!(collect(zip(R, Z)))) # reverse to make ccw
+        points = reverse!(IMAS.convex_hull!(collect(zip(R, Z)); closed_polygon=false)) # reverse to make ccw
         a, b = zip(points...)
         R = VT1(collect(a))
         Z = VT1(collect(b))
@@ -456,68 +457,13 @@ end
 # ============== #
 #   Convex hull  #
 # ============== #
-@inline function points_isless(p::AbstractVector{T}, q::AbstractVector{T}) where {T}
-    return p[1] < q[1] || (p[1] == q[1] && p[2] < q[2])
-end
-
-@inline function points_isless(p::Tuple{T,T}, q::Tuple{T,T}) where {T}
-    return p[1] < q[1] || (p[1] == q[1] && p[2] < q[2])
-end
-
-@inline function isrightturn(p::AbstractVector{T}, q::AbstractVector{T}, r::AbstractVector{T}) where {T}
-    return (q[1] - p[1]) * (r[2] - p[2]) - (q[2] - p[2]) * (r[1] - p[1]) < 0.0
-end
-
-@inline function isrightturn(p::Tuple{T,T}, q::Tuple{T,T}, r::Tuple{T,T}) where {T}
-    return (q[1] - p[1]) * (r[2] - p[2]) - (q[2] - p[2]) * (r[1] - p[1]) < 0.0
-end
-
-function halfhull(points::AbstractVector)
-    halfhull = similar(points)
-    n = 0
-    for p in points
-        while n > 1 && !isrightturn(halfhull[n-1], halfhull[n], p)
-            n -= 1
-        end
-        n += 1
-        halfhull[n] = p
-    end
-    return view(halfhull, 1:n)
-end
-
-function grahamscan!(points::AbstractVector)
-    sort!(points; lt=points_isless)
-    upperhull = halfhull(points)
-    reverse!(points)
-    lowerhull = halfhull(points)
-    return [upperhull; lowerhull[2:end-1]]
-end
-
-function convex_hull!(xy_points::AbstractVector; closed_polygon::Bool)
-    hull = grahamscan!(xy_points)
-    if closed_polygon && !isempty(hull)
-        return push!(hull, hull[1])
-    else
-        return hull
-    end
-end
-
-function convex_hull(xy_points::AbstractVector; closed_polygon::Bool)
-    return convex_hull!(deepcopy(xy_points); closed_polygon)
-end
-
-function convex_hull(x::AbstractVector{T}, y::AbstractVector{T}; closed_polygon::Bool) where {T}
-    xy_points = [(xx, yx) for (xx, yx) in zip(x, y)]
-    return convex_hull!(xy_points; closed_polygon)
-end
-
-function convex_hull(C::ParallelogramCoil)
+function IMAS.convex_hull(C::ParallelogramCoil)
     C = DistributedParallelogramCoil(C.R, C.Z, C.ΔR, C.ΔZ, C.θ1, C.θ2; spacing=0.0)
     return collect(zip(C.R, C.Z))
 end
 
-function convex_hull(C::DistributedCoil)
-    return convex_hull(C.R, C.Z; closed_polygon=true)
+function IMAS.convex_hull(C::DistributedCoil)
+    return IMAS.convex_hull(C.R, C.Z; closed_polygon=true)
 end
 
 # ======== #
@@ -528,7 +474,7 @@ end
 end
 
 @recipe function plot_coil(C::DistributedCoil)
-    hull = convex_hull(C)
+    hull = IMAS.convex_hull(C)
     R = [r for (r, z) in hull]
     Z = [z for (r, z) in hull]
     @series begin
