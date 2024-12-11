@@ -89,7 +89,7 @@ As suggested in this paper, the domain is restricted to ``(-\infty,1]``.
     if x == 0.0
         return pi / 2
 
-    elseif x == 1.0
+    elseif x ≈ 1.0
         return Inf
 
     elseif x > 1.0
@@ -265,7 +265,7 @@ function ellipe(m::Real)
 
     if x == 0.0
         return pi / 2
-    elseif x == 1.0
+    elseif x ≈ 1.0
         return 1.0
 
     elseif x > 1.0
@@ -402,7 +402,8 @@ end
 
     if x == 0.0
         return km, pi / 2
-    elseif x == 1.0
+
+    elseif x ≈ 1.0
         return km, 1.0
 
     elseif x > 1.0
