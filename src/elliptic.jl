@@ -93,7 +93,11 @@ As suggested in this paper, the domain is restricted to ``(-\infty,1]``.
         return Inf
 
     elseif x > 1.0
-        throw(DomainError(m, "`m` must lie between -Inf and 1 ---- Domain: (-Inf,1.0]"))
+        if x ≈ 1.0
+            return Inf
+        else
+            throw(DomainError(m, "`m` must lie between -Inf and 1 ---- Domain: (-Inf,1.0]"))
+        end
 
     elseif 0.0 <= x < 0.1   #Table 2 from paper
         t = x - 0.05
@@ -269,7 +273,11 @@ function ellipe(m::Real)
         return 1.0
 
     elseif x > 1.0
-        throw(DomainError(m, "`m` must lie between -Inf and 1 ---- Domain : (-inf,1.0]"))
+        if x ≈ 1.0
+            return 1.0
+        else
+            throw(DomainError(m, "`m` must lie between -Inf and 1 ---- Domain : (-inf,1.0]"))
+        end
 
     elseif 0.0 <= x < 0.1   #Table 2 from paper
         t = x - 0.05
@@ -402,11 +410,16 @@ end
 
     if x == 0.0
         return km, pi / 2
+
     elseif x == 1.0
         return km, 1.0
 
     elseif x > 1.0
-        throw(DomainError(m, "`m` must lie between -Inf and 1 ---- Domain : (-inf,1.0]"))
+        if x ≈ 1.0
+            return km, 1.0
+        else
+            throw(DomainError(m, "`m` must lie between -Inf and 1 ---- Domain : (-inf,1.0]"))
+        end
 
     elseif 0.0 <= x < 0.1   #Table 2 from paper
         t = x - 0.05
