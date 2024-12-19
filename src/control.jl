@@ -55,6 +55,7 @@ IsoControlPoint(R1::Real, Z1::Real, R2::Real, Z2::Real, weight::Real=1.0) = IsoC
         seriestype := :scatter
         aspect_ratio := :equal
         label --> ""
+        markersize := cp.weight * 10
         [cp.R], [cp.Z]
     end
 end
@@ -65,6 +66,7 @@ end
         seriestype := :scatter
         aspect_ratio := :equal
         label --> ""
+        markersize := cp.weight * 10
         [cp.R], [cp.Z]
     end
 end
@@ -72,9 +74,10 @@ end
 @recipe function plot_IsoControlPoint(cp::IsoControlPoint)
     @series begin
         marker := :diamond
-        linestyle := :dash
+        linewidth := 0.1
         aspect_ratio := :equal
         label --> ""
+        markersize := cp.weight * 10
         [cp.R1, cp.R2], [cp.Z1, cp.Z2]
     end
 end
@@ -125,16 +128,31 @@ end
 Return a Vector of IsoControlPoints between each pair of `Rs` and `Zs` points
 """
 function IsoControlPoints(Rs::AbstractVector{T}, Zs::AbstractVector{T}) where {T<:Real}
+    @assert length(Zs) == length(Rs)
+    is_closed = sqrt((Rs[1] - Rs[end])^2 + (Zs[1] - Zs[end])^2) < 1E-6
+    if is_closed
+        Rs = @view Rs[1:end-1]
+        Zs = @view Zs[1:end-1]
+    end
     N = length(Rs)
-    @assert length(Zs) == N
-    is_closed = (Rs[1] ≈ Rs[end]) && (Zs[1] ≈ Zs[end])
-    Nmax = is_closed ? N - 1 : N
-    iso_cps = [IsoControlPoint(Rs[k], Zs[k], Rs[1], Zs[1]) for k in eachindex(Rs)[2:Nmax]]
+    i_max = argmax(Rs)
+    i_min = argmin(Rs)
+    iso_cps = IsoControlPoint{T}[]
+    # interlaced
+    weight = 1.0 / N
+    for k in i_max:i_max+N
+        if mod(k, 2) == mod(i_max, 2)
+            push!(iso_cps, IsoControlPoint{T}(IMAS.getindex_circular(Rs, k), IMAS.getindex_circular(Zs, k), Rs[i_min], Zs[i_min], weight))
+        else
+            push!(iso_cps, IsoControlPoint{T}(IMAS.getindex_circular(Rs, k), IMAS.getindex_circular(Zs, k), Rs[i_max], Zs[i_max], weight))
+        end
+    end
     return iso_cps
 end
 
 """
     boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
+
 Return a Vector of FluxControlPoint, each with target `ψbound`, at `Npts` equally distributed `fraction_inside` percent inside the the boundary of `EQfixed`
 """
 function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
@@ -146,6 +164,7 @@ end
 
 """
     boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
+
 Return a Vector of FluxControlPoint, each with target `ψbound`, at `Npts` equally distributed `fraction_inside` percent inside the the boundary of `shot`
 """
 function boundary_control_points(shot::TEQUILA.Shot, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
