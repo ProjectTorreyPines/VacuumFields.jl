@@ -528,7 +528,7 @@ function init_b!(
     Nflux = length(flux_cps)
     Nsaddle = length(saddle_cps)
 
-    @threads for i in eachindex(flux_cps)
+    for i in eachindex(flux_cps)
         cp = flux_cps[i]
         r = cp.R
         z = cp.Z
@@ -537,7 +537,7 @@ function init_b!(
         b[i] -= ψpl(r, z)
     end
 
-    @threads for i in eachindex(saddle_cps)
+    for i in eachindex(saddle_cps)
         cp = saddle_cps[i]
         r = cp.R
         z = cp.Z
@@ -599,7 +599,7 @@ function populate_Ab!(A::AbstractMatrix{T}, b::AbstractVector{T},
 
     Bp_fac = cocos.sigma_Bp * (2π)^cocos.exp_Bp
 
-    @threads for i in eachindex(flux_cps)
+    for i in eachindex(flux_cps)
         cp = flux_cps[i]
         r = cp.R
         z = cp.Z
@@ -623,7 +623,7 @@ function populate_Ab!(A::AbstractMatrix{T}, b::AbstractVector{T},
         A[i, :] .*= w
     end
 
-    @threads for i in eachindex(saddle_cps)
+    for i in eachindex(saddle_cps)
         cp = saddle_cps[i]
         r = cp.R
         z = cp.Z
