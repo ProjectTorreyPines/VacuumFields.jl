@@ -523,7 +523,6 @@ function init_b!(
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
     iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[]) where {T<:Real}
 
-
     b .= 0.0
 
     Nflux = length(flux_cps)
@@ -553,7 +552,7 @@ function init_b!(
 
     r1_old, z1_old, r2_old, z2_old = -one(T), zero(T), -one(T), zero(T)
     ψ1_old, ψ2_old = zero(T), zero(T)
-    @threads for i in eachindex(iso_cps)
+    for i in eachindex(iso_cps)
         cp = iso_cps[i]
         r1, z1 = cp.R1, cp.Z1
         r2, z2 = cp.R2, cp.Z2
