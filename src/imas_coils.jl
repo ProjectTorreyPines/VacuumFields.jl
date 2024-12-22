@@ -29,12 +29,14 @@ function GS_IMAS_pf_active__coil(
         IMAS.global_time(pfcoil),
         green_model)
 
-    mat_pf = FusionMaterials.Material(coil_tech)
-    sigma = mat_pf.electrical_conductivity
-    if ismissing(mat_pf) || ismissing(sigma)
-        coil.resistance = default_resistance
-    else
-        coil.resistance = resistance(coil.imas, 1.0 / sigma(; temperature=0.0), :parallel)
+    if !ismissing(coil_tech, :material)
+        mat_pf = FusionMaterials.Material(coil_tech)
+        sigma = mat_pf.electrical_conductivity
+        if ismissing(mat_pf) || ismissing(sigma)
+            coil.resistance = default_resistance
+        else
+            coil.resistance = resistance(coil.imas, 1.0 / sigma(; temperature=0.0), :parallel)
+        end
     end
 
     return coil
@@ -117,7 +119,7 @@ function dG_dZ(coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Re
     return _gfunc(dG_dZ, coil, R, Z)
 end
 
-function _gfunc(Gfunc::F1, coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=3, yorder::Int=3) where {F1 <: Function}
+function _gfunc(Gfunc::F1, coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=3, yorder::Int=3) where {F1<:Function}
     green_model = getfield(coil, :green_model)
 
     if green_model == :point # low-fidelity

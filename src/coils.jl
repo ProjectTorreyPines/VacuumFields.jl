@@ -414,7 +414,6 @@ function set_current!(mcoil::MultiCoil, current::Real)
     return mcoil
 end
 
-
 """
     encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Int)
 
