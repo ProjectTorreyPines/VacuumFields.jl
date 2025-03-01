@@ -140,27 +140,20 @@ end
 resistance(coil::AbstractSingleCoil) = coil.resistance
 
 function resistance(coil::IMAScoil{T}) where {T<:Real}
-    try
-        return coil.resistance
-    catch e
-        if e isa IMAS.IMASmissingDataException
-            return zero(T)
-        else
-            rethrow(e)
-        end
-    end
+    return ismissing(coil, :resistance) ? zero(T) : coil.resistance
 end
 
 turns(coil::AbstractSingleCoil) = coil.turns
 # VacuumFields turns are sign-less
 function turns(coil::IMAScoil; with_sign=false)
-    Nt = sum(element.turns_with_sign for element in elements(coil))
+    Nt = sum(turns(element) for element in elements(coil))
     return with_sign ? Nt : abs(Nt)
 end
 
 function turns(element::IMASelement; with_sign=false)
-    isempty(element) && return 0.0
-    Nt = ismissing(element, :turns_with_sign) ? 1.0 : element.turns_with_sign
+    T = eltype(element)
+    isempty(element) && return zero(T)
+    Nt = ismissing(element, :turns_with_sign) ? one(T) : element.turns_with_sign
     return with_sign ? Nt : abs(Nt)
 end
 

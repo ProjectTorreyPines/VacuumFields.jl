@@ -12,12 +12,13 @@
 @inline function _pfunc(Gfunc, coil::Union{AbstractSingleCoil, IMAScoil}, R::Real, Z::Real;
                         COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp,
                         coil_current::Real=current(coil))
-    return μ₀ * Bp_fac * Gfunc(coil, R, Z) * coil_current
+    return coil_current == 0.0 ? coil_current : μ₀ * Bp_fac * Gfunc(coil, R, Z) * coil_current
 end
 
 @inline function _pfunc(Gfunc, mcoil::MultiCoil, R::Real, Z::Real;
     COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp)
-    return μ₀ * Bp_fac * sum(Gfunc(coil, R, Z) * current(coil) for coil in mcoil.coils)
+    cG = (coil_current, coil) -> coil_current == 0.0 ? coil_current : coil_current * Gfunc(coil, R, Z) 
+    return μ₀ * Bp_fac * sum(cG(current(coil), coil) for coil in mcoil.coils)
 end
 
 # image flux
