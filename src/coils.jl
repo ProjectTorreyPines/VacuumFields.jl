@@ -423,16 +423,6 @@ function encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::
 end
 
 """
-    encircling_coils(shot::TEQUILA.Shot, n_coils::Int)
-
-Return a Vector of `n_coils` `PointCoil`s distributed outside of `shot`'s boundary
-"""
-function encircling_coils(shot::TEQUILA.Shot, n_coils::Int)
-    bnd_r, bnd_z = MillerExtendedHarmonic.MXH(shot.surfaces[:, end])()
-    return encircling_coils(bnd_r, bnd_z, n_coils)
-end
-
-"""
     encircling_coils(bnd_r::AbstractVector{T}, bnd_z::AbstractVector{T}, n_coils::Int) where {T<:Real}
 
 Return a Vector of `n_coils` `PointCoil`s distributed outside of closed boundary defined by `bnd_r` and `bnd_z`

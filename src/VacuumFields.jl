@@ -6,7 +6,6 @@ using Base.Threads
 using LinearAlgebra
 using RecipesBase
 import PlotUtils: cgrad
-import TEQUILA
 import FastGaussQuadrature: gausslegendre
 import StaticArrays: SMatrix, SVector
 import IMAS

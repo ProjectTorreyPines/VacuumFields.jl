@@ -67,8 +67,6 @@ function plasma_boundary_psi_w_fallback(EQ::MXHEquilibrium.AbstractEquilibrium)
     return Sb, ψb
 end
 
-plasma_boundary_psi_w_fallback(shot::TEQUILA.Shot, args...) = MXHEquilibrium.Boundary(MXHEquilibrium.MXH(shot, 1.0)()...), 0.0
-
 """
     fixed2free(
         EQfixed::MXHEquilibrium.AbstractEquilibrium,

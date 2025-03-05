@@ -21,15 +21,6 @@ function cumlength(R::T, Z::T) where {T<:AbstractVector{Float64}}
     return L
 end
 
-function Image(shot::TEQUILA.Shot)
-    bnd = @views MillerExtendedHarmonic.MXH(shot.surfaces[:, end])
-    return Image(shot, bnd)
-end
-function Image(shot::TEQUILA.Shot, bnd::MillerExtendedHarmonic.MXH; Nb::Integer=100 * (length(bnd.c) + 1))
-    image = Image(shot, bnd(Nb; adaptive=false)...)
-    return image
-end
-
 function Image(EQ::MXHEquilibrium.AbstractEquilibrium)
     Sb = MXHEquilibrium.plasma_boundary(EQ; precision=0.0)
     if Sb === nothing
