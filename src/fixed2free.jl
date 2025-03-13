@@ -57,6 +57,9 @@ function optimal_λ_regularize(
     λ_range_exp = min_exp:0.5:max_exp
     cost_λ = λ -> cost_λ_regularize(λ, coils, EQ, image; flux_cps, saddle_cps, iso_cps, ψbound, fixed_coils, Sb)
     costs = [log10(cost_λ(λ)) for λ in λ_range_exp]
+    index = [k for k in 1:length(costs) if !isinf(costs[k])]
+    costs = costs[index]
+    λ_range_exp = λ_range_exp[index]
     costs = (costs .- minimum(costs)) ./ (maximum(costs) - minimum(costs))
     costs = costs .+ range(1.0, 0.0, length(λ_range_exp)) .^ 4
     opti_λ = λ_range_exp[argmin(costs)]
