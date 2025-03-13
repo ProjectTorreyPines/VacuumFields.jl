@@ -13,9 +13,17 @@ function cost_λ_regularize(
     fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
-    _, cost = find_coil_currents!(coils, EQ, image; flux_cps, saddle_cps, iso_cps, ψbound, fixed_coils, λ_regularize=10^λ_exp, Sb)
-
-    return cost^2
+    try
+        _, cost = find_coil_currents!(coils, EQ, image; flux_cps, saddle_cps, iso_cps, ψbound, fixed_coils, λ_regularize=10^λ_exp, Sb)
+        return cost^2
+    catch e
+        if typeof(e) <: ArgumentError
+            # to handle: ArgumentError: matrix contains Infs or NaNs
+            return Inf
+        else
+            rethrow(e)
+        end
+    end
 end
 
 """
