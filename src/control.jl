@@ -138,13 +138,17 @@ function IsoControlPoints(Rs::AbstractVector{T}, Zs::AbstractVector{T}) where {T
     i_max = argmax(Rs)
     i_min = argmin(Rs)
     iso_cps = IsoControlPoint{T}[]
-    # interlaced
-    weight = 1.0 / N
-    for k in i_max:i_max+N
+    weight = 1.0 / (N - 1)
+    # connect i_min to i_max
+    push!(iso_cps, IsoControlPoint{T}(Rs[i_min], Zs[i_min], Rs[i_max], Zs[i_max], weight))
+    # then interlace the rest
+    for k in (i_max+1):(i_max+N-1) # exclude i_max explicitly
+        ck = IMAS.index_circular(N, k)
+        (ck == i_min) && continue # skip i_min... we did it first
         if mod(k, 2) == mod(i_max, 2)
-            push!(iso_cps, IsoControlPoint{T}(IMAS.getindex_circular(Rs, k), IMAS.getindex_circular(Zs, k), Rs[i_min], Zs[i_min], weight))
+            push!(iso_cps, IsoControlPoint{T}(Rs[ck], Zs[ck], Rs[i_min], Zs[i_min], weight))
         else
-            push!(iso_cps, IsoControlPoint{T}(IMAS.getindex_circular(Rs, k), IMAS.getindex_circular(Zs, k), Rs[i_max], Zs[i_max], weight))
+            push!(iso_cps, IsoControlPoint{T}(Rs[ck], Zs[ck], Rs[i_max], Zs[i_max], weight))
         end
     end
     return iso_cps
