@@ -17,7 +17,7 @@ end
 
 @inline function _pfunc(Gfunc, mcoil::MultiCoil, R::Real, Z::Real;
     COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp)
-    cG = (coil_current, coil) -> coil_current == 0.0 ? coil_current : coil_current * Gfunc(coil, R, Z) 
+    cG = (coil_current, coil) -> coil_current == 0.0 ? coil_current : coil_current * Gfunc(coil, R, Z)
     return μ₀ * Bp_fac * sum(cG(current(coil), coil) for coil in mcoil.coils)
 end
 

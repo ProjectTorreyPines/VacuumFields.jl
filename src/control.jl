@@ -279,19 +279,18 @@ end
 """
     find_coil_currents!(
         coils::AbstractVector{<:AbstractCoil},
-        EQ::MXHEquilibrium.AbstractEquilibrium,
-        image::Image;
+        ψpl::Interpolations.AbstractInterpolation,
         flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
         saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
         iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
         ψbound::Real=0.0,
         fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
         λ_regularize::Float64=0.0,
-        Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
+        cocos=MXHEquilibrium.cocos(11))
 
 Find the currents for `coils` that best match (leas-squares) the control points provided by `flux_cps`, `saddle_cps`, and `iso_cps`
 
-Assumes flux from  plasma current given by equilibrium `EQ` with image currents `image` and a `ψbound` flux at the boundary `Sb`
+Assumes flux from plasma current given by the ψpl interpolation and a `ψbound` flux at the boundary `Sb`
 
 Optionally assumes flux from additional `fixed_coils`, whose currents will not change
 
@@ -300,16 +299,53 @@ Optionally assumes flux from additional `fixed_coils`, whose currents will not c
 function find_coil_currents!(
     coils::AbstractVector{<:AbstractCoil},
     ψpl::Interpolations.AbstractInterpolation,
-    dψpl_dR::Union{Function,Interpolations.AbstractInterpolation}=(r, z) -> Interpolations.gradient(ψpl, r, z)[1],
-    dψpl_dZ::Union{Function,Interpolations.AbstractInterpolation}=(r, z) -> Interpolations.gradient(ψpl, r, z)[2];
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
     iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
-    ψbound::Real=0.0,
     fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
-    cocos=MXHEquilibrium.cocos(11),
-    Sb=nothing)
+    cocos=MXHEquilibrium.cocos(11))
+
+    dψpl_dR = (r, z) -> Interpolations.gradient(ψpl, r, z)[1]
+    dψpl_dZ = (r, z) -> Interpolations.gradient(ψpl, r, z)[2]
+    return find_coil_currents!(coils, ψpl, dψpl_dR, dψpl_dZ;
+                               flux_cps, saddle_cps, iso_cps,
+                               fixed_coils, λ_regularize, cocos)
+
+end
+
+"""
+    find_coil_currents!(
+        coils::AbstractVector{<:AbstractCoil},
+        ψpl::Union{Function,Interpolations.AbstractInterpolation},
+        dψpl_dR::Union{Function,Interpolations.AbstractInterpolation},
+        dψpl_dZ::Union{Function,Interpolations.AbstractInterpolation};
+        flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+        saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
+        iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
+        fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+        λ_regularize::Float64=0.0,
+        cocos=MXHEquilibrium.cocos(11))
+
+Find the currents for `coils` that best match (leas-squares) the control points provided by `flux_cps`, `saddle_cps`, and `iso_cps`
+
+Assumes flux and R/Z gradients from plasma current given by the ψpl, dψpl_dR, and dψpl_dZ interpolations and a `ψbound` flux at the boundary `Sb`
+
+Optionally assumes flux from additional `fixed_coils`, whose currents will not change
+
+`λ_regularize` provides regularization in the least-squares fitting
+"""
+function find_coil_currents!(
+    coils::AbstractVector{<:AbstractCoil},
+    ψpl::Union{Function,Interpolations.AbstractInterpolation},
+    dψpl_dR::Union{Function,Interpolations.AbstractInterpolation},
+    dψpl_dZ::Union{Function,Interpolations.AbstractInterpolation};
+    flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
+    iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
+    fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+    λ_regularize::Float64=0.0,
+    cocos=MXHEquilibrium.cocos(11))
 
     # First reset current in coils to unity
     for coil in coils
