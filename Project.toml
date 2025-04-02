@@ -1,7 +1,7 @@
 name = "VacuumFields"
 uuid = "9d9223b5-c5da-4bf4-abee-2a8bb6775a49"
 authors = ["Brendan Lyons <lyonsbc@fusion.gat.com> and contributors"]
-version = "3.1.1"
+version = "3.1.2"
 
 [deps]
 FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
