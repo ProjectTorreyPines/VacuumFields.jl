@@ -11,14 +11,17 @@
 # coil flux
 @inline function _pfunc(Gfunc, coil::Union{AbstractSingleCoil, IMAScoil}, R::Real, Z::Real;
                         COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp,
-                        coil_current::Real=current(coil))
-    return coil_current == 0.0 ? coil_current : μ₀ * Bp_fac * Gfunc(coil, R, Z) * coil_current
+                        coil_current_per_turn::Real=current_per_turn(coil))
+    return coil_current_per_turn == 0.0 ? coil_current_per_turn : μ₀ * Bp_fac * Gfunc(coil, R, Z) * coil_current_per_turn
 end
 
 @inline function _pfunc(Gfunc, mcoil::MultiCoil, R::Real, Z::Real;
-    COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp)
-    cG = (coil_current, coil) -> coil_current == 0.0 ? coil_current : coil_current * Gfunc(coil, R, Z)
-    return μ₀ * Bp_fac * sum(cG(current(coil), coil) for coil in mcoil.coils)
+                        COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp,
+                        coil_current_per_turn::Real=current_per_turn(mcoil))
+    if coil_current_per_turn == 0.0
+        return coil_current_per_turn
+    end
+    return sum(_pfunc(Gfunc, coil, R, Z; COCOS, Bp_fac, coil_current_per_turn) for coil in mcoil.coils)
 end
 
 # image flux

@@ -12,7 +12,7 @@ Abstract coil type
 """
 abstract type AbstractSingleCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractCoil end
 (::Type{T})(R, Z; resistance=0.0, turns=1) where {T<:AbstractSingleCoil} = T(R, Z, 0.0, resistance, turns)
-(::Type{T})(R, Z, current; resistance=0.0, turns=1) where {T<:AbstractSingleCoil} = T(R, Z, current, resistance, turns)
+(::Type{T})(R, Z, current_per_turn; resistance=0.0, turns=1) where {T<:AbstractSingleCoil} = T(R, Z, current_per_turn, resistance, turns)
 
 """
     PointCoil{T1, T2, T3, T4} <:  AbstractSingleCoil{T1, T2, T3, T4}
@@ -22,7 +22,7 @@ Point filament coil at scalar (R, Z) location
 mutable struct PointCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractSingleCoil{T1,T2,T3,T4}
     R::T1
     Z::T1
-    current::T2
+    current_per_turn::T2
     resistance::T3
     turns::T4
 end
@@ -40,7 +40,7 @@ mutable struct ParallelogramCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: Abstrac
     ΔZ::T1
     θ1::T1
     θ2::T1
-    current::T2
+    current_per_turn::T2
     resistance::T3
     turns::T4
 end
@@ -53,17 +53,17 @@ Quadrilateral coil with counter-clockwise corners (starting from lower left) at 
 mutable struct QuadCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real,VT1<:AbstractVector{T1}} <: AbstractSingleCoil{T1,T2,T3,T4}
     R::VT1
     Z::VT1
-    current::T2
+    current_per_turn::T2
     resistance::T3
     turns::T4
 
-    function QuadCoil(R::VT1, Z::VT1, current::T2, resistance::T3, turns::T4) where {VT1,T2,T3,T4}
+    function QuadCoil(R::VT1, Z::VT1, current_per_turn::T2, resistance::T3, turns::T4) where {VT1,T2,T3,T4}
         @assert length(R) == length(Z) == 4
         points = reverse!(IMAS.convex_hull!(collect(zip(R, Z)); closed_polygon=false)) # reverse to make ccw
         a, b = zip(points...)
         R = VT1(collect(a))
         Z = VT1(collect(b))
-        return new{eltype(VT1),T2,T3,T4,VT1}(R, Z, current, resistance, turns)
+        return new{eltype(VT1),T2,T3,T4,VT1}(R, Z, current_per_turn, resistance, turns)
     end
 end
 
@@ -75,7 +75,7 @@ Coil consisting of distributed filaments
 mutable struct DistributedCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractSingleCoil{T1,T2,T3,T4}
     R::Vector{T1}
     Z::Vector{T1}
-    current::T2
+    current_per_turn::T2
     resistance::T3
     turns::T4
 end
@@ -88,52 +88,41 @@ A coil consisting of multiple coils linke in series
 mutable struct MultiCoil{SC<:AbstractSingleCoil} <: AbstractCoil
     coils::Vector{SC}
     function MultiCoil(coils::Vector{SC}; copy_coils::Bool=true) where {SC<:AbstractSingleCoil}
-        Ic = sum(current(coil) for coil in coils)
+        total_turns = sum(turns(coil) for coil in coils)
+        Ic = sum(current_per_turn(coil) * turns(coil) for coil in coils)
         new_coils = copy_coils ? deepcopy(coils) : coils
         mcoil = new{SC}(new_coils)
-        set_current!(mcoil, Ic)
+        set_current_per_turn!(mcoil, Ic / total_turns)
         return mcoil
     end
 end
 
-current(coil::AbstractSingleCoil) = coil.current
+current_per_turn(coil::AbstractSingleCoil) = coil.current_per_turn
 
 elements(coil::Union{IMAScoil,IMASloop}) = Iterators.filter(!isempty, coil.element)
 
 # BCL 2/27/24
 # N.B.: Not sure about sign with turns and such
-function current(coil::IMAScoil)
+function current_per_turn(coil::IMAScoil)
     if ismissing(coil.current, :data)
         return 0.0
     end
-    cur_per_turn = IMAS.@ddtime(coil.current.data)
-    if cur_per_turn == 0.0
-        return cur_per_turn
-    else
-        return cur_per_turn * sum(turns(element; with_sign=true) for element in elements(coil))
-    end
+    return IMAS.@ddtime(coil.current.data)
 end
 
-function current(loop::IMASloop)
+function current_per_turn(loop::IMASloop)
     if ismissing(loop, :current)
         return 0.0
     end
-    cur_per_turn = IMAS.@ddtime(loop.current)
-    if cur_per_turn == 0.0
-        return cur_per_turn
-    else
-        return cur_per_turn * sum(turns(element; with_sign=true) for element in elements(loop))
-    end
+    return IMAS.@ddtime(loop.current)
 end
 
-@inline function set_current!(coil::AbstractSingleCoil, current::Real)
-    return coil.current = current
+@inline function set_current_per_turn!(coil::AbstractSingleCoil, current_per_turn::Real)
+    return coil.current_per_turn = current_per_turn
 end
 
-function set_current!(coil::IMAScoil, current::Real)
-    turns = sum(element.turns_with_sign for element in elements(coil))
-    ipt = current / turns
-    IMAS.@ddtime(coil.current.data = ipt)
+function set_current_per_turn!(coil::IMAScoil, current_per_turn::Real)
+    IMAS.@ddtime(coil.current.data = current_per_turn)
     return coil
 end
 
@@ -158,22 +147,22 @@ function turns(element::IMASelement; with_sign=false)
 end
 
 """
-    PointCoil(R, Z, current=0.0; resistance=0.0, turns=1)
+    PointCoil(R, Z, current_per_turn=0.0; resistance=0.0, turns=1)
 
 Return PointCoil, a point filament coil at scalar (R, Z) location
 """
-PointCoil(R, Z, current=0.0; resistance=0.0, turns=1) = PointCoil(R, Z, current, resistance, turns)
+PointCoil(R, Z,  current_per_turn=0.0; resistance=0.0, turns=1) = PointCoil(R, Z, current_per_turn, resistance, turns)
 
 
 
 """
-    ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current=0.0; resistance=0.0, turns=1)
+    ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current_per_turn=0.0; resistance=0.0, turns=1)
 
 Construct a ParallelogramCoil
 """
-function ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current=0.0; resistance=0.0, turns=1)
+function ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current_per_turn=0.0; resistance=0.0, turns=1)
     R, Z, ΔR, ΔZ, θ1, θ2 = promote(R, Z, ΔR, ΔZ, θ1, θ2)
-    return ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current, resistance, turns)
+    return ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current_per_turn, resistance, turns)
 end
 
 area(C::ParallelogramCoil) = area(C.ΔR, C.ΔZ, C.θ1, C.θ2)
@@ -186,11 +175,11 @@ end
 
 
 """
-    QuadCoil(R, Z, current=0.0; resistance=0.0, turns=1)
+    QuadCoil(R, Z, current_per_turn=0.0; resistance=0.0, turns=1)
 
 Construct a QuadCoil from corners defined by `R` and `Z`
 """
-QuadCoil(R, Z, current=0.0; resistance=0.0, turns=1) = QuadCoil(R, Z, current, resistance, turns)
+QuadCoil(R, Z, current_per_turn=0.0; resistance=0.0, turns=1) = QuadCoil(R, Z, current_per_turn, resistance, turns)
 
 """
     QuadCoil(pc::ParallelogramCoil)
@@ -202,14 +191,14 @@ function QuadCoil(pc::ParallelogramCoil)
     y = SVector(-1.0, -1.0, 1.0, 1.0)
     R = VacuumFields.Rplgm.(x, y, Ref(pc))
     Z = VacuumFields.Zplgm.(x, y, Ref(pc))
-    return QuadCoil(R, Z, pc.current; pc.resistance, pc.turns)
+    return QuadCoil(R, Z, current_per_turn(pc), resistance(pc), turns(pc))
 end
 
 function QuadCoil(elm::IMASelement, current_per_turn::Real=0.0, resistance_per_turn::Real=0.0)
     R, Z = IMAS.outline(elm)
     @assert length(R) == length(Z) == 4
     Nt = turns(elm)
-    return QuadCoil(R, Z, current_per_turn * Nt, resistance_per_turn * Nt, Nt)
+    return QuadCoil(R, Z, current_per_turn, resistance_per_turn * Nt, Nt)
 end
 
 function area(R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
@@ -281,21 +270,21 @@ end
 
 
 """
-    DistributedCoil(R::Vector{<:Real}, Z::Vector{<:Real}, current=0.0; resistance=0.0, turns=1)
+    DistributedCoil(R::Vector{<:Real}, Z::Vector{<:Real}, current_per_turn=0.0; resistance=0.0, turns=1)
 
 Construct a DistributedCoil from filaments defined by `R` and `Z` vectors
 """
-DistributedCoil(R::Vector{<:Real}, Z::Vector{<:Real}, current=0.0; resistance=0.0, turns=1) = DistributedCoil(R, Z, current, resistance, turns)
+DistributedCoil(R::Vector{<:Real}, Z::Vector{<:Real}, current_per_turn=0.0; resistance=0.0, turns=1) = DistributedCoil(R, Z, current_per_turn, resistance, turns)
 
 """
-    DistributedParallelogramCoil(Rc::T1, Zc::T1, ΔR::T1, ΔZ::T1, θ1::T1, θ2::T1, current::Real=0.0; spacing::Real=0.01, turns::Real=1) where {T1<:Real}
+    DistributedParallelogramCoil(Rc::T1, Zc::T1, ΔR::T1, ΔZ::T1, θ1::T1, θ2::T1, current_per_turn::Real=0.0; spacing::Real=0.01, turns::Real=1) where {T1<:Real}
 
 Create a DistributedCoil of filaments with `spacing` separation within
 a parallelogram defined by the R, Z, ΔR, ΔZ, θ1, θ2 formalism (as used by EFIT, for example)
 
 NOTE: if spacing <= 0.0 then current filaments are placed at the vertices
 """
-function DistributedParallelogramCoil(Rc::T1, Zc::T1, ΔR::T1, ΔZ::T1, θ1::T1, θ2::T1, current::Real=0.0; spacing::Real=0.01, turns::Real=1) where {T1<:Real}
+function DistributedParallelogramCoil(Rc::T1, Zc::T1, ΔR::T1, ΔZ::T1, θ1::T1, θ2::T1, current_per_turn::Real=0.0; spacing::Real=0.01, turns::Real=1) where {T1<:Real}
     if spacing <= 0.0
         dR = [-0.5 * ΔR, 0.5 * ΔR]
         dZ = [-0.5 * ΔZ, 0.5 * ΔZ]
@@ -319,7 +308,7 @@ function DistributedParallelogramCoil(Rc::T1, Zc::T1, ΔR::T1, ΔZ::T1, θ1::T1,
             @inbounds Z[k] = Zc + dZ[j] + α1 * dR[i]
         end
     end
-    return DistributedCoil(R, Z, current; turns)
+    return DistributedCoil(R, Z, current_per_turn; turns)
 end
 
 """
@@ -330,7 +319,7 @@ Create a DistributedCoil from an existing ParallelogramCoil, with filaments of `
 NOTE: if spacing <= 0.0 then current filaments are placed at the vertices of parallelogram
 """
 function DistributedCoil(C::ParallelogramCoil; spacing::Real=0.01)
-    return DistributedParallelogramCoil(C.R, C.Z, C.ΔR, C.ΔZ, C.θ1, C.θ2, C.current; spacing, C.turns)
+    return DistributedParallelogramCoil(C.R, C.Z, C.ΔR, C.ΔZ, C.θ1, C.θ2, current_per_turn(C); spacing, turns=turns(C))
 end
 
 
@@ -340,7 +329,7 @@ function MultiCoil(icoil::IMAScoil)
     total_turns = turns(icoil)
     resistance_per_turn = resistance(icoil) / total_turns
 
-    current_per_turn = current(icoil) / total_turns
+    current_per_turn = current_per_turn(icoil)
     return MultiCoil([QuadCoil(elm, current_per_turn, resistance_per_turn) for elm in elements(icoil)])
 end
 
@@ -352,8 +341,8 @@ function MultiCoil(loop::IMASloop)
         resistance_per_turn = 0.0
     end
 
-    # I'm assuming that pf_passive is like pf_passive and loop.current is current/turn like coil.current is
-    current_per_turn = ismissing(loop, :current) ? 0.0 : IMAS.@ddtime(loop.current)
+    # I'm assuming that pf_passive is like pf_active and loop.current is current/turn like coil.current is
+    current_per_turn = current_per_turn(loop)
 
     coils = [QuadCoil(elm, current_per_turn, resistance_per_turn) for elm in elements(loop)]
     if resistance_per_turn == 0.0 && !ismissing(loop, :resistivity)
@@ -367,7 +356,7 @@ end
 
 function is_active(coil::IMAScoil)
     funcs = (IMAS.index_2_name(coil.function)[f.index] for f in coil.function)
-    return (:shaping in funcs) && current(coil) != 0.0
+    return (:shaping in funcs) && current_per_turn(coil) != 0.0
 end
 
 function MultiCoils(dd::IMAS.dd{D}; load_pf_active::Bool=true, active_only::Bool=false, load_pf_passive::Bool=false) where {D<:Real}
@@ -393,16 +382,19 @@ function MultiCoils(pf_passive::IMAS.pf_passive)
     return [MultiCoil(loop) for loop in pf_passive.loop]
 end
 
-current(mcoil::MultiCoil) = sum(current(coil) for coil in mcoil.coils)
+function current_per_turn(mcoil::MultiCoil)
+    ipt = current_per_turn(mcoil.coils[1])
+    for coil in @view(mcoil.coils[2:end])
+        @assert current_per_turn(coil) == ipt "All coils in MultiCoil must have the same current per turn"
+    end
+    return ipt
+end
 resistance(mcoil::MultiCoil) = sum(resistance(coil) for coil in mcoil.coils)
 turns(mcoil::MultiCoil) = sum(turns(coil) for coil in mcoil.coils)
 
-function set_current!(mcoil::MultiCoil, current::Real)
-    total_turns = turns(mcoil)
-    current_per_turn = current / total_turns
+function set_current_per_turn!(mcoil::MultiCoil, current_per_turn::Real)
     for coil in mcoil.coils
-        Nt = turns(coil)
-        set_current!(coil, current_per_turn * Nt)
+        set_current_per_turn!(coil, current_per_turn)
     end
     return mcoil
 end
@@ -487,8 +479,8 @@ end
     end
 end
 
-max_current(coil::AbstractCoil) = abs(current(coil))
-max_current(mcoil::MultiCoil) = isempty(mcoil.coils) ? 0.0 : maximum(abs, current(coil) for coil in mcoil.coils)
+max_current(coil::AbstractCoil) = abs(current_per_turn(coil) * turns(coil))
+max_current(mcoil::MultiCoil) = isempty(mcoil.coils) ? 0.0 : maximum(abs, current_per_turn(coil) * turns(coil) for coil in mcoil.coils)
 max_current(icoil::IMAScoil) = ismissing(icoil.current, :data) ? 0.0 : (abs(IMAS.@ddtime(icoil.current.data) * maximum(turns(elm) for elm in icoil.element)))
 
 @recipe function plot_coils(coils::AbstractVector{<:AbstractCoil}; color_by=:current, cname=:diverging)
@@ -496,7 +488,7 @@ max_current(icoil::IMAScoil) = ismissing(icoil.current, :data) ? 0.0 : (abs(IMAS
         @assert color_by in (nothing, :current)
         if color_by === :current
             alpha --> nothing
-            currents = [current(coil) for coil in coils]
+            currents = [current_per_turn(coil) * turns(coil_) for coil in coils]
             CURRENT = maximum(max_current(coil) for coil in coils)
             if CURRENT > 1e6
                 currents = currents .* 1e-6
