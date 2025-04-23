@@ -329,8 +329,8 @@ function MultiCoil(icoil::IMAScoil)
     total_turns = turns(icoil)
     resistance_per_turn = resistance(icoil) / total_turns
 
-    current_per_turn = current_per_turn(icoil)
-    return MultiCoil([QuadCoil(elm, current_per_turn, resistance_per_turn) for elm in elements(icoil)])
+    Icpt = current_per_turn(icoil)
+    return MultiCoil([QuadCoil(elm, Icpt, resistance_per_turn) for elm in elements(icoil)])
 end
 
 function MultiCoil(loop::IMASloop)
@@ -342,9 +342,9 @@ function MultiCoil(loop::IMASloop)
     end
 
     # I'm assuming that pf_passive is like pf_active and loop.current is current/turn like coil.current is
-    current_per_turn = current_per_turn(loop)
+    Icpt = current_per_turn(loop)
 
-    coils = [QuadCoil(elm, current_per_turn, resistance_per_turn) for elm in elements(loop)]
+    coils = [QuadCoil(elm, Icpt, resistance_per_turn) for elm in elements(loop)]
     if resistance_per_turn == 0.0 && !ismissing(loop, :resistivity)
         for coil in coils
             coil.resistance = resistance(coil, loop.resistivity)
@@ -383,11 +383,11 @@ function MultiCoils(pf_passive::IMAS.pf_passive)
 end
 
 function current_per_turn(mcoil::MultiCoil)
-    ipt = current_per_turn(mcoil.coils[1])
+    Icpt = current_per_turn(mcoil.coils[1])
     for coil in @view(mcoil.coils[2:end])
-        @assert current_per_turn(coil) == ipt "All coils in MultiCoil must have the same current per turn"
+        @assert current_per_turn(coil) == Icpt "All coils in MultiCoil must have the same current per turn"
     end
-    return ipt
+    return Icpt
 end
 resistance(mcoil::MultiCoil) = sum(resistance(coil) for coil in mcoil.coils)
 turns(mcoil::MultiCoil) = sum(turns(coil) for coil in mcoil.coils)
@@ -488,7 +488,7 @@ max_current(icoil::IMAScoil) = ismissing(icoil.current, :data) ? 0.0 : (abs(IMAS
         @assert color_by in (nothing, :current)
         if color_by === :current
             alpha --> nothing
-            currents = [current_per_turn(coil) * turns(coil_) for coil in coils]
+            currents = [current_per_turn(coil) * turns(coil) for coil in coils]
             CURRENT = maximum(max_current(coil) for coil in coils)
             if CURRENT > 1e6
                 currents = currents .* 1e-6
