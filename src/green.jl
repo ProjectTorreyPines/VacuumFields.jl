@@ -21,7 +21,6 @@ function _gfunc(Gfunc::F1, element::IMASelement, R::Real, Z::Real, scale_factor:
     return integrate((X, Y) -> Gfunc(X, Y, R, Z, scale_factor), ol; xorder, yorder) * turns(element) / area(ol)
 end
 
-# N.B: Green for MultiCoil is *not* threadsafe since it may modify the current of the coil
 function _gfunc(Gfunc::F1, mcoil::MultiCoil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...) where {F1 <: Function}
     return sum(_gfunc(Gfunc, coil, R, Z, scale_factor; kwargs...) for coil in mcoil.coils)
 end
