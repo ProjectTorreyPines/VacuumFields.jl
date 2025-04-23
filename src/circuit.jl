@@ -22,7 +22,6 @@ end
 
 function update_coil_currents!(coils::CoilVectorType, current_per_turn::Real, signs::Vector{Int})
     for (k, coil) in enumerate(coils)
-        current = signs[k] * turns(coil) * current_per_turn
         set_current_per_turn!(coil, signs[k] * current_per_turn)
     end
     return coils
