@@ -50,6 +50,9 @@ export fixed2free, optimal_λ_regularize
 include("mutual.jl")
 export mutual, dM_dZ, d2M_dZ2, stability_margin, normalized_growth_rate
 
+include("imas_coils.jl")
+export GS_IMAS_pf_active__coil, IMAS_pf_active__coils
+
 const document = Dict()
 document[Symbol(@__MODULE__)] = [name for name in Base.names(@__MODULE__; all=false, imported=false) if name != Symbol(@__MODULE__)]
 
