@@ -70,9 +70,8 @@ function Base.getproperty(coil::GS_IMAS_pf_active__coil{T}, field::Symbol) where
     pfcoil = getfield(coil, :imas)
     if field ∈ (:r, :z, :width, :height)
         value = getfield(pfcoil.element[1].geometry.rectangle, field)
-    elseif field == :current
-        # IMAS uses current per turn, GS_IMAS_pf_active__coil uses total current
-        value = IMAS.get_time_array(pfcoil.current, :data, getfield(coil, :time0)) .* getproperty(pfcoil.element[1], :turns_with_sign, 1.0)
+    elseif field == :current_per_turn
+        value = IMAS.get_time_array(pfcoil.current, :data, getfield(coil, :time0))
     elseif field == :resistance
         value = getfield(pfcoil, field)
     elseif field == :turns
@@ -85,9 +84,7 @@ end
 
 function Base.setproperty!(coil::GS_IMAS_pf_active__coil, field::Symbol, value::Real)
     pfcoil = getfield(coil, :imas)
-    if field == :current
-        # IMAS uses current per turn, GS_IMAS_pf_active__coil uses total current
-        value = value ./ getproperty(pfcoil.element[1], :turns_with_sign, 1.0)
+    if field == :current_per_turn
         return IMAS.set_time_array(pfcoil.current, :data, getfield(coil, :time0), value)
     elseif field ∈ (:r, :z, :width, :height)
         return setfield!(pfcoil.element[1].geometry.rectangle, field, value)
