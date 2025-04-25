@@ -122,10 +122,10 @@ function _gfunc(Gfunc::F1, coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scal
     if green_model == :point # low-fidelity
         oute = IMAS.outline(coil.imas.element[1])
         rc0, zc0 = IMAS.centroid(oute.r, oute.z)
-        return Gfunc(rc0, zc0, R, Z)
+        return Gfunc(rc0, zc0, R, Z, scale_factor) * coil.turns
 
     elseif green_model == :quad # high-fidelity
-        return Gfunc(coil.imas, R, Z)
+        return Gfunc(coil.imas, R, Z, scale_factor; xorder, yorder)
 
     else
         error("$(typeof(coil)) green_model is `$(green_model)` but it can only be `:point` or `:quad`")
@@ -146,13 +146,15 @@ function mutual(C1::GS_IMAS_pf_active__coil, C2::GS_IMAS_pf_active__coil; xorder
     if gm1 === :quad && gm2 === :quad
         mutual(C1.imas, C2.imas; xorder, yorder)
     else
-        fac = -2π * μ₀ * C1.turns * C2.turns
+        fac = -2π * μ₀
         if gm1 === :point && gm2 === :point
-            return fac * Green(C1.r, C1.z, C2.r, C2.z)
+            return fac * C1.turns * C2.turns * Green(C1.r, C1.z, C2.r, C2.z)
         elseif gm1 === :point
-            return fac * Green(C2.imas, C1.r, C1.r)
+            # C2.turns inside Green
+            return fac * C1.turns * Green(C2.imas, C1.r, C1.r; xorder, yorder)
         else
-            return fac * Green(C1.imas, C2.r, C2.r)
+            # C1.turns inside Green
+            return fac * C2.turns * Green(C1.imas, C2.r, C2.r; xorder, yorder)
         end
     end
 end
@@ -161,7 +163,8 @@ function mutual(C1::AbstractCoil, C2::GS_IMAS_pf_active__coil; xorder::Int=3, yo
 
     green_model = getfield(C2, :green_model)
     if green_model == :point # fastest
-        fac = -2π * μ₀ * turns(C1) * C2.turns
+        # C1.turns inside Green
+        fac = -2π * μ₀ * C2.turns
         return fac * Green(C1, C2.r, C2.z)
 
     elseif green_model == :quad # high-fidelity
