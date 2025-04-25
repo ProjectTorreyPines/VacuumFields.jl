@@ -354,11 +354,6 @@ function MultiCoil(loop::IMASloop)
     return MultiCoil(coils)
 end
 
-function is_active(coil::IMAScoil)
-    funcs = (IMAS.index_2_name(coil.function)[f.index] for f in coil.function)
-    return (:shaping in funcs) && current_per_turn(coil) != 0.0
-end
-
 function MultiCoils(dd::IMAS.dd{D}; load_pf_active::Bool=true, active_only::Bool=false, load_pf_passive::Bool=false) where {D<:Real}
     if load_pf_active
         active_coils = MultiCoils(dd.pf_active; active_only)
@@ -399,6 +394,13 @@ function set_current_per_turn!(mcoil::MultiCoil, current_per_turn::Real)
     return mcoil
 end
 
+
+# IMAS related functions
+
+function is_active(coil::IMAScoil)
+    funcs = (IMAS.index_2_name(coil.function)[f.index] for f in coil.function)
+    return :shaping in funcs
+end
 """
     encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Int)
 
