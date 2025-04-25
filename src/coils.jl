@@ -414,8 +414,8 @@ function update_currents!(icoils::AbstractVector{<:IMAScoil}, coils::AbstractVec
         end
     else
         @assert length(icoils) == length(coils)
-        for (k, coil) in enumerate(coils)
-            VacuumFields.set_current_per_turn!(dd.pf_active.coil[k], VacuumFields.current_per_turn(coil))
+        for (k, icoil) in enumerate(icoils)
+            VacuumFields.set_current_per_turn!(icoil, VacuumFields.current_per_turn(coils[k]))
         end
     end
     return
