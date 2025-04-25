@@ -401,6 +401,26 @@ function is_active(coil::IMAScoil)
     funcs = (IMAS.index_2_name(coil.function)[f.index] for f in coil.function)
     return :shaping in funcs
 end
+
+function update_currents!(icoils::AbstractVector{<:IMAScoil}, coils::AbstractVector{<:AbstractCoil}; active_only::Bool=false)
+    if active_only
+        @assert sum(is_active, icoils) == length(coils)
+        k = 0
+        for icoil in icoils
+            if is_active(icoil)
+                k += 1
+                VacuumFields.set_current_per_turn!(icoil, VacuumFields.current_per_turn(coils[k]))
+            end
+        end
+    else
+        @assert length(icoils) == length(coils)
+        for (k, coil) in enumerate(coils)
+            VacuumFields.set_current_per_turn!(dd.pf_active.coil[k], VacuumFields.current_per_turn(coil))
+        end
+    end
+    return
+end
+
 """
     encircling_coils(EQfixed::MXHEquilibrium.AbstractEquilibrium, n_coils::Int)
 
