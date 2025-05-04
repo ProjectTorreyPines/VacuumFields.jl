@@ -80,6 +80,8 @@ mutable struct DistributedCoil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractS
     turns::T4
 end
 
+centroid(C::DistributedCoil) = (sum(C.R) / length(C.R), sum(C.Z) / length(C.Z))
+
 """
     MultiCoil{SC<:AbstractSingleCoil} <: AbstractCoil
 
@@ -153,7 +155,7 @@ Return PointCoil, a point filament coil at scalar (R, Z) location
 """
 PointCoil(R, Z,  current_per_turn=0.0; resistance=0.0, turns=1) = PointCoil(R, Z, current_per_turn, resistance, turns)
 
-
+centroid(C::PointCoil) = (C.R, C.Z)
 
 """
     ParallelogramCoil(R, Z, ΔR, ΔZ, θ1, θ2, current_per_turn=0.0; resistance=0.0, turns=1)
@@ -171,6 +173,15 @@ function area(ΔR, ΔZ, θ1, θ2)
     α1 = tan(deg2rad * θ1)
     α2 = tan(deg2rad * (θ2 + 90.0))
     return (1.0 + α1 * α2) * ΔR * ΔZ
+end
+
+function centroid(C::ParallelogramCoil)
+    x = SVector(-1.0, 1.0, 1.0, -1.0)
+    y = SVector(-1.0, -1.0, 1.0, 1.0)
+    R = VacuumFields.Rplgm.(x, y, Ref(C))
+    Z = VacuumFields.Zplgm.(x, y, Ref(C))
+    rc, zc = centroid(R, Z)
+    return rc, zc
 end
 
 
@@ -212,6 +223,39 @@ area(C::QuadCoil) = area(C.R, C.Z)
 area(coil::IMAScoil) = sum(area(element) for element in elements(coil))
 area(element::IMASelement) = area(IMAS.outline(element))
 area(ol::IMASoutline) = area(ol.r, ol.z)
+
+function centroid(R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
+    @assert length(R) == length(Z) == 4
+    rxz = R[4] * Z[1] - R[1] * Z[4]
+    rc = (R[4] + R[1]) * rxz
+    zc = (Z[4] + Z[1]) * rxz
+    for k in 1:3
+        rxz = R[k] * Z[k+1] - R[k+1] * Z[k]
+        rc += (R[k] + R[k+1]) * rxz
+        zc += (Z[k] + Z[k+1]) * rxz
+    end
+    A = area(R, Z)
+    rc /= 6.0 * A
+    zc /= 6.0 * A
+    return rc, zc
+end
+
+centroid(C::QuadCoil) = centroid(C.R, C.Z)
+function centroid(coil::IMAScoil)
+    elms = elements(coil)
+    Nelms = length(elms)
+    rc, zc = centroid(elms[1])
+    for k in 2:Nelms
+        r, z = centroid(elms[k])
+        rc += r
+        zc += z
+    end
+    rc /= Nelms
+    zc /= Nelms
+    return rc, zc
+end
+centroid(element::IMASelement) = centroid(IMAS.outline(element))
+centroid(ol::IMASoutline) = centroid(ol.r, ol.z)
 
 # compute the resistance given a resistitivity
 function resistance(coil::Union{ParallelogramCoil,QuadCoil,IMASelement}, resistivity::Real)
