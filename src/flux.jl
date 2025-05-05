@@ -21,7 +21,7 @@ end
     if coil_current_per_turn == 0.0
         return coil_current_per_turn
     end
-    return sum(_pfunc(Gfunc, coil, R, Z; COCOS, Bp_fac, coil_current_per_turn) for coil in mcoil.coils)
+    return sum(_pfunc(Gfunc, coil, R, Z; COCOS, Bp_fac, coil_current_per_turn) * mcoil.orientation[k] for (k, coil) in enumerate(mcoil.coils))
 end
 
 # image flux

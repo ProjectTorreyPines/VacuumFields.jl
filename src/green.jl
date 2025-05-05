@@ -22,7 +22,7 @@ function _gfunc(Gfunc::F1, element::IMASelement, R::Real, Z::Real, scale_factor:
 end
 
 function _gfunc(Gfunc::F1, mcoil::MultiCoil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...) where {F1 <: Function}
-    return sum(_gfunc(Gfunc, coil, R, Z, scale_factor; kwargs...) for coil in mcoil.coils)
+    return sum(_gfunc(Gfunc, coil, R, Z, scale_factor; kwargs...) * mcoil.orientation[k] for (k, coil) in enumerate(mcoil.coils))
 end
 
 # Generalized wrapper functions for all coil types

@@ -58,14 +58,21 @@ end
     @test 2π * VacuumFields.μ₀ * VacuumFields.Green(qcoil, R, Z) * VacuumFields.VacuumFields.current_per_turn(qcoil) ≈ VacuumFields.ψ(qcoil, R, Z)
     @test DistributedCoil(parcoil) isa DistributedCoil
 
-    mcoil = MultiCoil(coils)
-    Nc = length(coils)
-    @test VacuumFields.ψ(mcoil, 2.0, 0.0) ≈ sum(VacuumFields.ψ(coil, 2.0, 0.0) for coil in coils)
+    orientation = ones(Int, length(coils))
+    orientation[1:2:end] .= -1
+    mcoil = MultiCoil(coils, orientation)
+    VacuumFields.set_current_per_turn!(mcoil, Icpt)
     @test VacuumFields.current_per_turn(mcoil) ≈ Icpt
+    Nc = length(coils)
+    r, z = 2.0, 0.0
+    @test VacuumFields.ψ(mcoil, r, z) ≈ sum(VacuumFields.ψ(coil, r, z) * mcoil.orientation[k] for (k, coil) in enumerate(coils)) # these all have Icpt current/turn
+    @test VacuumFields.ψ(mcoil, r, z) ≈ sum(VacuumFields.ψ(coil, r, z) for (k, coil) in enumerate(mcoil.coils)) # these have Icpt current/turn with appropriate sign
+    @test VacuumFields.ψ(mcoil, r, z) ≈ 2π * VacuumFields.μ₀ * Icpt * sum(VacuumFields.Green(coil, r, z) * mcoil.orientation[k] for (k, coil) in enumerate(mcoil.coils))
+    @test VacuumFields.ψ(mcoil, r, z) ≈ 2π * VacuumFields.μ₀ * Icpt * VacuumFields.Green(mcoil, r, z)
     @test VacuumFields.resistance(mcoil) ≈ Nc * resistance
     @test VacuumFields.turns(mcoil) == Nc * turns
     VacuumFields.set_current_per_turn!(mcoil, 2.0 * Icpt)
-    @test VacuumFields.current_per_turn(mcoil.coils[1]) ≈ 2.0 * Icpt
+    @test VacuumFields.current_per_turn(mcoil.coils[1]) * mcoil.orientation[1] ≈ 2.0 * Icpt
 
     geqdsk = readg((@__DIR__) * "/equilibria/g184250.01740"; set_time=0.0)
     cc0 = cocos(geqdsk; clockwise_phi=false).cocos

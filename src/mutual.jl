@@ -38,9 +38,9 @@ function mutual(C1::Union{AbstractCoil, IMASelement}, C2::Union{ParallelogramCoi
 end
 
 function mutual(C1::Union{AbstractCoil, IMASelement}, mcoil::MultiCoil; kwargs...)
-    M = mutual(C1, mcoil.coils[1]; kwargs...)
+    M = mutual(C1, mcoil.coils[1]; kwargs...) * mcoil.orientation[1]
     for k in eachindex(mcoil.coils)[2:end]
-        M += mutual(C1, mcoil.coils[k]; kwargs...)
+        M += mutual(C1, mcoil.coils[k]; kwargs...) * mcoil.orientation[k]
     end
     return M
     #return sum(mutual(C1, C2; kwargs...) for C2 in mcoil.coils)
@@ -103,7 +103,7 @@ end
 function _pfunc(Pfunc::F1, image::Image, mcoil::MultiCoil, δZ;
                 COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
                 xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
-    return sum(_pfunc(Pfunc, image, coil, δZ; COCOS, xorder, yorder) for coil in mcoil.coils)
+    return sum(_pfunc(Pfunc, image, coil, δZ; COCOS, xorder, yorder) * mcoil.orientation[k] for (k, coil) in enumerate(mcoil.coils))
 end
 
 function _pfunc(Pfunc::F1, image::Image, C::Union{ParallelogramCoil, QuadCoil, IMASelement}, δZ;

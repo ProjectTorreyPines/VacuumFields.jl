@@ -87,11 +87,13 @@ A coil consisting of multiple coils linke in series
 """
 mutable struct MultiCoil{SC<:AbstractSingleCoil} <: AbstractCoil
     coils::Vector{SC}
-    function MultiCoil(coils::Vector{SC}; copy_coils::Bool=true) where {SC<:AbstractSingleCoil}
+    orientation::Vector{Int}
+    function MultiCoil(coils::Vector{SC}, orientation::Vector{Int}; copy_coils::Bool=true) where {SC<:AbstractSingleCoil}
+        @assert length(coils) == length(orientation)
         total_turns = sum(turns(coil) for coil in coils)
-        Ic = sum(current_per_turn(coil) * turns(coil) for coil in coils)
+        Ic = sum(current_per_turn(coil) * turns(coil) * orientation[k] for (k, coil) in enumerate(coils))
         new_coils = copy_coils ? deepcopy(coils) : coils
-        mcoil = new{SC}(new_coils)
+        mcoil = new{SC}(new_coils, orientation)
         set_current_per_turn!(mcoil, Ic / total_turns)
         return mcoil
     end
@@ -330,7 +332,9 @@ function MultiCoil(icoil::IMAScoil)
     resistance_per_turn = resistance(icoil) / total_turns
 
     Icpt = current_per_turn(icoil)
-    return MultiCoil([QuadCoil(elm, Icpt, resistance_per_turn) for elm in elements(icoil)])
+    orientation = [Int(sign(turns(elm; with_sign=true))) for elm in elements(icoil)]
+    coils = [QuadCoil(elm, Icpt * orientation[k], resistance_per_turn) for (k, elm) in enumerate(elements(icoil))]
+    return MultiCoil(coils, orientation)
 end
 
 function MultiCoil(loop::IMASloop)
@@ -343,15 +347,15 @@ function MultiCoil(loop::IMASloop)
 
     # I'm assuming that pf_passive is like pf_active and loop.current is current/turn like coil.current is
     Icpt = current_per_turn(loop)
-
-    coils = [QuadCoil(elm, Icpt, resistance_per_turn) for elm in elements(loop)]
+    orientation = [Int(sign(turns(elm; with_sign=true))) for elm in elements(loop)]
+    coils = [QuadCoil(elm, Icpt * orientation[k], resistance_per_turn) for (k, elm) in enumerate(elements(loop))]
     if resistance_per_turn == 0.0 && !ismissing(loop, :resistivity)
         for coil in coils
             coil.resistance = resistance(coil, loop.resistivity)
         end
     end
 
-    return MultiCoil(coils)
+    return MultiCoil(coils, orientation)
 end
 
 function MultiCoils(dd::IMAS.dd{D}; load_pf_active::Bool=true, active_only::Bool=false, load_pf_passive::Bool=false) where {D<:Real}
@@ -378,9 +382,9 @@ function MultiCoils(pf_passive::IMAS.pf_passive)
 end
 
 function current_per_turn(mcoil::MultiCoil)
-    Icpt = current_per_turn(mcoil.coils[1])
-    for coil in @view(mcoil.coils[2:end])
-        @assert current_per_turn(coil) == Icpt "All coils in MultiCoil must have the same current per turn"
+    Icpt = current_per_turn(mcoil.coils[1]) * mcoil.orientation[1]
+    for (k, coil) in enumerate(mcoil.coils)
+        @assert current_per_turn(coil) * mcoil.orientation[k] == Icpt "All coils in MultiCoil must have the same current per turn"
     end
     return Icpt
 end
@@ -388,8 +392,8 @@ resistance(mcoil::MultiCoil) = sum(resistance(coil) for coil in mcoil.coils)
 turns(mcoil::MultiCoil) = sum(turns(coil) for coil in mcoil.coils)
 
 function set_current_per_turn!(mcoil::MultiCoil, current_per_turn::Real)
-    for coil in mcoil.coils
-        set_current_per_turn!(coil, current_per_turn)
+    for (k, coil) in enumerate(mcoil.coils)
+        set_current_per_turn!(coil, current_per_turn * mcoil.orientation[k])
     end
     return mcoil
 end
