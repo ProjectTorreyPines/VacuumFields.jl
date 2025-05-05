@@ -398,6 +398,13 @@ function set_current_per_turn!(mcoil::MultiCoil, current_per_turn::Real)
     return mcoil
 end
 
+function update_orientation!(mcoil::MultiCoil, orientation::Vector{Int})
+    @assert length(mcoil.coils) == length(orientation)
+    Icpt = current_per_turn(mcoil)
+    mcoil.orientation = orientation
+    set_current_per_turn!(mcoil, Icpt)
+    return mcoil
+end
 
 # IMAS related functions
 
