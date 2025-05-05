@@ -6,9 +6,10 @@ import DelimitedFiles
 using Plots
 using MAT
 
-const Ip = 1e5
+const Ic = 1e5
 const resistance = 1e-6
-const turns = 2
+const turns = 10
+const Icpt = Ic / turns
 
 const coils_D3D_matrix = [
     [8.6080e-01 1.6830e-01 5.0800e-02 3.2110e-01 0.0000e+00 9.0000e+01]
@@ -30,7 +31,7 @@ const coils_D3D_matrix = [
     [1.2524e+00 -1.6027e+00 2.3490e-01 8.5100e-02 0.0000e+00 9.0000e+01]
     [1.6889e+00 -1.5780e+00 1.6940e-01 1.3310e-01 0.0000e+00 9.0000e+01]]
 
-const coils = [QuadCoil(ParallelogramCoil(pg..., Ip; resistance, turns)) for pg in eachrow(coils_D3D_matrix)]
+const coils = [QuadCoil(ParallelogramCoil(pg..., Icpt; resistance, turns)) for pg in eachrow(coils_D3D_matrix)]
 
 
 function load_par(params)
@@ -47,34 +48,38 @@ end
 
 @testset "VacuumFields.jl" begin
 
-    @test PointCoil(coils_D3D_matrix[1, 1], coils_D3D_matrix[1, 2], Ip; resistance, turns) isa PointCoil
-    parcoil = ParallelogramCoil(coils_D3D_matrix[1, :]..., Ip; resistance, turns)
+    @test PointCoil(coils_D3D_matrix[1, 1], coils_D3D_matrix[1, 2], Icpt; resistance, turns) isa PointCoil
+    parcoil = ParallelogramCoil(coils_D3D_matrix[1, :]..., Icpt; resistance, turns)
     @test parcoil isa ParallelogramCoil
     @test QuadCoil(parcoil) isa QuadCoil
-    qcoil = QuadCoil([1.0, 2.0, 3.0, 1.0], [-1.0, -1.0, 2.0, 1.0], Ip; resistance, turns)
+    qcoil = QuadCoil([1.0, 2.0, 3.0, 1.0], [-1.0, -1.0, 2.0, 1.0], Icpt; resistance, turns)
     @test VacuumFields.area(qcoil) ≈ 3.5
     R, Z = 10.0, 10.0
-    @test 2π * VacuumFields.μ₀ * VacuumFields.Green(qcoil, R, Z) * VacuumFields.VacuumFields.current(qcoil) ≈ VacuumFields.ψ(qcoil, R, Z)
+    @test 2π * VacuumFields.μ₀ * VacuumFields.Green(qcoil, R, Z) * VacuumFields.VacuumFields.current_per_turn(qcoil) ≈ VacuumFields.ψ(qcoil, R, Z)
     @test DistributedCoil(parcoil) isa DistributedCoil
 
-    mcoil = MultiCoil(coils)
+    orientation = ones(Int, length(coils))
+    orientation[1:2:end] .= -1
+    mcoil = MultiCoil(coils, orientation)
+    VacuumFields.set_current_per_turn!(mcoil, Icpt)
+    @test VacuumFields.current_per_turn(mcoil) ≈ Icpt
     Nc = length(coils)
-    @test VacuumFields.ψ(mcoil, 2.0, 0.0) ≈ sum(VacuumFields.ψ(coil, 2.0, 0.0) for coil in coils)
-    @test VacuumFields.current(mcoil) ≈ Nc * Ip
+    r, z = 2.0, 0.0
+    @test VacuumFields.ψ(mcoil, r, z) ≈ sum(VacuumFields.ψ(coil, r, z) * mcoil.orientation[k] for (k, coil) in enumerate(coils)) # these all have Icpt current/turn
+    @test VacuumFields.ψ(mcoil, r, z) ≈ sum(VacuumFields.ψ(coil, r, z) for (k, coil) in enumerate(mcoil.coils)) # these have Icpt current/turn with appropriate sign
+    @test VacuumFields.ψ(mcoil, r, z) ≈ 2π * VacuumFields.μ₀ * Icpt * sum(VacuumFields.Green(coil, r, z) * mcoil.orientation[k] for (k, coil) in enumerate(mcoil.coils))
+    @test VacuumFields.ψ(mcoil, r, z) ≈ 2π * VacuumFields.μ₀ * Icpt * VacuumFields.Green(mcoil, r, z)
     @test VacuumFields.resistance(mcoil) ≈ Nc * resistance
     @test VacuumFields.turns(mcoil) == Nc * turns
-    Ic1 = VacuumFields.current(coils[1])
-    VacuumFields.set_current!(mcoil, Ip)
-    @test VacuumFields.current(mcoil.coils[1]) ≈ Ip / Nc
-    VacuumFields.set_current!(mcoil, Nc * Ip)
-    @test VacuumFields.current(mcoil.coils[1]) ≈ Ip
+    VacuumFields.set_current_per_turn!(mcoil, 2.0 * Icpt)
+    @test VacuumFields.current_per_turn(mcoil.coils[1]) * mcoil.orientation[1] ≈ 2.0 * Icpt
 
     geqdsk = readg((@__DIR__) * "/equilibria/g184250.01740"; set_time=0.0)
     cc0 = cocos(geqdsk; clockwise_phi=false).cocos
     EQ = efit(transform_cocos(geqdsk, cc0, 11), 11)
 
     vars = matread((@__DIR__) * "/equilibria/d3d_vs_eq3_.mat")
-    matcoils = [ParallelogramCoil(load_par(vars["fcdata"][:,k])..., vars["Ic"][2+k] * Int(vars["fcnturn"][k]); resistance=vars["Rc"][k], turns=Int(vars["fcnturn"][k])) for k in eachindex(vars["fcnturn"])]
+    matcoils = [ParallelogramCoil(load_par(vars["fcdata"][:,k])..., vars["Ic"][2+k]; resistance=vars["Rc"][k], turns=Int(vars["fcnturn"][k])) for k in eachindex(vars["fcnturn"])]
     append!(matcoils, ParallelogramCoil(load_par(vars["vvdata"][:,k])...; resistance=vars["Rv"][k]) for k in eachindex(vars["Rv"]))
 
     @test isapprox(stability_margin(EQ, matcoils), vars["stability"]["m_s_noe"]; rtol=5e-2)
@@ -125,15 +130,15 @@ end
 
     ix = argmin(gfree.zbbbs)
     Rx, Zx = gfree.rbbbs[ix], gfree.zbbbs[ix]
-
+    saddle_cps = [SaddleControlPoint(Rx, Zx)]
     for cc in ccs
         println("Testing for COCOS ", cc)
         Gfixed = efit(transform_cocos(gfixed, cc0, cc), cc)
         Gfree = efit(transform_cocos(gfree, cc0, cc), cc)
         _, ψbound = psi_limits(Gfree)
         flux_cps = boundary_control_points(Gfree, 0.999, ψbound)
-        saddle_cps = [SaddleControlPoint(Rx, Zx)]
-        currents, _ = find_coil_currents!(coils, Gfixed; flux_cps, saddle_cps, λ_regularize=1e-14)
+        currents_per_turn, _ = find_coil_currents!(coils, Gfixed; flux_cps, saddle_cps, λ_regularize=1e-14)
+        currents = currents_per_turn .* VacuumFields.turns.(coils)
         if cc < 10
             good_currents = good_currents_sd
         else
@@ -203,13 +208,15 @@ end
 
         # Currents with ψbound=0
         flux_cps = boundary_control_points(Gfixed, 0.999, 0.0)
-        c0, _ = find_coil_currents!(coils, Gfixed; flux_cps, λ_regularize=1e-14)
+        cpt0, _ = find_coil_currents!(coils, Gfixed; flux_cps, λ_regularize=1e-14)
+        c0 = cpt0 .* VacuumFields.turns.(coils)
 
         plot!(c0; linewidth=3, linecolor=:red)
 
         # Currents with ψbound from EFIT
         flux_cps = boundary_control_points(Gfixed, 0.999, ψbound)
-        cb, _ = find_coil_currents!(coils, Gfixed; flux_cps, λ_regularize=1e-14)
+        cptb, _ = find_coil_currents!(coils, Gfixed; flux_cps, λ_regularize=1e-14)
+        cb = cptb .* VacuumFields.turns.(coils)
         plot!(cb; linewidth=3, linecolor=:blue)
         display(p)
 

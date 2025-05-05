@@ -9,7 +9,7 @@
 Compute the mutual inductance between an arbitrary coil or `IMAS.pf_active__coil___element` and a PointCoil
 """
 function mutual(C1::Union{AbstractCoil, IMASelement}, C2::PointCoil; kwargs...)
-    fac = -2π * μ₀ * turns(C1) * turns(C2)
+    fac = -2π * μ₀ * turns(C2)
     return fac * Green(C1, C2.R, C2.Z; kwargs...)
 end
 
@@ -19,7 +19,7 @@ end
 Compute the mutual inductance between an arbitrary coil or `IMAS.pf_active__coil___element` and a DistributedCoil
 """
 function mutual(C1::Union{AbstractCoil, IMASelement}, C2::DistributedCoil; kwargs...)
-    fac = -2π * μ₀ * turns(C1) * turns(C2)
+    fac = -2π * μ₀ * turns(C2)
     return fac * sum(Green(C1, C2.R[k], C2.Z[k]; kwargs...) for k in eachindex(C2.R)) / length(C2.R)
 end
 
@@ -32,15 +32,15 @@ Compute the mutual inductance between an arbitrary coil or `IMAS.pf_active__coil
 `xorder` and `yorder` give the order of Gauss-Legendre quadrature for integration over the coil area
 """
 function mutual(C1::Union{AbstractCoil, IMASelement}, C2::Union{ParallelogramCoil, QuadCoil, IMASelement}; xorder::Int=3, yorder::Int=3)
-    fac = -2π * μ₀ * turns(C1) * turns(C2)
+    fac = -2π * μ₀ * turns(C2)
     f = (r, z) -> Green(C1, r, z; xorder = xorder+1, yorder = yorder+1)
     return fac * integrate(f, C2; xorder, yorder) / area(C2)
 end
 
 function mutual(C1::Union{AbstractCoil, IMASelement}, mcoil::MultiCoil; kwargs...)
-    M = mutual(C1, mcoil.coils[1]; kwargs...)
+    M = mutual(C1, mcoil.coils[1]; kwargs...) * mcoil.orientation[1]
     for k in eachindex(mcoil.coils)[2:end]
-        M += mutual(C1, mcoil.coils[k]; kwargs...)
+        M += mutual(C1, mcoil.coils[k]; kwargs...) * mcoil.orientation[k]
     end
     return M
     #return sum(mutual(C1, C2; kwargs...) for C2 in mcoil.coils)
@@ -103,7 +103,7 @@ end
 function _pfunc(Pfunc::F1, image::Image, mcoil::MultiCoil, δZ;
                 COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
                 xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
-    return sum(_pfunc(Pfunc, image, coil, δZ; COCOS, xorder, yorder) for coil in mcoil.coils)
+    return sum(_pfunc(Pfunc, image, coil, δZ; COCOS, xorder, yorder) * mcoil.orientation[k] for (k, coil) in enumerate(mcoil.coils))
 end
 
 function _pfunc(Pfunc::F1, image::Image, C::Union{ParallelogramCoil, QuadCoil, IMASelement}, δZ;
@@ -219,8 +219,8 @@ First introduced in A. Portone, Nucl. Fusion 45 (2005) 926–932. https://doi.or
 """
 function stability_margin(image::Image, coils::Vector{<:Union{AbstractCoil, IMAScoil}}, Ip::Real; order::Int=default_order)
     b = [Ip * dM_dZ(image, C, Ip) for C in coils]
-    Ktmp = (current_coil, coil) -> current_coil == 0.0 ? current_coil : current_coil / turns(coil) * d2M_dZ2(image, coil, Ip)
-    K = Ip * sum(Ktmp(current(C), C) for C in coils)
+    Ktmp = (coil_current_per_turn, coil) -> coil_current_per_turn == 0.0 ? coil_current_per_turn : coil_current_per_turn * d2M_dZ2(image, coil, Ip)
+    K = Ip * sum(Ktmp(current_per_turn(C), C) for C in coils)
     M = zeros(length(coils), length(coils))
     for j in eachindex(coils)
         for k in eachindex(coils)
@@ -258,8 +258,8 @@ This is the massless approximation and only use the passive conductors for compu
 """
 function normalized_growth_rate(image::Image, coils::Vector{<:Union{AbstractCoil, IMAScoil}}, Ip::Real; order::Int=default_order)
     b = [Ip * dM_dZ(image, C, Ip) for C in coils]
-    Ktmp = (current_coil, coil) -> current_coil == 0.0 ? current_coil : current_coil / turns(coil) * d2M_dZ2(image, coil, Ip)
-    K = Ip * sum(Ktmp(current(C), C) for C in coils)
+    Ktmp = (coil_current_per_turn, coil) -> coil_current_per_turn == 0.0 ? coil_current_per_turn : coil_current_per_turn * d2M_dZ2(image, coil, Ip)
+    K = Ip * sum(Ktmp(current_per_turn(C), C) for C in coils)
     M = zeros(length(coils), length(coils))
     for j in eachindex(coils)
         for k in eachindex(coils)
@@ -288,7 +288,7 @@ function normalized_growth_rate(image::Image, coils::Vector{<:Union{AbstractCoil
     D, V = eigen(A0)
     dmax = argmax(real.(D))
     γ = real(D[dmax])
-    passive = [current(C) == 0.0 for C in coils]
+    passive = [current_per_turn(C) == 0.0 for C in coils]
     @views v = V[passive, dmax]
     @views τ = dot(v, M[passive, passive], v) / dot(v, R[passive, passive], v)
     return γ, τ, γ * τ

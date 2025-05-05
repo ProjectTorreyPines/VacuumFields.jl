@@ -1,38 +1,28 @@
 # Generalized functions for specific coil types
 
 function _gfunc(Gfunc::F1, C::PointCoil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
-    return Gfunc(C.R, C.Z, R, Z, scale_factor)
+    return Gfunc(C.R, C.Z, R, Z, scale_factor) * turns(C)
 end
 
 function _gfunc(Gfunc::F1, C::Union{ParallelogramCoil, QuadCoil}, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order)  where {F1 <: Function}
-    return integrate((X, Y) -> Gfunc(X, Y, R, Z, scale_factor), C; xorder, yorder) / area(C)
+    return integrate((X, Y) -> Gfunc(X, Y, R, Z, scale_factor), C; xorder, yorder) * turns(C) / area(C)
 end
 
 function _gfunc(Gfunc::F1, C::DistributedCoil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
-    return sum(Gfunc(C.R[k], C.Z[k], R, Z, scale_factor) for k in eachindex(C.R)) / length(C.R)
+    return sum(Gfunc(C.R[k], C.Z[k], R, Z, scale_factor) for k in eachindex(C.R)) * turns(C) / length(C.R)
 end
 
 function _gfunc(Gfunc::F1, C::IMAScoil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
-    Nt = turns(C)
-    return sum(turns(element) * _gfunc(Gfunc, element, R, Z, scale_factor; xorder, yorder) for element in elements(C)) / Nt
+    return sum(_gfunc(Gfunc, element, R, Z, scale_factor; xorder, yorder) for element in elements(C))
 end
 
 function _gfunc(Gfunc::F1, element::IMASelement, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
-    return _gfunc(Gfunc, IMAS.outline(element), R, Z, scale_factor; xorder, yorder)
+    ol = IMAS.outline(element)
+    return integrate((X, Y) -> Gfunc(X, Y, R, Z, scale_factor), ol; xorder, yorder) * turns(element) / area(ol)
 end
 
-function _gfunc(Gfunc::F1, ol::IMASoutline, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
-    return integrate((X, Y) -> Gfunc(X, Y, R, Z, scale_factor), ol; xorder, yorder) / area(ol)
-end
-
-# N.B: Green for MultiCoil is *not* threadsafe since it may modify the current of the current
 function _gfunc(Gfunc::F1, mcoil::MultiCoil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...) where {F1 <: Function}
-    Ic = current(mcoil)
-    Ic == 0.0 && set_current!(mcoil, 1.0)
-    cG = (coil_current, coil) -> coil_current == 0.0 ? coil_current : coil_current * _gfunc(Gfunc, coil, R, Z, scale_factor; kwargs...)
-    G = sum(cG(current(coil), coil)  for coil in mcoil.coils) / current(mcoil)
-    Ic == 0.0 && set_current!(mcoil, Ic)
-    return G
+    return sum(_gfunc(Gfunc, coil, R, Z, scale_factor; kwargs...) * mcoil.orientation[k] for (k, coil) in enumerate(mcoil.coils))
 end
 
 # Generalized wrapper functions for all coil types

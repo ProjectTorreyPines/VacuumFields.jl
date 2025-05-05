@@ -244,36 +244,12 @@ function find_coil_currents!(
     λ_regularize::Float64=0.0,
     Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1])
 
-    # First reset current in coils to unity
-    for coil in coils
-        set_current!(coil, 1.0)
-    end
-
     N = length(flux_cps) + 2 * length(saddle_cps) + length(iso_cps)
-    A = zeros(N, length(coils))
     b = zeros(N)
-
     init_b!(b, EQ, image; flux_cps, saddle_cps, iso_cps, ψbound, Sb)
     cocos = MXHEquilibrium.cocos(EQ)
-    populate_Ab!(A, b, coils; flux_cps, saddle_cps, iso_cps, fixed_coils, cocos)
-
-    # Least-squares solve for coil currents
-    if λ_regularize > 0
-        # Least-squares with regularization
-        # https://www.youtube.com/watch?v=9BckeGN0sF0
-        Ic0 = reg_solve(A, b, λ_regularize / length(coils)^2)
-    else
-        Ic0 = A \ b
-    end
-
-    # update values of coils current
-    for (k, coil) in enumerate(coils)
-        set_current!(coil, Ic0[k])
-    end
-
-    cost = norm(A * Ic0 .- b) / norm(b)
-
-    return Ic0, cost
+    return _find_coil_currents!(coils, b; flux_cps, saddle_cps, iso_cps,
+                                fixed_coils, λ_regularize, cocos)
 end
 
 """
@@ -347,35 +323,11 @@ function find_coil_currents!(
     λ_regularize::Float64=0.0,
     cocos=MXHEquilibrium.cocos(11))
 
-    # First reset current in coils to unity
-    for coil in coils
-        set_current!(coil, 1.0)
-    end
-
     N = length(flux_cps) + 2 * length(saddle_cps) + length(iso_cps)
-    A = zeros(N, length(coils))
     b = zeros(N)
-
     init_b!(b, ψpl, dψpl_dR, dψpl_dZ; flux_cps, saddle_cps, iso_cps)
-    populate_Ab!(A, b, coils; flux_cps, saddle_cps, iso_cps, fixed_coils, cocos)
-
-    # Least-squares solve for coil currents
-    if λ_regularize > 0
-        # Least-squares with regularization
-        # https://www.youtube.com/watch?v=9BckeGN0sF0
-        Ic0 = reg_solve(A, b, λ_regularize / length(coils)^2)
-    else
-        Ic0 = A \ b
-    end
-
-    # update values of coils current
-    for (k, coil) in enumerate(coils)
-        set_current!(coil, Ic0[k])
-    end
-
-    cost = norm(A * Ic0 .- b) / norm(b)
-
-    return Ic0, cost
+    _find_coil_currents!(coils, b; flux_cps, saddle_cps, iso_cps,
+                         fixed_coils, λ_regularize, cocos)
 end
 
 """
@@ -479,15 +431,28 @@ function find_coil_currents!(
     λ_regularize::Float64=0.0,
     cocos=MXHEquilibrium.cocos(11))
 
+    N = length(flux_cps) + 2 * length(saddle_cps) + length(iso_cps)
+    b = zeros(N)
+    return _find_coil_currents!(coils, b; flux_cps, saddle_cps, iso_cps,
+                                fixed_coils, λ_regularize, cocos)
+end
+
+function _find_coil_currents!(coils::AbstractVector{<:AbstractCoil},
+                              b::AbstractVector{<:Real};
+                              flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+                              saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
+                              iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
+                              fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
+                              λ_regularize::Float64=0.0,
+                              cocos=MXHEquilibrium.cocos(11))
     # First reset current in coils to unity
     for coil in coils
-        set_current!(coil, 1.0)
+        set_current_per_turn!(coil, 1.0/turns(coil))
     end
 
     N = length(flux_cps) + 2 * length(saddle_cps) + length(iso_cps)
+    @assert length(b) == N
     A = zeros(N, length(coils))
-    b = zeros(N)
-
     populate_Ab!(A, b, coils; flux_cps, saddle_cps, iso_cps, fixed_coils, cocos)
 
     # Least-squares solve for coil currents
@@ -498,13 +463,14 @@ function find_coil_currents!(
     else
         Ic0 = A \ b
     end
+    #Ic0 here is "total current" in each coil
+    cost = norm(A * Ic0 .- b) / norm(b)
 
     # update values of coils current
     for (k, coil) in enumerate(coils)
-        set_current!(coil, Ic0[k])
+        Ic0[k] /= turns(coil) # convert to current per turn
+        set_current_per_turn!(coil, Ic0[k])
     end
-
-    cost = norm(A * Ic0 .- b) / norm(b)
 
     return Ic0, cost
 end
