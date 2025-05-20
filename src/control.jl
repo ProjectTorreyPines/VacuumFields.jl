@@ -500,16 +500,17 @@ function init_b(
     ψpl::Union{Function,Interpolations.AbstractInterpolation},
     dψpl_dR::Union{Function,Interpolations.AbstractInterpolation},
     dψpl_dZ::Union{Function,Interpolations.AbstractInterpolation};
-    flux_cps::Vector{FluxControlPoint{T}}=FluxControlPoint{Float64}[],
-    saddle_cps::Vector{SaddleControlPoint{T}}=SaddleControlPoint{Float64}[],
-    iso_cps::Vector{IsoControlPoint{T}}=IsoControlPoint{Float64}[]) where {T<:Real}
+    flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
+    iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[])
 
     Nflux = length(flux_cps)
     Nsaddle = length(saddle_cps)
     Niso = length(iso_cps)
     N = Nflux + 2 * Nsaddle + Niso
 
-    b = zeros(N)
+    T = eltype(iso_cps).parameters[1]
+    b = zeros(T, N)
 
     for i in eachindex(flux_cps)
         cp = flux_cps[i]
@@ -570,9 +571,9 @@ function init_b(
 end
 
 function offset_b!(b::AbstractVector{T};
-    flux_cps::Vector{FluxControlPoint{T}}=FluxControlPoint{Float64}[],
-    saddle_cps::Vector{SaddleControlPoint{T}}=SaddleControlPoint{Float64}[],
-    iso_cps::Vector{IsoControlPoint{T}}=IsoControlPoint{Float64}[],
+    flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
+    iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
     fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     cocos=MXHEquilibrium.cocos(11)) where {T<:Real}
 
@@ -621,8 +622,9 @@ function offset_b!(b::AbstractVector{T};
     end
 
     if !isempty(iso_cps)
-        r1_old, z1_old, r2_old, z2_old = -one(T), zero(T), -one(T), zero(T)
-        ψf1_old, ψf2_old = zero(T), zero(T)
+        S = promote_type(T, eltype(iso_cps).parameters[1])
+        r1_old, z1_old, r2_old, z2_old = -one(S), zero(S), -one(S), zero(S)
+        ψf1_old, ψf2_old = zero(S), zero(S)
         for i in eachindex(iso_cps)
             cp = iso_cps[i]
             r1, z1 = cp.R1, cp.Z1
@@ -663,10 +665,10 @@ function offset_b!(b::AbstractVector{T};
 end
 
 function define_A(coils::AbstractVector{<:AbstractCoil};
-    flux_cps::Vector{FluxControlPoint{T}}=FluxControlPoint{Float64}[],
-    saddle_cps::Vector{SaddleControlPoint{T}}=SaddleControlPoint{Float64}[],
-    iso_cps::Vector{IsoControlPoint{T}}=IsoControlPoint{Float64}[],
-    cocos=MXHEquilibrium.cocos(11)) where {T<:Real}
+    flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
+    iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
+    cocos=MXHEquilibrium.cocos(11))
 
     Nflux = length(flux_cps)
     Nsaddle = length(saddle_cps)
@@ -715,6 +717,7 @@ function define_A(coils::AbstractVector{<:AbstractCoil};
     end
 
     if !isempty(iso_cps)
+        T = eltype(iso_cps).parameters[1]
         r1_old, z1_old, r2_old, z2_old = -one(T), zero(T), -one(T), zero(T)
         Ncoil = length(coils)
         ψc1_old, ψc2_old = Vector{T}(undef, Ncoil), Vector{T}(undef, Ncoil)
