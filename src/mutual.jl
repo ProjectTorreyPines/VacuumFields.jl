@@ -222,7 +222,7 @@ function stability_margin(image::Image, coils::Vector{<:Union{AbstractCoil, IMAS
     Ktmp = (coil_current_per_turn, coil) -> coil_current_per_turn == 0.0 ? coil_current_per_turn : coil_current_per_turn * d2M_dZ2(image, coil, Ip)
     K = Ip * sum(Ktmp(current_per_turn(C), C) for C in coils)
     M = zeros(length(coils), length(coils))
-    for j in eachindex(coils)
+    @threads for j in eachindex(coils)
         for k in eachindex(coils)
             k < j && continue
             M[k, j] = mutual(coils[k], coils[j]; xorder=order, yorder=order)
@@ -261,7 +261,7 @@ function normalized_growth_rate(image::Image, coils::Vector{<:Union{AbstractCoil
     Ktmp = (coil_current_per_turn, coil) -> coil_current_per_turn == 0.0 ? coil_current_per_turn : coil_current_per_turn * d2M_dZ2(image, coil, Ip)
     K = Ip * sum(Ktmp(current_per_turn(C), C) for C in coils)
     M = zeros(length(coils), length(coils))
-    for j in eachindex(coils)
+    @threads for j in eachindex(coils)
         for k in eachindex(coils)
             k < j && continue
             M[k, j] = mutual(coils[k], coils[j]; xorder=order, yorder=order)
@@ -270,7 +270,7 @@ function normalized_growth_rate(image::Image, coils::Vector{<:Union{AbstractCoil
     end
 
     Mstar = deepcopy(M)
-    for j in eachindex(coils)
+    @threads for j in eachindex(coils)
         for k in eachindex(coils)[j:end]
             Mstar[k, j] -= b[k] * b[j] / K
             (j != k) && (Mstar[j, k] = Mstar[k, j])
@@ -278,7 +278,7 @@ function normalized_growth_rate(image::Image, coils::Vector{<:Union{AbstractCoil
     end
 
     # reuse b vector for resistances
-    for j in eachindex(coils)
+    @threads for j in eachindex(coils)
         b[j] = resistance(coils[j])
     end
     R = Diagonal(b)
