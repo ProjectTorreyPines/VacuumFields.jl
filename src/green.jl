@@ -176,3 +176,25 @@ function dα_dZ(X::Real, Y::Real, R::Real, Z::Real)
     return _dα_dZ(m, mZ, dKm, d2Km, d2Em)
 end
 _dα_dZ(m, mZ, dKm, d2Km, d2Em) =  mZ * (2.0 * (d2Em + dKm) - (2.0 - m) * d2Km)
+
+"""
+    Green_table(Rs::AbstractVector{T1}, Zs::AbstractVector{T2},
+                     coils::Vector{<:Union{AbstractCoil, IMAScoil, IMASloop, IMASelement}}) where {T1 <: Real, T2 <: Real}
+Compute the Green's function table for a set of coils over a grid defined by `Rs` and `Zs`.
+"""
+function Green_table(Rs::AbstractVector{T1}, Zs::AbstractVector{T2},
+                     coils::Vector{<:Union{AbstractCoil, IMAScoil, IMASloop, IMASelement}}) where {T1 <: Real, T2 <: Real}
+    Nr, Nz, Nc = length(Rs), length(Zs), length(coils)
+    Gtable = Array{promote_type(T1, T2), 3}(undef, Nr, Nz, Nc)
+    Threads.@threads for k in eachindex(coils)
+        coil = coils[k]
+        @turbo for j in eachindex(Zs)
+            z = Zs[j]
+            for i in eachindex(Rs)
+                r = Rs[i]
+                Gtable[i, j, k] = VacuumFields.Green(coil, r, z)
+            end
+        end
+    end
+    return Gtable
+end

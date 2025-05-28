@@ -12,6 +12,7 @@ import IMAS
 import FusionMaterials
 import Interpolations
 import PlotUtils
+using LoopVectorization
 
 const μ₀ = 4e-7 * π
 const inv4π = 0.25 / π
