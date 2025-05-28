@@ -50,7 +50,8 @@ function flux_on_grid(Gtable::Array{T1, 3}, Rs::AbstractVector{T2}, Zs::Abstract
                       Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp) where {T1 <: Real, T2 <: Real, T3 <: Real}
     Nr, Nz, _ = size(Gtable)
     Ψ = zeros(promote_type(T1, T2, T3), Nr, Nz)
-    return flux_on_grid!(Ψ, Gtable, Rs, Zs, coils; COCOS, Bp_fac)
+    flux_on_grid!(Ψ, Gtable, Rs, Zs, coils; COCOS, Bp_fac)
+    return Ψ
 end
 
 function flux_on_grid!(Ψ::Matrix{T}, Gtable::Array{<:Real, 3}, Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real},

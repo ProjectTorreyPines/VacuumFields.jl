@@ -188,7 +188,7 @@ function Green_table(Rs::AbstractVector{T1}, Zs::AbstractVector{T2},
     Gtable = Array{promote_type(T1, T2), 3}(undef, Nr, Nz, Nc)
     Threads.@threads for k in eachindex(coils)
         coil = coils[k]
-        @turbo for j in eachindex(Zs)
+        @inbounds @fastmath for j in eachindex(Zs)
             z = Zs[j]
             for i in eachindex(Rs)
                 r = Rs[i]
