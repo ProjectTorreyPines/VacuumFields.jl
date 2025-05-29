@@ -189,7 +189,8 @@ end
         λ_regularize::Float64=0.0,
         Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1],
         cocos=MXHEquilibrium.cocos(EQ),
-        A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
+        A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos),
+        b_offset::AbstractVector{<:Real}=Float64[])
 
 Find the currents for `coils` that best match (least-squares) the control points provided by `flux_cps`, `saddle_cps`, and `iso_cps`
 
@@ -210,9 +211,10 @@ function find_coil_currents!(
     λ_regularize::Float64=0.0,
     Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1],
     cocos=MXHEquilibrium.cocos(EQ),
-    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
+    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos),
+    b_offset::AbstractVector{<:Real}=Float64[])
 
-    return find_coil_currents!(coils, EQ, Image(EQ); flux_cps, saddle_cps, iso_cps, ψbound, fixed_coils, λ_regularize, Sb, A)
+    return find_coil_currents!(coils, EQ, Image(EQ); flux_cps, saddle_cps, iso_cps, ψbound, fixed_coils, λ_regularize, Sb, A, b_offset)
 end
 
 """
@@ -228,7 +230,8 @@ end
         λ_regularize::Float64=0.0,
         Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1],
         cocos=MXHEquilibrium.cocos(EQ),
-        A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
+        A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos),
+        b_offset::AbstractVector{<:Real}=Float64[])
 
 Find the currents for `coils` that best match (leas-squares) the control points provided by `flux_cps`, `saddle_cps`, and `iso_cps`
 
@@ -250,10 +253,17 @@ function find_coil_currents!(
     λ_regularize::Float64=0.0,
     Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1],
     cocos=MXHEquilibrium.cocos(EQ),
-    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
+    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos),
+    b_offset::AbstractVector{<:Real}=Float64[])
 
     b = init_b(EQ, image; flux_cps, saddle_cps, iso_cps, ψbound, Sb)
-    offset_b!(b; flux_cps, saddle_cps, iso_cps, fixed_coils, cocos)
+    if isempty(b_offset)
+        offset_b!(b; flux_cps, saddle_cps, iso_cps, fixed_coils, cocos)
+    else
+        @assert length(b_offset) == length(b)
+        b .+= b_offset
+    end
+    weight_b!(b; flux_cps, saddle_cps, iso_cps)
     return _find_coil_currents!(coils, A, b; λ_regularize)
 end
 
@@ -268,7 +278,8 @@ end
         fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
         λ_regularize::Float64=0.0,
         cocos=MXHEquilibrium.cocos(11),
-        A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
+        A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos),
+        b_offset::AbstractVector{<:Real}=Float64[])
 
 Find the currents for `coils` that best match (leas-squares) the control points provided by `flux_cps`, `saddle_cps`, and `iso_cps`
 
@@ -287,13 +298,14 @@ function find_coil_currents!(
     fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
     cocos=MXHEquilibrium.cocos(11),
-    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
+    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos),
+    b_offset::AbstractVector{<:Real}=Float64[])
 
     dψpl_dR = (r, z) -> Interpolations.gradient(ψpl, r, z)[1]
     dψpl_dZ = (r, z) -> Interpolations.gradient(ψpl, r, z)[2]
     return find_coil_currents!(coils, ψpl, dψpl_dR, dψpl_dZ;
                                flux_cps, saddle_cps, iso_cps,
-                               fixed_coils, λ_regularize, cocos, A)
+                               fixed_coils, λ_regularize, cocos, A, b_offset)
 
 end
 
@@ -309,7 +321,8 @@ end
         fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
         λ_regularize::Float64=0.0,
         cocos=MXHEquilibrium.cocos(11),
-        A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
+        A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos),
+        b_offset::AbstractVector{<:Real}=Float64[])
 
 Find the currents for `coils` that best match (leas-squares) the control points provided by `flux_cps`, `saddle_cps`, and `iso_cps`
 
@@ -330,10 +343,17 @@ function find_coil_currents!(
     fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
     cocos=MXHEquilibrium.cocos(11),
-    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
+    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos),
+    b_offset::AbstractVector{<:Real}=Float64[])
 
     b = init_b(ψpl, dψpl_dR, dψpl_dZ; flux_cps, saddle_cps, iso_cps)
-    offset_b!(b; flux_cps, saddle_cps, iso_cps, fixed_coils, cocos)
+    if isempty(b_offset)
+        offset_b!(b; flux_cps, saddle_cps, iso_cps, fixed_coils, cocos)
+    else
+        @assert length(b_offset) == length(b)
+        b .+= b_offset
+    end
+    weight_b!(b; flux_cps, saddle_cps, iso_cps)
     _find_coil_currents!(coils, A, b; λ_regularize)
 end
 
@@ -349,7 +369,8 @@ end
         λ_regularize::Float64=0.0,
         cocos=MXHEquilibrium.cocos(11),
         Sb=nothing,
-        A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
+        A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos),
+        b_offset::AbstractVector{<:Real}=Float64[])
 
 Find the currents for `coils` that best match (leas-squares) the control points provided by `flux_cps`, `saddle_cps`, and `iso_cps`
 
@@ -370,9 +391,10 @@ function find_coil_currents!(
     λ_regularize::Float64=0.0,
     cocos=MXHEquilibrium.cocos(11),
     Sb=nothing,
-    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
+    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos),
+    b_offset::AbstractVector{<:Real}=Float64[])
 
-    return find_coil_currents!(coils; flux_cps, saddle_cps, iso_cps, fixed_coils, λ_regularize, cocos, A)
+    return find_coil_currents!(coils; flux_cps, saddle_cps, iso_cps, fixed_coils, λ_regularize, cocos, A, b_offset)
 end
 
 """
@@ -388,7 +410,8 @@ end
         λ_regularize::Float64=0.0,
         cocos=MXHEquilibrium.cocos(11),
         Sb=nothing,
-        A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
+        A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos),
+        b_offset::AbstractVector{<:Real}=Float64[])
 
 Find the currents for `coils` that best match (leas-squares) the control points provided by `flux_cps`, `saddle_cps`, and `iso_cps`
 
@@ -410,9 +433,10 @@ function find_coil_currents!(
     λ_regularize::Float64=0.0,
     cocos=MXHEquilibrium.cocos(11),
     Sb=nothing,
-    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
+    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos),
+    b_offset::AbstractVector{<:Real}=Float64[])
 
-    return find_coil_currents!(coils; flux_cps, saddle_cps, iso_cps, fixed_coils, λ_regularize, cocos, A)
+    return find_coil_currents!(coils; flux_cps, saddle_cps, iso_cps, fixed_coils, λ_regularize, cocos, A, b_offset)
 end
 
 """
@@ -424,7 +448,8 @@ end
         fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
         λ_regularize::Float64=0.0,
         cocos=MXHEquilibrium.cocos(11),
-        A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
+        A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos),
+        b_offset::AbstractVector{<:Real}=Float64[])
 
 Find the currents for `coils` that best match (leas-squares) the control points provided by `flux_cps`, `saddle_cps`, and `iso_cps`
 
@@ -442,11 +467,19 @@ function find_coil_currents!(
     fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
     λ_regularize::Float64=0.0,
     cocos=MXHEquilibrium.cocos(11),
-    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
+    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos),
+    b_offset::AbstractVector{<:Real}=Float64[])
 
     N = length(flux_cps) + 2 * length(saddle_cps) + length(iso_cps)
     b = zeros(N)
-    offset_b!(b; flux_cps, saddle_cps, iso_cps, fixed_coils, cocos)
+    if isempty(b_offset)
+        # initialize b with zero flux
+        offset_b!(b; flux_cps, saddle_cps, iso_cps, fixed_coils, cocos)
+    else
+        @assert length(b_offset) == length(b)
+        b .+= b_offset
+    end
+    weight_b!(b; flux_cps, saddle_cps, iso_cps)
     return _find_coil_currents!(coils, A, b; λ_regularize)
 end
 
@@ -596,10 +629,6 @@ function offset_b!(b::AbstractVector{T};
         if !isempty(fixed_coils)
             b[i] -= sum(ψ(fixed_coil, r, z; Bp_fac) for fixed_coil in fixed_coils)
         end
-
-        # weighting
-        w = sqrt(cp.weight)
-        b[i] *= w
     end
 
     for i in eachindex(saddle_cps)
@@ -615,10 +644,6 @@ function offset_b!(b::AbstractVector{T};
             b[ir] -= sum(dψ_dR(fixed_coil, r, z; Bp_fac) for fixed_coil in fixed_coils)
             b[iz] -= sum(dψ_dZ(fixed_coil, r, z; Bp_fac) for fixed_coil in fixed_coils)
         end
-
-        # weighting
-        w = sqrt(cp.weight)
-        b[ir:iz] .*= w
     end
 
     if !isempty(iso_cps)
@@ -654,12 +679,31 @@ function offset_b!(b::AbstractVector{T};
 
                 ψf1_old, ψf2_old = ψf1, ψf2
             end
-
-            # weighting
-            w = sqrt(cp.weight)
-            b[k] *= w
-
         end
+    end
+end
+
+function weight_b!(b::AbstractVector{<:Real};
+    flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
+    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
+    iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[])
+
+    Nflux = length(flux_cps)
+    Nsaddle = length(saddle_cps)
+
+    for (i, cp) in enumerate(flux_cps)
+        b[i] *= sqrt(cp.weight)
+    end
+
+    for (i, cp) in enumerate(saddle_cps)
+        ir = Nflux + 2i - 1
+        iz = Nflux + 2i
+        b[ir:iz] .*= sqrt(cp.weight)
+    end
+
+    for (i, cp) in enumerate(iso_cps)
+        k = Nflux + 2Nsaddle + i
+        b[k] *= sqrt(cp.weight)
     end
 
 end
