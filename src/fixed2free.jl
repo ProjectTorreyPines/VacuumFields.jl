@@ -1,66 +1,3 @@
-# ******
-# Utils
-# ******
-function cost_λ_regularize(
-    λ_exp::Float64,
-    coils::AbstractVector{<:AbstractCoil},
-    EQ::MXHEquilibrium.AbstractEquilibrium,
-    image::Image;
-    flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
-    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
-    iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
-    ψbound::Real=0.0,
-    fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1],
-    cocos=MXHEquilibrium.cocos(EQ),
-    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
-
-    _, cost = find_coil_currents!(coils, EQ, image; flux_cps, saddle_cps, iso_cps, ψbound, fixed_coils, λ_regularize=10^λ_exp, Sb, A)
-
-    return cost^2
-end
-
-"""
-    optimal_λ_regularize(
-        coils::AbstractVector{<:AbstractCoil},
-        EQ::MXHEquilibrium.AbstractEquilibrium,
-        image::Image;
-        flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
-        saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
-        iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
-        ψbound::Real=0.0,
-        fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-        min_exp::Integer=-20, max_exp::Integer=-10,
-        Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1],
-        cocos=MXHEquilibrium.cocos(EQ),
-        A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
-
-Find the optimizal `λ_regularize` to be used within `find_coil_currents!` that minimizes the cost
-"""
-function optimal_λ_regularize(
-    coils::AbstractVector{<:AbstractCoil},
-    EQ::MXHEquilibrium.AbstractEquilibrium,
-    image::Image;
-    flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
-    saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
-    iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
-    ψbound::Real=0.0,
-    fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    min_exp::Integer=-30,
-    max_exp::Integer=-10,
-    Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1],
-    cocos=MXHEquilibrium.cocos(EQ),
-    A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, cocos))
-
-    λ_range_exp = min_exp:0.5:max_exp
-    cost_λ = λ -> cost_λ_regularize(λ, coils, EQ, image; flux_cps, saddle_cps, iso_cps, ψbound, fixed_coils, Sb, A)
-    costs = [log10(cost_λ(λ)) for λ in λ_range_exp]
-    costs = (costs .- minimum(costs)) ./ (maximum(costs) - minimum(costs))
-    costs = costs .+ range(1.0, 0.0, length(λ_range_exp)) .^ 4
-    opti_λ = λ_range_exp[argmin(costs)]
-    return 10^opti_λ
-end
-
 # ***************************************************
 # Transform fixed-boundary ψ to free-boundary ψ given currents in coils
 # ***************************************************
@@ -131,9 +68,6 @@ function fixed2free(
     ψ_f2f = T[MXHEquilibrium.in_boundary(Sb, (r, z)) ? EQfixed(r, z) - ψb + ψbound : ψbound for z in Z, r in R]
 
     if (!isempty(flux_cps) || !isempty(saddle_cps) || !isempty(iso_cps))
-        if λ_regularize < 0.0
-            λ_regularize = optimal_λ_regularize(coils, EQfixed, image; flux_cps, saddle_cps, iso_cps, ψbound, fixed_coils, Sb)
-        end
         find_coil_currents!(coils, EQfixed, image; flux_cps, saddle_cps, iso_cps, ψbound, fixed_coils, λ_regularize, Sb)
     end
 
