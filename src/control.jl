@@ -264,7 +264,7 @@ function find_coil_currents!(
         b .+= b_offset
     end
     weight_b!(b; flux_cps, saddle_cps, iso_cps)
-    return _find_coil_currents!(coils, A, b; λ_regularize)
+    return find_coil_currents!(coils, A, b; λ_regularize)
 end
 
 """
@@ -354,7 +354,7 @@ function find_coil_currents!(
         b .+= b_offset
     end
     weight_b!(b; flux_cps, saddle_cps, iso_cps)
-    _find_coil_currents!(coils, A, b; λ_regularize)
+    find_coil_currents!(coils, A, b; λ_regularize)
 end
 
 """
@@ -480,16 +480,41 @@ function find_coil_currents!(
         b .+= b_offset
     end
     weight_b!(b; flux_cps, saddle_cps, iso_cps)
-    return _find_coil_currents!(coils, A, b; λ_regularize)
+    return find_coil_currents!(coils, A, b; λ_regularize)
 end
 
-function _find_coil_currents!(coils::AbstractVector{<:AbstractCoil},
-                              A::AbstractMatrix{<:Real},
-                              b::AbstractVector{<:Real};
-                              λ_regularize::Float64=0.0)
+"""
+    optimal_λ_regularize(coils::AbstractVector{<:AbstractCoil},
+                         A::AbstractMatrix{<:Real},
+                         b::AbstractVector{<:Real};
+                         min_exp::Integer=-20, max_exp::Integer=-10)
+
+Find the optimizal `λ_regularize` to be used within `find_coil_currents!` that minimizes the cost
+"""
+function optimal_λ_regularize(coils::AbstractVector{<:AbstractCoil},
+                              args...;
+                              min_exp::Integer=-30,
+                              max_exp::Integer=-10,
+                              kwargs...)
+
+    λ_range_exp = min_exp:0.5:max_exp
+    cost_λ = λ -> find_coil_currents!(coils, args...; λ_regularize=10^λ, kwargs...)[2] ^ 2
+    costs = [log10(cost_λ(λ)) for λ in λ_range_exp]
+    costs = (costs .- minimum(costs)) ./ (maximum(costs) - minimum(costs))
+    costs = costs .+ range(1.0, 0.0, length(λ_range_exp)) .^ 4
+    opti_λ = λ_range_exp[argmin(costs)]
+    return 10^opti_λ
+end
+
+function find_coil_currents!(coils::AbstractVector{<:AbstractCoil},
+                             A::AbstractMatrix{<:Real},
+                             b::AbstractVector{<:Real};
+                             λ_regularize::Float64=0.0)
 
     @assert size(A) == (length(b), length(coils))
-
+    if λ_regularize < 0
+        λ_regularize = optimal_λ_regularize(coils, A, b)
+    end
     # Least-squares solve for coil currents
     if λ_regularize > 0
         # Least-squares with regularization
