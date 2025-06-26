@@ -323,7 +323,7 @@ function find_coil_currents!(
         b .+= b_offset
     end
     weight_b!(b; flux_cps, saddle_cps, iso_cps, field_cps)
-    return _find_coil_currents!(coils, A, b; λ_regularize)
+    return find_coil_currents!(coils, A, b; λ_regularize)
 end
 
 """
@@ -417,7 +417,7 @@ function find_coil_currents!(
         b .+= b_offset
     end
     weight_b!(b; flux_cps, saddle_cps, iso_cps, field_cps)
-    _find_coil_currents!(coils, A, b; λ_regularize)
+    find_coil_currents!(coils, A, b; λ_regularize)
 end
 
 """
@@ -549,7 +549,7 @@ function find_coil_currents!(
         b .+= b_offset
     end
     weight_b!(b; flux_cps, saddle_cps, iso_cps, field_cps)
-    return _find_coil_currents!(coils, A, b; λ_regularize)
+    return find_coil_currents!(coils, A, b; λ_regularize)
 end
 
 """
