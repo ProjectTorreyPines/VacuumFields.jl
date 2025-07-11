@@ -42,7 +42,7 @@ mutable struct IsoControlPoint{T<:Real} <: AbstractControlPoint{T}
 end
 
 """
-    IsoControlPoint(R::Real, Z::Real, offset::Real=0.0, weight::Real=1.0)
+    IsoControlPoint(R1::Real, Z1::Real, R2::Real, Z2::Real, offset::Real=0.0, weight::Real=1.0)
 
 Return a control point for correlated flux between points `(R1, Z1)` and `(R2, Z2)`, with an optional `offset` between them and `weight`
 """
@@ -97,15 +97,16 @@ end
     end
 end
 
-@recipe function plot_FieldControlPoint(cp::FluxControlPoint)
+@recipe function plot_FieldControlPoint(cp::FieldControlPoint)
     @series begin
         arrow := true
-        linewidth := 0.1
+        linewidth := 0.5
         aspect_ratio := :equal
         label --> ""
         markersize := cp.weight * 10
-        segmentlength = 0.1
-        dz, dr = segmentlength ./ 2 .* sincosd.(θ)
+        segmentlength = 0.2
+        dr = segmentlength ./ 2 .* cos.(cp.θ)
+        dz = segmentlength ./ 2 .* sin.(cp.θ)
         [cp.R .+ dr, cp.R .- dr], [cp.Z .+ dz, cp.Z .- dz]
     end
 end
@@ -539,7 +540,7 @@ function find_coil_currents!(
     A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
     b_offset::AbstractVector{<:Real}=Float64[])
 
-    N = length(flux_cps) + 2 * length(saddle_cps) + length(iso_cps)
+    N = length(flux_cps) + 2 * length(saddle_cps) + length(iso_cps) + length(field_cps)
     b = zeros(N)
     if isempty(b_offset)
         # initialize b with zero flux
@@ -703,12 +704,11 @@ function init_b(
         cp = field_cps[i]
         r = cp.R
         z = cp.Z
-        s, c = sincosd.(cp.θ)
 
         k = Nflux + 2Nsaddle + Niso + i
 
         # subtract plasma contribution
-        b[k] -= (dψpl_dZ(r, z) .* c  .- dψpl_dR(r, z) .* s) ./ Bp_fac ./ r
+        b[k] -= (dψpl_dZ(r, z) * cos(cp.θ) - dψpl_dR(r, z) * sin(cp.θ)) / Bp_fac / r
     end
 
     return b
@@ -801,7 +801,6 @@ function offset_b!(b::AbstractVector{T};
             cp = field_cps[i]
             r = cp.R
             z = cp.Z
-            s, c = sincosd.(cp.θ)
 
             k = Nflux + 2Nsaddle + Niso + i
 
@@ -810,7 +809,7 @@ function offset_b!(b::AbstractVector{T};
 
             # remove fixed coil contribution
             if !isempty(fixed_coils)
-                b[k] -= sum((dψ_dZ(fixed_coil, r, z; Bp_fac) .* c - dψ_dR(fixed_coil, r, z; Bp_fac) .* s) ./ Bp_fac ./ r for fixed_coil in fixed_coils)
+                b[k] -= sum((dψ_dZ(fixed_coil, r, z; Bp_fac) * cos(cp.θ) - dψ_dR(fixed_coil, r, z; Bp_fac) * sin(cp.θ)) / Bp_fac / r for fixed_coil in fixed_coils)
             end
         end
     end
@@ -824,7 +823,7 @@ function weight_b!(b::AbstractVector{<:Real};
 
     Nflux = length(flux_cps)
     Nsaddle = length(saddle_cps)
-    Nsiso = length(iso_cps)
+    Niso = length(iso_cps)
 
     for (i, cp) in enumerate(flux_cps)
         b[i] *= sqrt(cp.weight)
@@ -857,7 +856,8 @@ function define_A(coils::AbstractVector{<:AbstractCoil};
     Nflux = length(flux_cps)
     Nsaddle = length(saddle_cps)
     Niso = length(iso_cps)
-    N = Nflux + 2 * Nsaddle + Niso
+    Nfield = length(field_cps)
+    N = Nflux + 2 * Nsaddle + Niso + Nfield
 
     A = zeros(N, length(coils))
 
@@ -947,12 +947,11 @@ function define_A(coils::AbstractVector{<:AbstractCoil};
             cp = field_cps[i]
             r = cp.R
             z = cp.Z
-            s, c = sincosd.(cp.θ)
 
             k = Nflux + 2Nsaddle + Niso + i
 
             # Build matrix relating coil Green's functions to boundary points
-            A[k, :] .= (dψ_dZ.(coils, r, z; Bp_fac) .* s - dψ_dZ.(coils, r, z; Bp_fac) .* c) ./ Bp_fac ./ r
+            A[k, :] .= (dψ_dZ.(coils, r, z; Bp_fac) .* cos.(cp.θ) .- dψ_dR.(coils, r, z; Bp_fac) .* sin.(cp.θ)) ./ Bp_fac ./ r
 
             # weighting
             w = sqrt(cp.weight)
