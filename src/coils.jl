@@ -291,8 +291,8 @@ function DistributedParallelogramCoil(Rc::T1, Zc::T1, ΔR::T1, ΔZ::T1, θ1::T1,
         dR = [-0.5 * ΔR, 0.5 * ΔR]
         dZ = [-0.5 * ΔZ, 0.5 * ΔZ]
     else
-        dR = LinRange(-0.5 * ΔR, 0.5 * ΔR, Int(ceil(1.0 + ΔR / spacing)))
-        dZ = LinRange(-0.5 * ΔZ, 0.5 * ΔZ, Int(ceil(1.0 + ΔZ / spacing)))
+        dR = LinRange(-0.5 * ΔR, 0.5 * ΔR, round(Int, 1.0 + ΔR / spacing, RoundUp))
+        dZ = LinRange(-0.5 * ΔZ, 0.5 * ΔZ, rount(Int, 1.0 + ΔZ / spacing, RoundUp))
     end
 
     α1 = tan(π * θ1 / 180.0)
