@@ -708,7 +708,7 @@ function init_b(
         k = Nflux + 2Nsaddle + Niso + i
 
         # subtract plasma contribution
-        b[k] -= (dψpl_dZ(r, z) * cos(cp.θ) - dψpl_dR(r, z) * sin(cp.θ)) / Bp_fac / r
+        b[k] -= cocos.sigma_RpZ * (dψpl_dZ(r, z) * cos(cp.θ) - dψpl_dR(r, z) * sin(cp.θ)) / Bp_fac / r
     end
 
     return b
@@ -809,7 +809,7 @@ function offset_b!(b::AbstractVector{T};
 
             # remove fixed coil contribution
             if !isempty(fixed_coils)
-                b[k] -= sum((dψ_dZ(fixed_coil, r, z; Bp_fac) * cos(cp.θ) - dψ_dR(fixed_coil, r, z; Bp_fac) * sin(cp.θ)) / Bp_fac / r for fixed_coil in fixed_coils)
+                b[k] -= sum(cocos.sigma_RpZ * (dψ_dZ(fixed_coil, r, z; Bp_fac) * cos(cp.θ) - dψ_dR(fixed_coil, r, z; Bp_fac) * sin(cp.θ)) / Bp_fac / r for fixed_coil in fixed_coils)
             end
         end
     end
@@ -951,7 +951,7 @@ function define_A(coils::AbstractVector{<:AbstractCoil};
             k = Nflux + 2Nsaddle + Niso + i
 
             # Build matrix relating coil Green's functions to boundary points
-            A[k, :] .= (dψ_dZ.(coils, r, z; Bp_fac) .* cos.(cp.θ) .- dψ_dR.(coils, r, z; Bp_fac) .* sin.(cp.θ)) ./ Bp_fac ./ r
+            A[k, :] .= cocos.sigma_RpZ .* (dψ_dZ.(coils, r, z; Bp_fac) .* cos.(cp.θ) .- dψ_dR.(coils, r, z; Bp_fac) .* sin.(cp.θ)) ./ Bp_fac ./ r
 
             # weighting
             w = sqrt(cp.weight)
