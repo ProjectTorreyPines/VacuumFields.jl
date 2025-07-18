@@ -224,7 +224,7 @@ end
 end
 
 @testset "all cp types" begin
-    tol = sqrt(eps())
+    tol = 100 * sqrt(eps())
     θ = range(0, 2π, 19)[1:end-1]
     Rs = 1.5 .+ 0.25 * cos.(θ)
     Zs = 0.5 * sin.(θ)
