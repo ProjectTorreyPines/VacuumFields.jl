@@ -224,7 +224,7 @@ end
 end
 
 @testset "all cp types" begin
-    tol = 100 * sqrt(eps())
+    tol = sqrt(eps())
     θ = range(0, 2π, 19)[1:end-1]
     Rs = 1.5 .+ 0.25 * cos.(θ)
     Zs = 0.5 * sin.(θ)
@@ -237,7 +237,7 @@ end
     currents_per_turn, _ = find_coil_currents!(coils, nothing; flux_cps, saddle_cps, iso_cps, field_cps)
     for flux_cp in flux_cps
         psi = sum(VacuumFields.ψ(coil, flux_cp.R, flux_cp.Z) for coil in coils)
-        @test isapprox(psi, flux_cp.target; atol=tol)
+        @test isapprox(psi, flux_cp.target; rtol=tol)
     end
     for saddle_cp in saddle_cps
         dpsidr = sum(VacuumFields.dψ_dR(coil, saddle_cp.R, saddle_cp.Z) for coil in coils)
@@ -252,7 +252,7 @@ end
     end
     for field_cp in field_cps
         b = sum((VacuumFields.dψ_dZ(coil, field_cp.R, field_cp.Z) * cos(field_cp.θ) - VacuumFields.dψ_dR(coil, field_cp.R, field_cp.Z) * sin(field_cp.θ)) / 2π / field_cp.R for coil in coils)
-        @test isapprox(b, field_cp.target; atol=tol)
+        @test isapprox(b, field_cp.target; rtol=tol)
     end
 end
 

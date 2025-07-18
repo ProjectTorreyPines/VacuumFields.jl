@@ -59,7 +59,7 @@ end
 """
     FieldControlPoint(R::Real, Z::Real, θ::Real, target::Real, weight::Real=1.0)
 
-Return a control point for a `target` B field value at point `(R, Z)`, in the θ poloidal direction, with an optional `weight`
+Return a control point for a `target` magnetic field `B(R, Z, θ) = BR(R, Z) * cos(θ) + BZ(R,Z) * sin(θ)` following the IMAS convention, with an optional `weight`
 """
 FieldControlPoint(R::Real, Z::Real, θ::Real, target::Real, weight::Real=1.0) = FieldControlPoint(promote(R, Z, θ, target, weight)...)
 
@@ -184,25 +184,7 @@ function IsoControlPoints(Rs::AbstractVector{T}, Zs::AbstractVector{T}) where {T
 end
 
 """
-    IsoRefControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real}, Bs::AbstractVector{<:Real}, weights::AbstractVector{Int}, i_ref::Integer=1)
-
-Return a Vector of IsoControlPoints between each `Rs` and `Zs` point and the referenece point `i_ref` (excluding itself) with offset equal to their difference and optional weight.
-"""
-function IsoRefControlPoints(Rs::AbstractVector{T}, Zs::AbstractVector{T}, Bs::AbstractVector{T}, weights::AbstractVector{Int}, i_ref::Integer=1) where {T<:Real}
-    @assert length(Zs) == length(Rs)
-    @assert i_ref > 0
-    @assert i_ref <= length(Rs)
-    N = length(Rs)
-    iso_cps = IsoControlPoint{T}[]
-    for k in (i_ref+1):(i_ref+N-1) # exclude i_ref explicitly
-        ck = IMAS.index_circular(N, k)
-        push!(iso_cps, IsoControlPoint{T}(Rs[ck], Zs[ck], Rs[i_ref], Zs[i_ref], Bs[ck] - Bs[i_ref], weights[ck]))
-    end
-    return iso_cps
-end
-
-"""
-    FieldControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real}, θs::AbstractVector{<:Real}, ψtargets::AbstractVector{<:Real})
+    FieldControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real}, θs::AbstractVector{<:Real}, Btargets::AbstractVector{<:Real})
 
 Return a Vector of FieldControlPoint at each `Rs`, `Zs`, and `θs` point with `Btargets` magnitude
 """
@@ -708,6 +690,7 @@ function init_b(
         k = Nflux + 2Nsaddle + Niso + i
 
         # subtract plasma contribution
+        # Note: Br = cocos.sigma_RpZ * dψ_dZ / Bp_fac / r and Bz = -cocos.sigma_RpZ * dψ_dR / Bp_fac / r
         b[k] -= cocos.sigma_RpZ * (dψpl_dZ(r, z) * cos(cp.θ) - dψpl_dR(r, z) * sin(cp.θ)) / Bp_fac / r
     end
 
@@ -808,6 +791,7 @@ function offset_b!(b::AbstractVector{T};
             b[k] += cp.target
 
             # remove fixed coil contribution
+            # Note: Br = cocos.sigma_RpZ * dψ_dZ / Bp_fac / r and Bz = -cocos.sigma_RpZ * dψ_dR / Bp_fac / r
             if !isempty(fixed_coils)
                 b[k] -= sum(cocos.sigma_RpZ * (dψ_dZ(fixed_coil, r, z; Bp_fac) * cos(cp.θ) - dψ_dR(fixed_coil, r, z; Bp_fac) * sin(cp.θ)) / Bp_fac / r for fixed_coil in fixed_coils)
             end
@@ -950,7 +934,7 @@ function define_A(coils::AbstractVector{<:AbstractCoil};
 
             k = Nflux + 2Nsaddle + Niso + i
 
-            # Build matrix relating coil Green's functions to boundary points
+            # Note: Br = cocos.sigma_RpZ * dψ_dZ / Bp_fac / r and Bz = -cocos.sigma_RpZ * dψ_dR / Bp_fac / r
             A[k, :] .= cocos.sigma_RpZ .* (dψ_dZ.(coils, r, z; Bp_fac) .* cos.(cp.θ) .- dψ_dR.(coils, r, z; Bp_fac) .* sin.(cp.θ)) ./ Bp_fac ./ r
 
             # weighting
