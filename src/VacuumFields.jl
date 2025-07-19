@@ -42,7 +42,7 @@ include("green.jl")
 
 include("control.jl")
 export AbstractControlPoint, FluxControlPoint, SaddleControlPoint, IsoControlPoint, FieldControlPoint
-export FluxControlPoints, SaddleControlPoints, IsoControlPoints, IsoRefControlPoints, FieldControlPoints
+export FluxControlPoints, SaddleControlPoints, IsoControlPoints, FieldControlPoints
 export find_coil_currents!, boundary_control_points
 
 include("fixed2free.jl")
