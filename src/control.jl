@@ -59,7 +59,7 @@ end
 """
     FieldControlPoint(R::Real, Z::Real, θ::Real, target::Real, weight::Real=1.0)
 
-Return a control point for a `target` magnetic field `B(R, Z, θ) = BR(R, Z) * cos(θ) + BZ(R,Z) * sin(θ)` following the IMAS convention, with an optional `weight`
+Return a control point for a `target` magnetic field `B(R, Z, θ) = BR(R, Z) * cos(θ) - BZ(R,Z) * sin(θ)` following the IMAS convention, with an optional `weight`
 """
 FieldControlPoint(R::Real, Z::Real, θ::Real, target::Real, weight::Real=1.0) = FieldControlPoint(promote(R, Z, θ, target, weight)...)
 
@@ -106,7 +106,7 @@ end
         markersize := cp.weight * 10
         segmentlength = 0.2
         dr = segmentlength ./ 2 .* cos.(cp.θ)
-        dz = segmentlength ./ 2 .* sin.(cp.θ)
+        dz = -segmentlength ./ 2 .* sin.(cp.θ)
         [cp.R .+ dr, cp.R .- dr], [cp.Z .+ dz, cp.Z .- dz]
     end
 end
@@ -691,7 +691,7 @@ function init_b(
 
         # subtract plasma contribution
         # Note: Br = cocos.sigma_RpZ * dψ_dZ / Bp_fac / r and Bz = -cocos.sigma_RpZ * dψ_dR / Bp_fac / r
-        b[k] -= cocos.sigma_RpZ * (dψpl_dZ(r, z) * cos(cp.θ) - dψpl_dR(r, z) * sin(cp.θ)) / Bp_fac / r
+        b[k] -= cocos.sigma_RpZ * (dψpl_dZ(r, z) * cos(cp.θ) + dψpl_dR(r, z) * sin(cp.θ)) / Bp_fac / r
     end
 
     return b
@@ -793,7 +793,7 @@ function offset_b!(b::AbstractVector{T};
             # remove fixed coil contribution
             # Note: Br = cocos.sigma_RpZ * dψ_dZ / Bp_fac / r and Bz = -cocos.sigma_RpZ * dψ_dR / Bp_fac / r
             if !isempty(fixed_coils)
-                b[k] -= sum(cocos.sigma_RpZ * (dψ_dZ(fixed_coil, r, z; Bp_fac) * cos(cp.θ) - dψ_dR(fixed_coil, r, z; Bp_fac) * sin(cp.θ)) / Bp_fac / r for fixed_coil in fixed_coils)
+                b[k] -= sum(cocos.sigma_RpZ * (dψ_dZ(fixed_coil, r, z; Bp_fac) * cos(cp.θ) + dψ_dR(fixed_coil, r, z; Bp_fac) * sin(cp.θ)) / Bp_fac / r for fixed_coil in fixed_coils)
             end
         end
     end
@@ -935,7 +935,7 @@ function define_A(coils::AbstractVector{<:AbstractCoil};
             k = Nflux + 2Nsaddle + Niso + i
 
             # Note: Br = cocos.sigma_RpZ * dψ_dZ / Bp_fac / r and Bz = -cocos.sigma_RpZ * dψ_dR / Bp_fac / r
-            A[k, :] .= cocos.sigma_RpZ .* (dψ_dZ.(coils, r, z; Bp_fac) .* cos.(cp.θ) .- dψ_dR.(coils, r, z; Bp_fac) .* sin.(cp.θ)) ./ Bp_fac ./ r
+            A[k, :] .= cocos.sigma_RpZ .* (dψ_dZ.(coils, r, z; Bp_fac) .* cos.(cp.θ) .+ dψ_dR.(coils, r, z; Bp_fac) .* sin.(cp.θ)) ./ Bp_fac ./ r
 
             # weighting
             w = sqrt(cp.weight)
