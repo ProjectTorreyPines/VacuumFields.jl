@@ -251,7 +251,7 @@ end
         @test isapprox(psi1 - psi2, iso_cp.offset; atol=tol)
     end
     for field_cp in field_cps
-        b = sum((VacuumFields.dψ_dZ(coil, field_cp.R, field_cp.Z) * cos(field_cp.θ) - VacuumFields.dψ_dR(coil, field_cp.R, field_cp.Z) * sin(field_cp.θ)) / 2π / field_cp.R for coil in coils)
+        b = sum((VacuumFields.dψ_dZ(coil, field_cp.R, field_cp.Z) * cos(field_cp.θ) + VacuumFields.dψ_dR(coil, field_cp.R, field_cp.Z) * sin(field_cp.θ)) / 2π / field_cp.R for coil in coils)
         @test isapprox(b, field_cp.target; atol=tol)
     end
 end
