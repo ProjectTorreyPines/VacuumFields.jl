@@ -41,6 +41,7 @@ include("elliptic.jl")
 include("green.jl")
 
 include("control.jl")
+include("imas_control.jl")
 export AbstractControlPoint, FluxControlPoint, SaddleControlPoint, IsoControlPoint, FieldControlPoint
 export FluxControlPoints, SaddleControlPoints, IsoControlPoints, FieldControlPoints
 export find_coil_currents!, boundary_control_points
