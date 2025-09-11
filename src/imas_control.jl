@@ -32,19 +32,21 @@ function magnetic_control_points(dd::IMAS.dd{T};
     magnetic_probe_weights::AbstractVector{<:Real}=T[]) where {T<:Real}
 
     mags = dd.magnetics
+    pavgs = IMAS.getavg(Val(:b_field_pol_probe), dd, dd.global_time, 0.005)
+    pdata = pavgs.data
 
     # Probe control points (Note: type and size ignored)
-    min_σ = minimum(IMAS.@ddtime(probe.field.data_σ) for probe in mags.b_field_pol_probe)
+    min_σ = minimum(probe.err for probe in pdata)
     field_cps = VacuumFields.FieldControlPoint{T}[]
     for (k, probe) in enumerate(mags.b_field_pol_probe)
         !isempty(probe.field.validity) && probe.field.validity < 0 && continue
         weight = isempty(magnetic_probe_weights) ? 1.0 : magnetic_probe_weights[k]
         if !isempty(probe.field.data_σ)
-            IMAS.@ddtime(probe.field.data_σ) < eps() && continue
-            weight /= IMAS.@ddtime(probe.field.data_σ) / min_σ
+            pdata[k].err < eps() && continue
+            weight /= pdata[k].err / min_σ
         end
         #IMAS allows probes to mix toroidal and poloidal fields so that needs to be accounted for
-        bpol_field = isempty(probe.toroidal_angle) ? IMAS.@ddtime(probe.field.data) : IMAS.@ddtime(probe.field.data) * (1 - cos(probe.poloidal_angle) * sin(probe.toroidal_angle))
+        bpol_field = isempty(probe.toroidal_angle) ? pdata[k].val : pdata[k].val * (1 - cos(probe.poloidal_angle) * sin(probe.toroidal_angle))
 
         push!(field_cps, VacuumFields.FieldControlPoint{T}(probe.position.r, probe.position.z, probe.poloidal_angle, bpol_field, weight))
     end
@@ -53,6 +55,9 @@ function magnetic_control_points(dd::IMAS.dd{T};
 
     iref = reference_flux_loop_index
     loops = mags.flux_loop
+    flavgs = IMAS.getavg(Val(:flux_loop), dd, dd.global_time, 0.005)
+    fldata = flavgs.data
+
     flux_cps = VacuumFields.FluxControlPoint{T}[]
     loop_cps = VacuumFields.IsoControlPoint{T}[]
     if iref > 0
@@ -60,12 +65,12 @@ function magnetic_control_points(dd::IMAS.dd{T};
         N = length(loops)
         @assert iref <= N
         # Convert from total flux uncertainty (IMAS convention) to differential
-        relative_σ(k) = sqrt(IMAS.@ddtime(loops[k].flux.data_σ)^2 - IMAS.@ddtime(loops[iref].flux.data_σ)^2)
+        relative_σ(k) = sqrt(fldata[k].err^2 - fldata[iref].err^2)
         min_σ = 1 / eps()
         for k in (iref+1):(iref+N-1) # exclude i_ref explicitly
             ck = IMAS.index_circular(N, k)
             if !isempty(loops[ck].flux.data_σ)
-                IMAS.@ddtime(loops[ck].flux.data_σ) < eps() && continue
+                fldata[ck].err < eps() && continue
                 min_σ = relative_σ(ck) < min_σ ? relative_σ(ck) : min_σ
             end
         end
@@ -75,7 +80,7 @@ function magnetic_control_points(dd::IMAS.dd{T};
             !isempty(loops[ck].flux.validity) && loops[ck].flux.validity < 0 && continue
             weight = isempty(flux_loop_weights) ? 1.0 : flux_loop_weights[ck]
             if !isempty(loops[ck].flux.data_σ)
-                IMAS.@ddtime(loops[ck].flux.data_σ) < eps() && continue
+                fldata[ck].err < eps() && continue
                 weight /= relative_σ(ck) / min_σ
             end
 
@@ -86,7 +91,7 @@ function magnetic_control_points(dd::IMAS.dd{T};
                     loops[ck].position[1].z,
                     loops[iref].position[1].r,
                     loops[iref].position[1].z,
-                    IMAS.@ddtime(loops[ck].flux.data) - IMAS.@ddtime(loops[iref].flux.data),
+                    fldata[ck].val - fldata[iref].val,
                     weight
                 )
             )
@@ -96,19 +101,19 @@ function magnetic_control_points(dd::IMAS.dd{T};
             @assert loops[iref].flux.validity >= 0
         end
 
-        push!(flux_cps, VacuumFields.FluxControlPoint{T}(loops[iref].position[1].r, loops[iref].position[1].z, IMAS.@ddtime(loops[iref].flux.data), weight))
+        push!(flux_cps, VacuumFields.FluxControlPoint{T}(loops[iref].position[1].r, loops[iref].position[1].z, fldata[iref].val, weight))
     else
         # Fit each flux loop separately (this is how data is collected on NSTX and fit with EFIT)
-        min_σ = minimum(IMAS.@ddtime(loop.flux.data_σ) for loop in loops)
+        min_σ = minimum(loop.err for loop in fldata)
         for (k, loop) in enumerate(loops)
             !isempty(loop.flux.validity) && loop.flux.validity < 0 && continue
             weight = isempty(flux_loop_weights) ? 1.0 : flux_loop_weights[k]
             if !isempty(loop.flux.data_σ)
-                IMAS.@ddtime(loop.flux.data_σ) < eps() && continue
-                weight /= IMAS.@ddtime(loop.flux.data_σ) / min_σ
+                fldata[k].err < eps() && continue
+                weight /= fldata[k].err / min_σ
             end
 
-            push!(flux_cps, VacuumFields.FluxControlPoint{T}(loop.position[1].r, loop.position[1].z, IMAS.@ddtime(loop.flux.data), weight))
+            push!(flux_cps, VacuumFields.FluxControlPoint{T}(loop.position[1].r, loop.position[1].z, fldata[k].val, weight))
         end
     end
     return flux_cps, loop_cps, field_cps

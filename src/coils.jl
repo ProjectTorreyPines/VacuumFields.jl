@@ -105,18 +105,9 @@ elements(coil::Union{IMAScoil,IMASloop}) = Iterators.filter(!isempty, coil.eleme
 
 # BCL 2/27/24
 # N.B.: Not sure about sign with turns and such
-function current_per_turn(coil::IMAScoil)
-    if ismissing(coil.current, :data)
-        return 0.0
-    end
-    return IMAS.@ddtime(coil.current.data)
-end
-
-function current_per_turn(loop::IMASloop)
-    if ismissing(loop, :current)
-        return 0.0
-    end
-    return IMAS.@ddtime(loop.current)
+function current_per_turn(pf::Union{IMAScoil,IMASloop})
+    avg = IMAS.getavg(pf, IMAS.global_time(pf), 0.005)
+    return avg.data.val
 end
 
 @inline function set_current_per_turn!(coil::AbstractSingleCoil, current_per_turn::Real)
@@ -514,7 +505,14 @@ end
 
 max_current(coil::AbstractCoil) = abs(current_per_turn(coil) * turns(coil))
 max_current(mcoil::MultiCoil) = isempty(mcoil.coils) ? 0.0 : maximum(abs, current_per_turn(coil) * turns(coil) for coil in mcoil.coils)
-max_current(icoil::IMAScoil) = ismissing(icoil.current, :data) ? 0.0 : (abs(IMAS.@ddtime(icoil.current.data) * maximum(turns(elm) for elm in icoil.element)))
+function max_current(icoil::IMAScoil) 
+    if ismissing(icoil.current, :data)
+        return 0.0 
+    else
+        avg = IMAS.getavg(icoil, IMAS.global_time(icoil), 0.005)
+        return (abs(avg.data.val * maximum(turns(elm) for elm in icoil.element)))
+    end
+end
 
 @recipe function plot_coils(coils::AbstractVector{<:AbstractCoil}; color_by=:current, cname=:diverging)
     if !isempty(coils)
