@@ -1,9 +1,8 @@
-function boundary_control_points(dd::IMAS.dd{T};
+function boundary_control_points(
+    eqt::IMAS.equilibrium__time_slice{T};
     x_points_weight::Real=1.0,
     strike_points_weight::Real=1.0,
     active_x_points::AbstractVector{Int}=Int[]) where {T<:Real}
-
-    eqt = dd.equilibrium.time_slice[]
 
     # Boundary control points
     iso_cps = IsoControlPoints(eqt.boundary.outline.r, eqt.boundary.outline.z)
@@ -26,19 +25,20 @@ function boundary_control_points(dd::IMAS.dd{T};
     return iso_cps, saddle_cps
 end
 
-function magnetic_control_points(dd::IMAS.dd{T};
+function magnetic_control_points(
+    mags::IMAS.magnetics{T};
     reference_flux_loop_index::Int=1,
-    flux_loop_weights::AbstractVector{<:Real}=T[],
-    magnetic_probe_weights::AbstractVector{<:Real}=T[]) where {T<:Real}
-
-    mags = dd.magnetics
+    flux_loop_weight::T=1.0,
+    flux_loop_weights::AbstractVector{T}=T[],
+    magnetic_probe_weight::T=1.0,
+    magnetic_probe_weights::AbstractVector{T}=T[]) where {T<:Real}
 
     # Probe control points (Note: type and size ignored)
     min_σ = minimum(IMAS.@ddtime(probe.field.data_σ) for probe in mags.b_field_pol_probe)
     field_cps = VacuumFields.FieldControlPoint{T}[]
     for (k, probe) in enumerate(mags.b_field_pol_probe)
         !isempty(probe.field.validity) && probe.field.validity < 0 && continue
-        weight = isempty(magnetic_probe_weights) ? 1.0 : magnetic_probe_weights[k]
+        weight = (isempty(magnetic_probe_weights) ? 1.0 : magnetic_probe_weights[k]) .* magnetic_probe_weight
         if !isempty(probe.field.data_σ)
             IMAS.@ddtime(probe.field.data_σ) < eps() && continue
             weight /= IMAS.@ddtime(probe.field.data_σ) / min_σ
@@ -50,7 +50,6 @@ function magnetic_control_points(dd::IMAS.dd{T};
     end
 
     # Flux loop control points (Note: type and size ignored)
-
     iref = reference_flux_loop_index
     loops = mags.flux_loop
     flux_cps = VacuumFields.FluxControlPoint{T}[]
@@ -73,7 +72,7 @@ function magnetic_control_points(dd::IMAS.dd{T};
             ck = IMAS.index_circular(N, k)
 
             !isempty(loops[ck].flux.validity) && loops[ck].flux.validity < 0 && continue
-            weight = isempty(flux_loop_weights) ? 1.0 : flux_loop_weights[ck]
+            weight = (isempty(flux_loop_weights) ? 1.0 : flux_loop_weights[ck]) .* flux_loop_weight
             if !isempty(loops[ck].flux.data_σ)
                 IMAS.@ddtime(loops[ck].flux.data_σ) < eps() && continue
                 weight /= relative_σ(ck) / min_σ
@@ -91,18 +90,19 @@ function magnetic_control_points(dd::IMAS.dd{T};
                 )
             )
         end
-        weight = isempty(flux_loop_weights) ? 1.0 : flux_loop_weights[iref]
+        weight = (isempty(flux_loop_weights) ? 1.0 : flux_loop_weights[iref]) .* flux_loop_weight
         if !isempty(loops[iref].flux.validity)
             @assert loops[iref].flux.validity >= 0
         end
 
         push!(flux_cps, VacuumFields.FluxControlPoint{T}(loops[iref].position[1].r, loops[iref].position[1].z, IMAS.@ddtime(loops[iref].flux.data), weight))
+
     else
         # Fit each flux loop separately (this is how data is collected on NSTX and fit with EFIT)
         min_σ = minimum(IMAS.@ddtime(loop.flux.data_σ) for loop in loops)
         for (k, loop) in enumerate(loops)
             !isempty(loop.flux.validity) && loop.flux.validity < 0 && continue
-            weight = isempty(flux_loop_weights) ? 1.0 : flux_loop_weights[k]
+            weight = (isempty(flux_loop_weights) ? 1.0 : flux_loop_weights[k]) .* flux_loop_weight
             if !isempty(loop.flux.data_σ)
                 IMAS.@ddtime(loop.flux.data_σ) < eps() && continue
                 weight /= IMAS.@ddtime(loop.flux.data_σ) / min_σ
@@ -111,5 +111,6 @@ function magnetic_control_points(dd::IMAS.dd{T};
             push!(flux_cps, VacuumFields.FluxControlPoint{T}(loop.position[1].r, loop.position[1].z, IMAS.@ddtime(loop.flux.data), weight))
         end
     end
-    return flux_cps, loop_cps, field_cps
+
+    return (flux_cps=flux_cps, loop_cps=loop_cps, field_cps=field_cps)
 end
