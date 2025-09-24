@@ -22,7 +22,81 @@ function boundary_control_points(
         end
         append!(iso_cps, xiso_cps)
     end
-    return iso_cps, saddle_cps
+    return (iso_cps=iso_cps, saddle_cps=saddle_cps)
+end
+
+function equilibrium_control_points(
+    eqt::IMAS.equilibrium__time_slice{T},
+    pc::IMAS.pulse_schedule__position_control{T};
+    x_points_weight::Float64,
+    strike_points_weight::Float64
+) where {T<:Real}
+
+    # boundary
+    if ismissing(eqt.global_quantities, :ip) # field nulls
+        iso_control_points = FluxControlPoints(eqt.boundary.outline.r, eqt.boundary.outline.z, eqt.global_quantities.psi_boundary)
+    else # solutions with plasma
+        iso_control_points = IsoControlPoints(eqt.boundary.outline.r, eqt.boundary.outline.z)
+    end
+
+    # x points
+    saddle_control_points = SaddleControlPoint{T}[]
+    if x_points_weight == 0.0
+        # pass
+    elseif !isempty(pc.x_point)
+        # we favor taking the x-points from the pulse schedule, if available
+        saddle_weight = x_points_weight / length(pc.x_point)
+        for x_point in pc.x_point
+            r = IMAS.get_time_array(x_point.r, :reference, :constant)
+            if r == 0.0 || isnan(r)
+                continue
+            end
+            z = IMAS.get_time_array(x_point.z, :reference, :constant)
+            push!(saddle_control_points, SaddleControlPoint{T}(r, z, saddle_weight))
+        end
+    else
+        saddle_weight = x_points_weight / length(eqt.boundary.x_point)
+        for x_point in eqt.boundary.x_point
+            push!(saddle_control_points, SaddleControlPoint{T}(x_point.r, x_point.z, saddle_weight))
+        end
+    end
+
+    # strike points
+    flux_control_points = FluxControlPoint{T}[]
+    if strike_points_weight == 0.0
+        # pass
+    elseif !isempty(pc.strike_point)
+        # we favor taking the strike points from the pulse schedule, if available
+        flux_control_points = FluxControlPoint{T}[]
+        strike_weight = strike_points_weight / length(pc.strike_point)
+        for strike_point in pc.strike_point
+            r = IMAS.get_time_array(strike_point.r, :reference, :constant)
+            if r == 0.0 || isnan(r)
+                continue
+            end
+            z = IMAS.get_time_array(strike_point.z, :reference, :constant)
+            push!(flux_control_points, FluxControlPoint{T}(r, z, eqt.global_quantities.psi_boundary, strike_weight))
+        end
+    else
+        strike_weight = strike_points_weight / length(eqt.boundary.strike_point)
+        for strike_point in eqt.boundary.strike_point
+            push!(flux_control_points, FluxControlPoint{T}(strike_point.r, strike_point.z, eqt.global_quantities.psi_boundary, strike_weight))
+        end
+    end
+
+    # magnetic axis
+    push!(saddle_control_points, SaddleControlPoint{T}(eqt.global_quantities.magnetic_axis.r, eqt.global_quantities.magnetic_axis.z, iso_control_points[1].weight))
+    push!(
+        flux_control_points,
+        FluxControlPoint{T}(
+            eqt.global_quantities.magnetic_axis.r,
+            eqt.global_quantities.magnetic_axis.z,
+            eqt.global_quantities.psi_axis,
+            iso_control_points[1].weight
+        )
+    )
+
+    return (iso_control_points=iso_control_points, flux_control_points=flux_control_points, saddle_control_points=saddle_control_points)
 end
 
 function magnetic_control_points(
@@ -35,7 +109,7 @@ function magnetic_control_points(
 
     # Probe control points (Note: type and size ignored)
     min_σ = minimum(IMAS.@ddtime(probe.field.data_σ) for probe in mags.b_field_pol_probe)
-    field_cps = VacuumFields.FieldControlPoint{T}[]
+    field_cps = FieldControlPoint{T}[]
     for (k, probe) in enumerate(mags.b_field_pol_probe)
         !isempty(probe.field.validity) && probe.field.validity < 0 && continue
         weight = (isempty(magnetic_probe_weights) ? 1.0 : magnetic_probe_weights[k]) .* magnetic_probe_weight
@@ -46,14 +120,14 @@ function magnetic_control_points(
         #IMAS allows probes to mix toroidal and poloidal fields so that needs to be accounted for
         bpol_field = isempty(probe.toroidal_angle) ? IMAS.@ddtime(probe.field.data) : IMAS.@ddtime(probe.field.data) * (1 - cos(probe.poloidal_angle) * sin(probe.toroidal_angle))
 
-        push!(field_cps, VacuumFields.FieldControlPoint{T}(probe.position.r, probe.position.z, probe.poloidal_angle, bpol_field, weight))
+        push!(field_cps, FieldControlPoint{T}(probe.position.r, probe.position.z, probe.poloidal_angle, bpol_field, weight))
     end
 
     # Flux loop control points (Note: type and size ignored)
     iref = reference_flux_loop_index
     loops = mags.flux_loop
-    flux_cps = VacuumFields.FluxControlPoint{T}[]
-    loop_cps = VacuumFields.IsoControlPoint{T}[]
+    flux_cps = FluxControlPoint{T}[]
+    loop_cps = IsoControlPoint{T}[]
     if iref > 0
         # Fit a single reference flux value and the difference between the other flux_loops and this value (this matches how data is collected on DIII-D and fit with EFIT)
         N = length(loops)
@@ -80,7 +154,7 @@ function magnetic_control_points(
 
             push!(
                 loop_cps,
-                VacuumFields.IsoControlPoint{T}(
+                IsoControlPoint{T}(
                     loops[ck].position[1].r,
                     loops[ck].position[1].z,
                     loops[iref].position[1].r,
@@ -95,7 +169,7 @@ function magnetic_control_points(
             @assert loops[iref].flux.validity >= 0
         end
 
-        push!(flux_cps, VacuumFields.FluxControlPoint{T}(loops[iref].position[1].r, loops[iref].position[1].z, IMAS.@ddtime(loops[iref].flux.data), weight))
+        push!(flux_cps, FluxControlPoint{T}(loops[iref].position[1].r, loops[iref].position[1].z, IMAS.@ddtime(loops[iref].flux.data), weight))
 
     else
         # Fit each flux loop separately (this is how data is collected on NSTX and fit with EFIT)
@@ -108,9 +182,9 @@ function magnetic_control_points(
                 weight /= IMAS.@ddtime(loop.flux.data_σ) / min_σ
             end
 
-            push!(flux_cps, VacuumFields.FluxControlPoint{T}(loop.position[1].r, loop.position[1].z, IMAS.@ddtime(loop.flux.data), weight))
+            push!(flux_cps, FluxControlPoint{T}(loop.position[1].r, loop.position[1].z, IMAS.@ddtime(loop.flux.data), weight))
         end
     end
 
-    return (flux_cps=flux_cps, loop_cps=loop_cps, field_cps=field_cps)
+    return (iso_control_points=loop_cps, flux_control_points=flux_cps, field_control_points=field_cps)
 end
