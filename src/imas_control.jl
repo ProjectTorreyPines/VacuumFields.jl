@@ -120,12 +120,21 @@ function magnetic_control_points(
 
     # Probe control points (Note: type and size ignored)
     if !isempty(mags.b_field_pol_probe)
-        min_σ = minimum(IMAS.@ddtime(probe.field.data_σ) for probe in mags.b_field_pol_probe)
+        min_σ = Inf
         for (k, probe) in enumerate(mags.b_field_pol_probe)
-            if (!isempty(probe.field.validity) && probe.field.validity < 0) || !isempty(probe.field.data_σ) && IMAS.@ddtime(probe.field.data_σ) == 0.0
+            if (IMAS.hasdata(probe.field, :validity) && probe.field.validity < 0) || !IMAS.hasdata(probe.field, :data_σ) || isempty(probe.field.data_σ) || IMAS.@ddtime(probe.field.data_σ) == 0.0
                 continue
             end
-            weight = (isempty(magnetic_probe_weights) ? 1.0 : magnetic_probe_weights[k]) * magnetic_probe_weight / length(mags.b_field_pol_probe) * min_σ / IMAS.@ddtime(probe.field.data_σ)
+            min_σ = min(IMAS.@ddtime(probe.field.data_σ), min_σ)
+        end
+        for (k, probe) in enumerate(mags.b_field_pol_probe)
+            if (IMAS.hasdata(probe.field, :validity) && probe.field.validity < 0) || !IMAS.hasdata(probe.field, :data_σ) || isempty(probe.field.data_σ) || IMAS.@ddtime(probe.field.data_σ) == 0.0
+                continue
+            end
+            weight = 1.0
+            if min_σ < Inf
+                weight = (isempty(magnetic_probe_weights) ? 1.0 : magnetic_probe_weights[k]) * magnetic_probe_weight / length(mags.b_field_pol_probe) * min_σ / IMAS.@ddtime(probe.field.data_σ)
+            end
             if weight > 0.0
                 #IMAS allows probes to mix toroidal and poloidal fields so that needs to be accounted for
                 bpol_field = isempty(probe.toroidal_angle) ? IMAS.@ddtime(probe.field.data) : IMAS.@ddtime(probe.field.data) * (1 - cos(probe.poloidal_angle) * sin(probe.toroidal_angle))
@@ -140,19 +149,27 @@ function magnetic_control_points(
         loops = mags.flux_loop
         @assert 0 <= iref <= length(loops)
         if iref > 0
-            @assert isempty(loops[iref].flux.validity) || loops[iref].flux.validity >= 0
+            @assert !IMAS.hasdata(loops[iref].flux, :validity) || loops[iref].flux.validity >= 0
             # Fit a single reference flux value and the difference between the other flux_loops and this value (this matches how data is collected on DIII-D and fit with EFIT)
 
             # Convert from total flux uncertainty (IMAS convention) to differential
             relative_σ(k) = sqrt(IMAS.@ddtime(loops[k].flux.data_σ)^2 + IMAS.@ddtime(loops[iref].flux.data_σ)^2)
-            min_σ = minimum(relative_σ(ck) for ck in 1:length(loops) if ck != iref)
-
+            min_σ = Inf
             for ck in 1:length(loops)
-                if (ck == iref) || (!isempty(loops[ck].flux.validity) && loops[ck].flux.validity < 0) || (!isempty(loops[ck].flux.data_σ) && IMAS.@ddtime(loops[ck].flux.data_σ) == 0.0)
+                if (ck == iref) || (IMAS.hasdata(loops[ck].flux, :validity) && loops[ck].flux.validity < 0) || !IMAS.hasdata(loops[ck].flux, :data_σ) || isempty(loops[ck].flux.data_σ) || IMAS.@ddtime(loops[ck].flux.data_σ) == 0.0
                     continue
                 end
-                weight = (isempty(flux_loop_weights) ? 1.0 : flux_loop_weights[ck]) * flux_loop_weight / length(loops) * min_σ / relative_σ(ck)
+                min_σ = min(relative_σ(ck), min_σ)
+            end
 
+            for ck in 1:length(loops)
+                if (ck == iref) || (IMAS.hasdata(loops[ck].flux, :validity) && loops[ck].flux.validity < 0) || !IMAS.hasdata(loops[ck].flux, :data_σ) || isempty(loops[ck].flux.data_σ) || IMAS.@ddtime(loops[ck].flux.data_σ) == 0.0
+                    continue
+                end
+                weight = 1.0
+                if min_σ < Inf
+                    weight = (isempty(flux_loop_weights) ? 1.0 : flux_loop_weights[ck]) * flux_loop_weight / length(loops) * min_σ / relative_σ(ck)
+                end
                 if weight > 0.0
                     push!(
                         iso_cps,
@@ -177,7 +194,7 @@ function magnetic_control_points(
             # Fit each flux loop separately (this is how data is collected on NSTX and fit with EFIT)
             min_σ = minimum(IMAS.@ddtime(loop.flux.data_σ) for loop in loops)
             for (k, loop) in enumerate(loops)
-                if (!isempty(loop.flux.validity) && loop.flux.validity < 0) || (!isempty(loop.flux.data_σ) && IMAS.@ddtime(loop.flux.data_σ) == 0.0)
+                if (IMAS.hasdata(loop.flux, :validity) && loop.flux.validity < 0) || !IMAS.hasdata(loop.flux, :data_σ) || isempty(loop.flux.data_σ) || IMAS.@ddtime(loop.flux.data_σ) == 0.0
                     continue
                 end
                 weight = (isempty(flux_loop_weights) ? 1.0 : flux_loop_weights[k]) * flux_loop_weight / length(loops) * min_σ / IMAS.@ddtime(loop.flux.data_σ)
