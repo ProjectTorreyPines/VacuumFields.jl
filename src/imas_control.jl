@@ -1,11 +1,12 @@
 function boundary_control_points(
     eqt::IMAS.equilibrium__time_slice{T};
+    boundary_weight::Float64,
     x_points_weight::Real,
     strike_points_weight::Real,
     active_x_points::AbstractVector{Int}=Int[]) where {T<:Real}
 
     # Boundary control points
-    iso_cps = IsoControlPoints(eqt.boundary.outline.r, eqt.boundary.outline.z)
+    iso_cps = IsoControlPoints(eqt.boundary.outline.r, eqt.boundary.outline.z; weight=boundary_weight)
 
     strike_weight = strike_points_weight / length(eqt.boundary.strike_point)
     strike_cps =
@@ -28,6 +29,7 @@ end
 function equilibrium_control_points(
     eqt::IMAS.equilibrium__time_slice{T},
     pc::IMAS.pulse_schedule__position_control{T};
+    boundary_weight::Float64,
     x_points_weight::Float64,
     strike_points_weight::Float64,
     magnetic_axis_weight::Float64=0.0
@@ -35,13 +37,13 @@ function equilibrium_control_points(
 
     # boundary
     if ismissing(eqt.global_quantities, :ip) # field nulls
-        iso_cps = FluxControlPoints(eqt.boundary.outline.r, eqt.boundary.outline.z, eqt.global_quantities.psi_boundary)
+        iso_cps = FluxControlPoints(eqt.boundary.outline.r, eqt.boundary.outline.z, eqt.global_quantities.psi_boundary; weight=boundary_weight)
     elseif !isempty(pc.boundary_outline)
         # we favor taking the boundary from the pulse schedule, if available
-        iso_cps = IsoControlPoints(IMAS.boundary(pc)...)
+        iso_cps = IsoControlPoints(IMAS.boundary(pc)...; weight=boundary_weight)
     else
         # solutions with plasma
-        iso_cps = IsoControlPoints(eqt.boundary.outline.r, eqt.boundary.outline.z)
+        iso_cps = IsoControlPoints(eqt.boundary.outline.r, eqt.boundary.outline.z; weight=boundary_weight)
     end
 
     # x points
@@ -122,22 +124,27 @@ function magnetic_control_points(
     if !isempty(mags.b_field_pol_probe)
         min_σ = Inf
         for (k, probe) in enumerate(mags.b_field_pol_probe)
-            if (IMAS.hasdata(probe.field, :validity) && probe.field.validity < 0) || !IMAS.hasdata(probe.field, :data_σ) || isempty(probe.field.data_σ) || IMAS.@ddtime(probe.field.data_σ) == 0.0
+            if (IMAS.hasdata(probe.field, :validity) && probe.field.validity < 0) || !IMAS.hasdata(probe.field, :data_σ) || isempty(probe.field.data_σ) ||
+               IMAS.@ddtime(probe.field.data_σ) == 0.0
                 continue
             end
             min_σ = min(IMAS.@ddtime(probe.field.data_σ), min_σ)
         end
         for (k, probe) in enumerate(mags.b_field_pol_probe)
-            if (IMAS.hasdata(probe.field, :validity) && probe.field.validity < 0) || !IMAS.hasdata(probe.field, :data_σ) || isempty(probe.field.data_σ) || IMAS.@ddtime(probe.field.data_σ) == 0.0
+            if (IMAS.hasdata(probe.field, :validity) && probe.field.validity < 0) || !IMAS.hasdata(probe.field, :data_σ) || isempty(probe.field.data_σ) ||
+               IMAS.@ddtime(probe.field.data_σ) == 0.0
                 continue
             end
             weight = 1.0
             if min_σ < Inf
-                weight = (isempty(magnetic_probe_weights) ? 1.0 : magnetic_probe_weights[k]) * magnetic_probe_weight / length(mags.b_field_pol_probe) * min_σ / IMAS.@ddtime(probe.field.data_σ)
+                weight =
+                    (isempty(magnetic_probe_weights) ? 1.0 : magnetic_probe_weights[k]) * magnetic_probe_weight / length(mags.b_field_pol_probe) * min_σ /
+                    IMAS.@ddtime(probe.field.data_σ)
             end
             if weight > 0.0
                 #IMAS allows probes to mix toroidal and poloidal fields so that needs to be accounted for
-                bpol_field = isempty(probe.toroidal_angle) ? IMAS.@ddtime(probe.field.data) : IMAS.@ddtime(probe.field.data) * (1 - cos(probe.poloidal_angle) * sin(probe.toroidal_angle))
+                bpol_field =
+                    isempty(probe.toroidal_angle) ? IMAS.@ddtime(probe.field.data) : IMAS.@ddtime(probe.field.data) * (1 - cos(probe.poloidal_angle) * sin(probe.toroidal_angle))
                 push!(field_cps, FieldControlPoint{T}(probe.position.r, probe.position.z, probe.poloidal_angle, bpol_field, weight))
             end
         end
@@ -156,14 +163,16 @@ function magnetic_control_points(
             relative_σ(k) = sqrt(IMAS.@ddtime(loops[k].flux.data_σ)^2 + IMAS.@ddtime(loops[iref].flux.data_σ)^2)
             min_σ = Inf
             for ck in 1:length(loops)
-                if (ck == iref) || (IMAS.hasdata(loops[ck].flux, :validity) && loops[ck].flux.validity < 0) || !IMAS.hasdata(loops[ck].flux, :data_σ) || isempty(loops[ck].flux.data_σ) || IMAS.@ddtime(loops[ck].flux.data_σ) == 0.0
+                if (ck == iref) || (IMAS.hasdata(loops[ck].flux, :validity) && loops[ck].flux.validity < 0) || !IMAS.hasdata(loops[ck].flux, :data_σ) ||
+                   isempty(loops[ck].flux.data_σ) || IMAS.@ddtime(loops[ck].flux.data_σ) == 0.0
                     continue
                 end
                 min_σ = min(relative_σ(ck), min_σ)
             end
 
             for ck in 1:length(loops)
-                if (ck == iref) || (IMAS.hasdata(loops[ck].flux, :validity) && loops[ck].flux.validity < 0) || !IMAS.hasdata(loops[ck].flux, :data_σ) || isempty(loops[ck].flux.data_σ) || IMAS.@ddtime(loops[ck].flux.data_σ) == 0.0
+                if (ck == iref) || (IMAS.hasdata(loops[ck].flux, :validity) && loops[ck].flux.validity < 0) || !IMAS.hasdata(loops[ck].flux, :data_σ) ||
+                   isempty(loops[ck].flux.data_σ) || IMAS.@ddtime(loops[ck].flux.data_σ) == 0.0
                     continue
                 end
                 weight = 1.0
@@ -194,7 +203,8 @@ function magnetic_control_points(
             # Fit each flux loop separately (this is how data is collected on NSTX and fit with EFIT)
             min_σ = minimum(IMAS.@ddtime(loop.flux.data_σ) for loop in loops)
             for (k, loop) in enumerate(loops)
-                if (IMAS.hasdata(loop.flux, :validity) && loop.flux.validity < 0) || !IMAS.hasdata(loop.flux, :data_σ) || isempty(loop.flux.data_σ) || IMAS.@ddtime(loop.flux.data_σ) == 0.0
+                if (IMAS.hasdata(loop.flux, :validity) && loop.flux.validity < 0) || !IMAS.hasdata(loop.flux, :data_σ) || isempty(loop.flux.data_σ) ||
+                   IMAS.@ddtime(loop.flux.data_σ) == 0.0
                     continue
                 end
                 weight = (isempty(flux_loop_weights) ? 1.0 : flux_loop_weights[k]) * flux_loop_weight / length(loops) * min_σ / IMAS.@ddtime(loop.flux.data_σ)

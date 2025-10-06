@@ -25,16 +25,16 @@ function VacuumFields.boundary_control_points(shot::TEQUILA.Shot, fraction_insid
 end
 
 """
-    boundary_iso_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999; Npts::Integer=99)
+    boundary_iso_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999; Npts::Integer=99, weight::Float64)
 
 Return a Vector of IsoControlPoints, at `Npts` equally distributed `fraction_inside` percent inside the the boundary of `shot`
 """
-function VacuumFields.boundary_iso_control_points(shot::TEQUILA.Shot, fraction_inside::Float64=0.999; Npts::Integer=99)
+function VacuumFields.boundary_iso_control_points(shot::TEQUILA.Shot, fraction_inside::Float64=0.999; Npts::Integer=99, weight::Float64)
     bnd = MillerExtendedHarmonic.MXH(shot, fraction_inside)
     θs = LinRange(0, 2π, Npts + 1)
     r = [bnd(θ)[1] for θ in θs[1:end-1]]
     z = [bnd(θ)[2] for θ in θs[1:end-1]]
-    return VacuumFields.IsoControlPoints(r, z)
+    return VacuumFields.IsoControlPoints(r, z; weight)
 end
 
 VacuumFields.plasma_boundary_psi_w_fallback(shot::TEQUILA.Shot, args...) = MXHEquilibrium.Boundary(MXHEquilibrium.MXH(shot, 1.0)()...), 0.0

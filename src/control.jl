@@ -152,11 +152,11 @@ function SaddleControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Re
 end
 
 """
-    IsoControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real})
+    IsoControlPoints(Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real}; weight::Float64)
 
 Return a Vector of IsoControlPoints between each pair of `Rs` and `Zs` points
 """
-function IsoControlPoints(Rs::AbstractVector{T}, Zs::AbstractVector{T}) where {T<:Real}
+function IsoControlPoints(Rs::AbstractVector{T}, Zs::AbstractVector{T}; weight::Float64) where {T<:Real}
     @assert length(Zs) == length(Rs)
     is_closed = sqrt((Rs[1] - Rs[end])^2 + (Zs[1] - Zs[end])^2) < 1E-6
     if is_closed
@@ -167,7 +167,7 @@ function IsoControlPoints(Rs::AbstractVector{T}, Zs::AbstractVector{T}) where {T
     i_max = argmax(Rs)
     i_min = argmin(Rs)
     iso_cps = IsoControlPoint{T}[]
-    weight = 1.0 / (N - 1)
+    weight = weight / (N - 1)
     # connect i_min to i_max
     push!(iso_cps, IsoControlPoint{T}(Rs[i_min], Zs[i_min], Rs[i_max], Zs[i_max], 0.0, weight))
     # then interlace the rest
@@ -197,22 +197,22 @@ end
 
 Return a Vector of FluxControlPoint, each with target `ψbound`, at `Npts` equally distributed `fraction_inside` percent inside the the boundary of `EQfixed`
 """
-function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99)
+function boundary_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999, ψbound::Real=0.0; Npts::Integer=99, weight::Float64=1.0)
     ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
     Sp = MXHEquilibrium.flux_surface(EQfixed, fraction_inside * (ψb - ψ0) + ψ0; n_interp=Npts)
     ψtarget = fraction_inside * (ψb - ψ0) + ψ0 - ψb + ψbound
-    return [FluxControlPoint(Sp.r[k], Sp.z[k], ψtarget, 1.0 / Npts) for k in 1:length(Sp.r)-1]
+    return [FluxControlPoint(Sp.r[k], Sp.z[k], ψtarget, weight / Npts) for k in 1:length(Sp.r)-1]
 end
 
 """
-    boundary_iso_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999; Npts::Integer=99)
+    boundary_iso_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999; Npts::Integer=99, weight::Float64=1.0)
 
 Return a Vector of IsoControlPoints, at `Npts` equally distributed `fraction_inside` percent inside the the boundary of `EQfixed`
 """
-function boundary_iso_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999; Npts::Integer=99)
+function boundary_iso_control_points(EQfixed::MXHEquilibrium.AbstractEquilibrium, fraction_inside::Float64=0.999; Npts::Integer=99, weight::Float64=1.0)
     ψ0, ψb = MXHEquilibrium.psi_limits(EQfixed)
     Sp = MXHEquilibrium.flux_surface(EQfixed, fraction_inside * (ψb - ψ0) + ψ0; n_interp=Npts)
-    return VacuumFields.IsoControlPoints(Sp.r, Sp.z)
+    return VacuumFields.IsoControlPoints(Sp.r, Sp.z; weight)
 end
 
 """
