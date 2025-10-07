@@ -298,8 +298,8 @@ function find_coil_currents!(
     A::AbstractMatrix{Ta}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
     b_offset::AbstractVector{Tbo}=Float64[]) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real,Ta<:Real,Tbo<:Real}
 
-    T = promote_type(T1, T2, T3, T4, Ta, Tbo)
-    b = init_b(T, EQ, image; flux_cps, saddle_cps, iso_cps, field_cps, ψbound, Sb)
+    Tab = promote_type(Ta, Tbo)
+    b = init_b(Tab, EQ, image; flux_cps, saddle_cps, iso_cps, field_cps, ψbound, Sb)
     if isempty(b_offset)
         offset_b!(b; flux_cps, saddle_cps, iso_cps, field_cps, fixed_coils, cocos)
     else
@@ -380,9 +380,9 @@ Optionally assumes flux from additional `fixed_coils`, whose currents will not c
 """
 function find_coil_currents!(
     coils::AbstractVector{<:AbstractCoil},
-    ψpl::Union{Function,Interpolations.AbstractInterpolation},
-    dψpl_dR::Union{Function,Interpolations.AbstractInterpolation},
-    dψpl_dZ::Union{Function,Interpolations.AbstractInterpolation};
+    ψpl::FI1,
+    dψpl_dR::FI2,
+    dψpl_dZ::FI3;
     flux_cps::Vector{FluxControlPoint{T1}}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{SaddleControlPoint{T2}}=SaddleControlPoint{Float64}[],
     iso_cps::Vector{IsoControlPoint{T3}}=IsoControlPoint{Float64}[],
@@ -391,10 +391,14 @@ function find_coil_currents!(
     λ_regularize::Float64=0.0,
     cocos=MXHEquilibrium.cocos(11),
     A::AbstractMatrix{Ta}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
-    b_offset::AbstractVector{Tbo}=Float64[]) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real,Ta<:Real,Tbo<:Real}
+    b_offset::AbstractVector{Tbo}=Float64[]
+) where {FI1<:Union{Function,Interpolations.AbstractInterpolation},
+    FI2<:Union{Function,Interpolations.AbstractInterpolation},
+    FI3<:Union{Function,Interpolations.AbstractInterpolation},
+    T1<:Real,T2<:Real,T3<:Real,T4<:Real,Ta<:Real,Tbo<:Real}
 
-    T = promote_type(T1, T2, T3, T4, Ta, Tbo)
-    b = init_b(T, ψpl, dψpl_dR, dψpl_dZ; flux_cps, saddle_cps, iso_cps, field_cps)
+    Tab = promote_type(Ta, Tbo)
+    b = init_b(Tab, ψpl, dψpl_dR, dψpl_dZ; flux_cps, saddle_cps, iso_cps, field_cps)
     if isempty(b_offset)
         offset_b!(b; flux_cps, saddle_cps, iso_cps, field_cps, fixed_coils, cocos)
     else
@@ -590,7 +594,7 @@ function find_coil_currents!(coils::AbstractVector{<:AbstractCoil},
     return Ic0, cost
 end
 
-function init_b(T::Type,
+function init_b(Tab::Type,
     EQ::MXHEquilibrium.AbstractEquilibrium,
     image::Image;
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
@@ -606,11 +610,11 @@ function init_b(T::Type,
     dψpl_dR = (r, z) -> -dψ_dR(image, r, z)
     dψpl_dZ = (r, z) -> -dψ_dZ(image, r, z)
 
-    return init_b(T, ψpl, dψpl_dR, dψpl_dZ; flux_cps, saddle_cps, iso_cps, field_cps)
+    return init_b(Tab, ψpl, dψpl_dR, dψpl_dZ; flux_cps, saddle_cps, iso_cps, field_cps)
 
 end
 
-function init_b(T::Type,
+function init_b(Tab::Type{<:Real},
     ψpl::Union{Function,Interpolations.AbstractInterpolation},
     dψpl_dR::Union{Function,Interpolations.AbstractInterpolation},
     dψpl_dZ::Union{Function,Interpolations.AbstractInterpolation};
@@ -629,7 +633,7 @@ function init_b(T::Type,
     Bp_fac = cocos.sigma_Bp * (2π)^cocos.exp_Bp
 
     Tcp = promote_type(T1, T2, T3, T4)
-    @assert promote_type(Base.promote_op(ψpl, Tcp, Tcp), Base.promote_op(dψpl_dR, Tcp, Tcp), Base.promote_op(dψpl_dZ, Tcp, Tcp)) <: T
+    T = promote_type(Tab, Tcp, Base.promote_op(ψpl, Tcp, Tcp), Base.promote_op(dψpl_dR, Tcp, Tcp), Base.promote_op(dψpl_dZ, Tcp, Tcp))
 
     b = zeros(T, N)
 
