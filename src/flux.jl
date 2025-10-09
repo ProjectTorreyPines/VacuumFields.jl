@@ -26,9 +26,11 @@ end
 
 # image flux
 @inline function _pfunc(Gfunc, image::Image, R::Real, Z::Real)
-    tid = Threads.threadid()
-    image._Vb[tid] .= image.dψdn_R .* Gfunc.(image.Rb, image.Zb, R, Z)
-    return -trapz(image.Lb, image._Vb[tid])
+    p = with_buffer(image._Vb) do Vb
+        @. Vb = image.dψdn_R * Gfunc(image.Rb, image.Zb, R, Z)
+        -trapz(image.Lb, Vb)
+    end
+    return p
 end
 
 # series flux

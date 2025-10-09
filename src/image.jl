@@ -3,11 +3,11 @@ struct Image{V<:AbstractVector{<:Real}}
     Zb::V
     Lb::V
     dψdn_R::V
-    _Vb::Vector{V}
+    _Vb::Channel{V}
 end
 
 function Image(Rb, Zb, Lb, dψdn_R)
-    Vb = [zero(Lb) for _ in 1:Threads.nthreads()]
+    Vb = preallocate_buffer(zero(Lb))
     return Image(Rb, Zb, Lb, dψdn_R, Vb)
 end
 

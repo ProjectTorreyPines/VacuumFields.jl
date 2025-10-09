@@ -12,6 +12,7 @@ import IMAS
 import FusionMaterials
 import Interpolations
 import PlotUtils
+import IMASutils: preallocate_buffer, with_buffer
 using LoopVectorization
 
 const μ₀ = 4e-7 * π
