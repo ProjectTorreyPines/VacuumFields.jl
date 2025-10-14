@@ -1,6 +1,6 @@
 name = "VacuumFields"
 uuid = "9d9223b5-c5da-4bf4-abee-2a8bb6775a49"
-version = "6.0.0"
+version = "6.0.1"
 authors = ["Brendan Lyons <lyonsbc@fusion.gat.com> and contributors"]
 
 [deps]
