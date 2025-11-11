@@ -21,6 +21,23 @@ function _gfunc(Gfunc::F1, element::IMASelement, R::Real, Z::Real, scale_factor:
     return integrate((X, Y) -> Gfunc(X, Y, R, Z, scale_factor), ol; xorder, yorder) * turns(element) / area(ol)
 end
 
+function _gfunc(Gfunc::F1, element::IMASelement, R0::Real, Z0::Real, outline_r::Vector{<:Real}, outline_z::Vector{<:Real}, turns_with_sign::Real, scale_factor::Real=1.0; xorder::Int=default_order, yorder::Int=default_order) where {F1 <: Function}
+    @assert xorder <= N_gl
+    @assert yorder <= N_gl
+
+    sum_val = 0.0
+    @inbounds for i in 1:xorder
+        for j in 1:yorder
+            R, Z = RZq(gξ_pa[i, xorder], gξ_pa[j, yorder], outline_r, outline_z)
+            J = Jacobian(gξ_pa[i, xorder], gξ_pa[j, yorder], outline_r, outline_z)
+            sum_val += J * Gfunc(R, Z, R0, Z0, scale_factor) * gw_pa[i, xorder] * gw_pa[j, yorder]
+        end
+    end
+
+    return sum_val * turns_with_sign / area(outline_r, outline_z)
+end
+
+
 function _gfunc(Gfunc::F1, mcoil::MultiCoil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...) where {F1 <: Function}
     return sum(_gfunc(Gfunc, coil, R, Z, scale_factor; kwargs...) * mcoil.orientation[k] for (k, coil) in enumerate(mcoil.coils))
 end
