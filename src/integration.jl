@@ -173,6 +173,23 @@ function integrate(f::F1, ol::IMASoutline; xorder::Int=default_order, yorder::In
     return I
 end
 
+function integrate(f::F1, outline_r::Vector{<:Real}, outline_z::Vector{<:Real}; xorder::Int=default_order, yorder::Int=default_order) where {F1<:Function}
+    @assert xorder <= N_gl
+    @assert yorder <= N_gl
+
+    sum_val = 0.0
+    @inbounds for i in 1:xorder
+        for j in 1:yorder
+            R, Z = RZq(gξ_pa[i, xorder], gξ_pa[j, yorder], outline_r, outline_z)
+            J = Jacobian(gξ_pa[i, xorder], gξ_pa[j, yorder], outline_r, outline_z)
+            sum_val += J * f(R, Z) * gw_pa[i, xorder] * gw_pa[j, yorder]
+        end
+    end
+
+    return sum_val
+end
+
+
 function integrate(f::F1, C::QuadCoil; xorder::Int=default_order, yorder::Int=default_order) where {F1<:Function}
     @assert xorder <= N_gl
     @assert yorder <= N_gl
