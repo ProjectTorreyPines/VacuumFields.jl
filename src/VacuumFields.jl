@@ -25,6 +25,8 @@ const IMASloop = IMAS.pf_passive__loop
 const IMASelement = Union{IMAS.pf_active__coil___element, IMAS.pf_passive__loop___element}
 const IMASoutline = Union{IMAS.pf_active__coil___element___geometry__outline, IMAS.pf_passive__loop___element___geometry__outline, NamedTuple}
 
+const MXHcocos11 = MXHEquilibrium.cocos(11)
+
 include("coils.jl")
 export AbstractCoil, PointCoil, ParallelogramCoil, QuadCoil, DistributedCoil, MultiCoil, encircling_coils
 
