@@ -14,20 +14,32 @@ struct DerivedCoilData{T<:Real}
     outline_z::Vector{T}
 end
 
+"""
+    CurrentCache{T}
+
+Cached current_per_turn value for a specific time point.
+Stores the time when current was evaluated and its corresponding current_per_turn.
+"""
+struct CurrentCache{T<:Real}
+    time::T
+    current_per_turn::T
+end
+
 mutable struct GS_IMAS_pf_active__coil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractSingleCoil{T1,T2,T3,T4}
     imas::IMAS.pf_active__coil{T1}
     tech::IMAS.build__pf_active__technology{T1}
     time0::Float64
     green_model::Symbol
     _derived::Union{Vector{DerivedCoilData{T1}}, Nothing}
+    _cached_current::Union{CurrentCache{T1}, Nothing}
 
-    # Inner constructor (no derived data)
+    # Inner constructor (no cached data)
     function GS_IMAS_pf_active__coil{T1,T2,T3,T4}(
         imas::IMAS.pf_active__coil{T1},
         tech::IMAS.build__pf_active__technology{T1},
         time0::Float64,
         green_model::Symbol) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real}
-        new{T1,T2,T3,T4}(imas, tech, time0, green_model, nothing)
+        new{T1,T2,T3,T4}(imas, tech, time0, green_model, nothing, nothing)
     end
 
     # Inner constructor (with derived data vector)
@@ -37,7 +49,18 @@ mutable struct GS_IMAS_pf_active__coil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: A
         time0::Float64,
         green_model::Symbol,
         derived::Vector{DerivedCoilData{T1}}) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real}
-        new{T1,T2,T3,T4}(imas, tech, time0, green_model, derived)
+        new{T1,T2,T3,T4}(imas, tech, time0, green_model, derived, nothing)
+    end
+
+    # Inner constructor (with derived data and cached current)
+    function GS_IMAS_pf_active__coil{T1,T2,T3,T4}(
+        imas::IMAS.pf_active__coil{T1},
+        tech::IMAS.build__pf_active__technology{T1},
+        time0::Float64,
+        green_model::Symbol,
+        derived::Union{Vector{DerivedCoilData{T1}}, Nothing},
+        cached_current::Union{CurrentCache{T1}, Nothing}) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real}
+        new{T1,T2,T3,T4}(imas, tech, time0, green_model, derived, cached_current)
     end
 end
 
@@ -67,6 +90,48 @@ end
 """Clear cached derived data"""
 function clear_derived_data!(coil::GS_IMAS_pf_active__coil)
     setfield!(coil, :_derived, nothing)
+    return coil
+end
+
+# Helper functions for current cache management
+
+"""Check if coil has cached current"""
+@inline has_cached_current(coil::GS_IMAS_pf_active__coil) = !isnothing(getfield(coil, :_cached_current))
+
+"""
+    get_cached_current(coil, time) -> Union{T, Nothing}
+
+Get cached current_per_turn if available for the specified time.
+Returns nothing if cache miss.
+"""
+function get_cached_current(coil::GS_IMAS_pf_active__coil{T}, time::Real) where {T}
+    cache = getfield(coil, :_cached_current)
+    if !isnothing(cache) && cache.time == time
+        return cache.current_per_turn
+    end
+    return nothing
+end
+
+"""
+    cache_current!(coil, time, current_per_turn)
+
+Cache current_per_turn value for the specified time.
+"""
+function cache_current!(coil::GS_IMAS_pf_active__coil{T}, time::Real, current_per_turn::Real) where {T}
+    setfield!(coil, :_cached_current, CurrentCache{T}(T(time), T(current_per_turn)))
+    return coil
+end
+
+function cache_current!(coil::GS_IMAS_pf_active__coil{T}) where {T}
+    time = getfield(coil, :time0)
+    current_per_turn = getproperty(coil, :current_per_turn)
+    setfield!(coil, :_cached_current, CurrentCache{T}(T(time), T(current_per_turn)))
+    return coil
+end
+
+"""Clear cached current data"""
+function clear_current_cache!(coil::GS_IMAS_pf_active__coil)
+    setfield!(coil, :_cached_current, nothing)
     return coil
 end
 
@@ -133,6 +198,7 @@ function Base.getproperty(coil::GS_IMAS_pf_active__coil{T}, field::Symbol) where
     if field ∈ (:r, :z, :width, :height)
         value = getfield(pfcoil.element[1].geometry.rectangle, field)
     elseif field == :current_per_turn
+        Main.@infiltrate
         value = IMAS.get_time_array(pfcoil.current, :data, getfield(coil, :time0))
     elseif field == :resistance
         value = getfield(pfcoil, field)
