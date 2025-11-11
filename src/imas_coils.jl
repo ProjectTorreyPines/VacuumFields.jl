@@ -1,11 +1,73 @@
 #= ==================================== =#
 #  IMAS.pf_active__coil to VacuumFields  #
 #= ==================================== =#
+
+"""
+    DerivedCoilData{T}
+
+Cached derived quantities from IMAS coil data to avoid repeated allocation and computation.
+Each element in a coil has one DerivedCoilData.
+"""
+struct DerivedCoilData{T<:Real}
+    turns_with_sign::T
+    outline_r::Vector{T}
+    outline_z::Vector{T}
+end
+
 mutable struct GS_IMAS_pf_active__coil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractSingleCoil{T1,T2,T3,T4}
     imas::IMAS.pf_active__coil{T1}
     tech::IMAS.build__pf_active__technology{T1}
     time0::Float64
     green_model::Symbol
+    _derived::Union{Vector{DerivedCoilData{T1}}, Nothing}
+
+    # Inner constructor (no derived data)
+    function GS_IMAS_pf_active__coil{T1,T2,T3,T4}(
+        imas::IMAS.pf_active__coil{T1},
+        tech::IMAS.build__pf_active__technology{T1},
+        time0::Float64,
+        green_model::Symbol) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real}
+        new{T1,T2,T3,T4}(imas, tech, time0, green_model, nothing)
+    end
+
+    # Inner constructor (with derived data vector)
+    function GS_IMAS_pf_active__coil{T1,T2,T3,T4}(
+        imas::IMAS.pf_active__coil{T1},
+        tech::IMAS.build__pf_active__technology{T1},
+        time0::Float64,
+        green_model::Symbol,
+        derived::Vector{DerivedCoilData{T1}}) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real}
+        new{T1,T2,T3,T4}(imas, tech, time0, green_model, derived)
+    end
+end
+
+# Helper functions for derived data management
+
+"""Check if coil has derived data cached"""
+@inline has_derived_data(coil::GS_IMAS_pf_active__coil) = !isnothing(getfield(coil, :_derived))
+
+"""Derive and cache coil data from IMAS structure"""
+function derive_coil_data!(coil::GS_IMAS_pf_active__coil{T}) where {T}
+    derived_vec = DerivedCoilData{T}[]
+
+    for element in coil.imas.element
+        ol = IMAS.outline(element)
+        derived = DerivedCoilData{T}(
+            element.turns_with_sign,
+            ol.r,
+            ol.z
+        )
+        push!(derived_vec, derived)
+    end
+
+    setfield!(coil, :_derived, derived_vec)
+    return coil
+end
+
+"""Clear cached derived data"""
+function clear_derived_data!(coil::GS_IMAS_pf_active__coil)
+    setfield!(coil, :_derived, nothing)
+    return coil
 end
 
 function GS_IMAS_pf_active__coil(
@@ -105,18 +167,18 @@ end
 Calculates coil green function at given R and Z coordinate
 """
 function Green(coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
-    return _gfunc(Green, coil, R, Z)
+    return _dispatch_green(Green, coil, R, Z)
 end
 
 function dG_dR(coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
-    return _gfunc(dG_dR, coil, R, Z)
+    return _dispatch_green(dG_dR, coil, R, Z)
 end
 
 function dG_dZ(coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
-    return _gfunc(dG_dZ, coil, R, Z)
+    return _dispatch_green(dG_dZ, coil, R, Z)
 end
 
-function _gfunc(Gfunc::F1, coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=3, yorder::Int=3) where {F1<:Function}
+function _dispatch_green(Gfunc::F1, coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=3, yorder::Int=3) where {F1<:Function}
     green_model = getfield(coil, :green_model)
 
     if green_model == :point # low-fidelity
@@ -125,8 +187,19 @@ function _gfunc(Gfunc::F1, coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scal
         return Gfunc(rc0, zc0, R, Z, scale_factor) * coil.turns
 
     elseif green_model == :quad # high-fidelity
-        return Gfunc(coil.imas, R, Z, scale_factor; xorder, yorder)
 
+        if !has_derived_data(coil) 
+            derive_coil_data!(coil)
+        end
+
+        sum_val = 0.0
+        for (k, element) in enumerate(coil.imas.element)
+            sum_val += _gfunc(Gfunc, element, R, Z,
+                            coil._derived[k].outline_r, coil._derived[k].outline_z, coil._derived[k].turns_with_sign,
+                            scale_factor; xorder, yorder)
+        end
+
+        return sum_val
     else
         error("$(typeof(coil)) green_model is `$(green_model)` but it can only be `:point` or `:quad`")
 
