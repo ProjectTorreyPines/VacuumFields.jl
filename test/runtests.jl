@@ -49,3 +49,4 @@ end
 # Include test files
 include("runtests_basic.jl")
 include("runtests_inplace.jl")
+include("runtests_coil_cache.jl")
