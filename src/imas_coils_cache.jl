@@ -12,15 +12,17 @@
 Check if a single ElementCache is still valid for the given element.
 Returns false if geometry or turns_with_sign changed.
 """
-@inline function is_cache_valid(elem_cache::ElementCache, element)
-    rect = element.geometry.rectangle
+@inline function is_cache_valid(ec::ElementCache, element::IMAS.pf_active__coil___element)
+    rect = getfield(getfield(element, :geometry), :rectangle)
 
     # Compare geometry fields
-    current_geom = (r=rect.r, z=rect.z, width=rect.width, height=rect.height)
-    current_geom != elem_cache.source_geometry && return false
+    ec.source_geometry.r == getfield(rect, :r) || return false
+    ec.source_geometry.z == getfield(rect, :z) || return false
+    ec.source_geometry.width == getfield(rect, :width) || return false
+    ec.source_geometry.height == getfield(rect, :height) || return false
 
     # turns_with_sign comparison
-    element.turns_with_sign != elem_cache.turns_with_sign && return false
+    ec.turns_with_sign == getfield(element, :turns_with_sign) || return false
 
     return true
 end
@@ -44,13 +46,13 @@ end
 
 """Create ElementCache from a single element (internal helper)"""
 @inline function _create_element_cache(element, ::Type{T}) where {T}
-    rect = element.geometry.rectangle
+    rect = getfield(getfield(element, :geometry), :rectangle)
     ol = IMAS.outline(element)
     return ElementCache{T}(
-        element.turns_with_sign,
+        getfield(element, :turns_with_sign),
         ol.r,
         ol.z,
-        (r=rect.r, z=rect.z, width=rect.width, height=rect.height)
+        (r=getfield(rect,:r), z=getfield(rect,:z), width=getfield(rect,:width), height=getfield(rect,:height))
     )
 end
 
@@ -59,12 +61,12 @@ end
 
 Update ElementCache in-place from element data. Minimizes allocation by reusing vectors.
 """
-@inline function update_cache!(cache::ElementCache{T}, element) where {T}
-    rect = element.geometry.rectangle
+@inline function update_cache!(cache::ElementCache{T}, element::IMAS.pf_active__coil___element) where {T}
+    rect = getfield(getfield(element, :geometry), :rectangle)
     ol = IMAS.outline(element)
 
     # Update scalar
-    cache.turns_with_sign = element.turns_with_sign
+    cache.turns_with_sign = getfield(element, :turns_with_sign)
 
     # Update vectors in-place (resize + copy)
     resize!(cache.outline_r, length(ol.r))
@@ -74,7 +76,8 @@ Update ElementCache in-place from element data. Minimizes allocation by reusing 
     copyto!(cache.outline_z, ol.z)
 
     # Update geometry (small NamedTuple, cheap to reassign)
-    cache.source_geometry = (r=rect.r, z=rect.z, width=rect.width, height=rect.height)
+    cache.source_geometry = (r=getfield(rect,:r), z=getfield(rect,:z), 
+                            width=getfield(rect,:width), height=getfield(rect,:height))
 
     return cache
 end
@@ -93,7 +96,6 @@ function ensure_valid_elements_cache!(coil::GS_IMAS_pf_active__coil{T}) where {T
         setfield!(coil, :_elements_cache, [_create_element_cache(el, T) for el in coil.imas.element])
         return coil
     end
-
     # Otherwise, validate and update only invalid elements IN-PLACE (zero allocation)
     for (k, element) in enumerate(coil.imas.element)
         if !is_cache_valid(coil._elements_cache[k], element)
