@@ -3,15 +3,18 @@
 #= ==================================== =#
 
 """
-    DerivedCoilData{T}
+    ElementCache{T}
 
 Cached derived quantities from IMAS coil data to avoid repeated allocation and computation.
-Each element in a coil has one DerivedCoilData.
+Each element in a coil has one ElementCache.
+Includes source geometry for cache validation.
+Mutable to enable in-place updates for zero-allocation cache invalidation.
 """
-struct DerivedCoilData{T<:Real}
+mutable struct ElementCache{T<:Real}
     turns_with_sign::T
     outline_r::Vector{T}
     outline_z::Vector{T}
+    source_geometry::NamedTuple{(:r, :z, :width, :height), NTuple{4, T}}
 end
 
 """
@@ -30,87 +33,161 @@ mutable struct GS_IMAS_pf_active__coil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: A
     tech::IMAS.build__pf_active__technology{T1}
     time0::Float64
     green_model::Symbol
-    _derived::Union{Vector{DerivedCoilData{T1}}, Nothing}
-    _cached_current::Union{CurrentCache{T1}, Nothing}
+    _elements_cache::Vector{ElementCache{T1}}
+    _current_cache::CurrentCache{T1}
 
-    # Inner constructor (no cached data)
+    # Inner constructor (default initialization)
     function GS_IMAS_pf_active__coil{T1,T2,T3,T4}(
         imas::IMAS.pf_active__coil{T1},
         tech::IMAS.build__pf_active__technology{T1},
         time0::Float64,
         green_model::Symbol) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real}
-        new{T1,T2,T3,T4}(imas, tech, time0, green_model, nothing, nothing)
+        empty_cache = ElementCache{T1}[]
+        invalid_current = CurrentCache{T1}(T1(NaN), T1(NaN))
+        new{T1,T2,T3,T4}(imas, tech, time0, green_model, empty_cache, invalid_current)
     end
 
-    # Inner constructor (with derived data vector)
+    # Inner constructor (with element cache)
     function GS_IMAS_pf_active__coil{T1,T2,T3,T4}(
         imas::IMAS.pf_active__coil{T1},
         tech::IMAS.build__pf_active__technology{T1},
         time0::Float64,
         green_model::Symbol,
-        derived::Vector{DerivedCoilData{T1}}) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real}
-        new{T1,T2,T3,T4}(imas, tech, time0, green_model, derived, nothing)
+        elements_cache::Vector{ElementCache{T1}}) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real}
+        invalid_current = CurrentCache{T1}(T1(NaN), T1(NaN))
+        new{T1,T2,T3,T4}(imas, tech, time0, green_model, elements_cache, invalid_current)
     end
 
-    # Inner constructor (with derived data and cached current)
+    # Inner constructor (with element cache and current cache)
     function GS_IMAS_pf_active__coil{T1,T2,T3,T4}(
         imas::IMAS.pf_active__coil{T1},
         tech::IMAS.build__pf_active__technology{T1},
         time0::Float64,
         green_model::Symbol,
-        derived::Union{Vector{DerivedCoilData{T1}}, Nothing},
-        cached_current::Union{CurrentCache{T1}, Nothing}) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real}
-        new{T1,T2,T3,T4}(imas, tech, time0, green_model, derived, cached_current)
+        elements_cache::Vector{ElementCache{T1}},
+        current_cache::CurrentCache{T1}) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real}
+        new{T1,T2,T3,T4}(imas, tech, time0, green_model, elements_cache, current_cache)
     end
 end
 
-# Helper functions for derived data management
+# Helper functions for element cache management
 
-"""Check if coil has derived data cached"""
-@inline has_derived_data(coil::GS_IMAS_pf_active__coil) = !isnothing(getfield(coil, :_derived))
+"""
+    is_cache_valid(elem_cache::ElementCache, element) -> Bool
 
-"""Derive and cache coil data from IMAS structure"""
-function derive_coil_data!(coil::GS_IMAS_pf_active__coil{T}) where {T}
-    derived_vec = DerivedCoilData{T}[]
+Check if a single ElementCache is still valid for the given element.
+Returns false if geometry or turns_with_sign changed.
+"""
+@inline function is_cache_valid(elem_cache::ElementCache, element)
+    rect = element.geometry.rectangle
 
-    for element in coil.imas.element
-        ol = IMAS.outline(element)
-        derived = DerivedCoilData{T}(
-            element.turns_with_sign,
-            ol.r,
-            ol.z
-        )
-        push!(derived_vec, derived)
+    # Compare geometry fields
+    current_geom = (r=rect.r, z=rect.z, width=rect.width, height=rect.height)
+    current_geom != elem_cache.source_geometry && return false
+
+    # turns_with_sign comparison
+    element.turns_with_sign != elem_cache.turns_with_sign && return false
+
+    return true
+end
+
+"""
+    is_cache_valid(elements_cache::Vector{ElementCache{T}}, elements) -> Bool
+
+Check if all cached element data is still valid by comparing source geometry.
+Returns false if cache is empty, element count changed, or any geometry/turns changed.
+"""
+@inline function is_cache_valid(elements_cache::Vector{ElementCache{T}}, elements) where {T}
+    isempty(elements_cache) && return false
+    length(elements_cache) != length(elements) && return false
+
+    for (k, element) in enumerate(elements)
+        !is_cache_valid(elements_cache[k], element) && return false
     end
 
-    setfield!(coil, :_derived, derived_vec)
+    return true
+end
+
+"""Create ElementCache from a single element (internal helper)"""
+@inline function _create_element_cache(element, ::Type{T}) where {T}
+    rect = element.geometry.rectangle
+    ol = IMAS.outline(element)
+    return ElementCache{T}(
+        element.turns_with_sign,
+        ol.r,
+        ol.z,
+        (r=rect.r, z=rect.z, width=rect.width, height=rect.height)
+    )
+end
+
+"""
+    update_cache!(cache::ElementCache, element)
+
+Update ElementCache in-place from element data. Minimizes allocation by reusing vectors.
+"""
+@inline function update_cache!(cache::ElementCache{T}, element) where {T}
+    rect = element.geometry.rectangle
+    ol = IMAS.outline(element)
+
+    # Update scalar
+    cache.turns_with_sign = element.turns_with_sign
+
+    # Update vectors in-place (resize + copy)
+    resize!(cache.outline_r, length(ol.r))
+    copyto!(cache.outline_r, ol.r)
+
+    resize!(cache.outline_z, length(ol.z))
+    copyto!(cache.outline_z, ol.z)
+
+    # Update geometry (small NamedTuple, cheap to reassign)
+    cache.source_geometry = (r=rect.r, z=rect.z, width=rect.width, height=rect.height)
+
+    return cache
+end
+
+"""
+    ensure_valid_elements_cache!(coil)
+
+Ensure all elements have valid cache. Updates only invalid elements in-place.
+If cache is empty or size mismatched, regenerates entire cache.
+This is the main entry point for cache management.
+"""
+function ensure_valid_elements_cache!(coil::GS_IMAS_pf_active__coil{T}) where {T}
+    # If cache is empty or size mismatched, regenerate entire cache
+    if isempty(coil._elements_cache) || length(coil._elements_cache) != length(coil.imas.element)
+        # Full regeneration
+        setfield!(coil, :_elements_cache, [_create_element_cache(el, T) for el in coil.imas.element])
+        return coil
+    end
+
+    # Otherwise, validate and update only invalid elements IN-PLACE (zero allocation)
+    for (k, element) in enumerate(coil.imas.element)
+        if !is_cache_valid(coil._elements_cache[k], element)
+            update_cache!(coil._elements_cache[k], element)
+        end
+    end
+
     return coil
 end
 
-"""Clear cached derived data"""
-function clear_derived_data!(coil::GS_IMAS_pf_active__coil)
-    setfield!(coil, :_derived, nothing)
+"""Clear cached element data"""
+function clear_elements_cache!(coil::GS_IMAS_pf_active__coil)
+    setfield!(coil, :_elements_cache, ElementCache{eltype(coil._elements_cache)}[])
     return coil
 end
 
 # Helper functions for current cache management
 
-"""Check if coil has cached current"""
-@inline has_cached_current(coil::GS_IMAS_pf_active__coil) = !isnothing(getfield(coil, :_cached_current))
-
 """
-    get_cached_current(coil, time) -> Union{T, Nothing}
+    is_cache_valid(current_cache::CurrentCache, time) -> Bool
 
-Get cached current_per_turn if available for the specified time.
-Returns nothing if cache miss.
+Check if cached current is valid for the specified time.
+Returns true if cache is valid (not NaN) and time matches, false otherwise.
 """
-function get_cached_current(coil::GS_IMAS_pf_active__coil{T}, time::Real) where {T}
-    cache = getfield(coil, :_cached_current)
-    if !isnothing(cache) && cache.time == time
-        return cache.current_per_turn
-    end
-    return nothing
+@inline function is_cache_valid(current_cache::CurrentCache, time::Real)
+    return !isnan(current_cache.time) && current_cache.time == time
 end
+
 
 """
     cache_current!(coil, time, current_per_turn)
@@ -118,22 +195,10 @@ end
 Cache current_per_turn value for the specified time.
 """
 function cache_current!(coil::GS_IMAS_pf_active__coil{T}, time::Real, current_per_turn::Real) where {T}
-    setfield!(coil, :_cached_current, CurrentCache{T}(T(time), T(current_per_turn)))
+    setfield!(coil, :_current_cache, CurrentCache{T}(T(time), T(current_per_turn)))
     return coil
 end
 
-function cache_current!(coil::GS_IMAS_pf_active__coil{T}) where {T}
-    time = getfield(coil, :time0)
-    current_per_turn = getproperty(coil, :current_per_turn)
-    setfield!(coil, :_cached_current, CurrentCache{T}(T(time), T(current_per_turn)))
-    return coil
-end
-
-"""Clear cached current data"""
-function clear_current_cache!(coil::GS_IMAS_pf_active__coil)
-    setfield!(coil, :_cached_current, nothing)
-    return coil
-end
 
 function GS_IMAS_pf_active__coil(
     pfcoil::IMAS.pf_active__coil{T},
@@ -198,8 +263,15 @@ function Base.getproperty(coil::GS_IMAS_pf_active__coil{T}, field::Symbol) where
     if field ∈ (:r, :z, :width, :height)
         value = getfield(pfcoil.element[1].geometry.rectangle, field)
     elseif field == :current_per_turn
-        Main.@infiltrate
-        value = IMAS.get_time_array(pfcoil.current, :data, getfield(coil, :time0))
+        time0 = getfield(coil, :time0)
+        if is_cache_valid(coil._current_cache, time0)
+            # Cache hit - use cached value
+            value = coil._current_cache.current_per_turn
+        else
+            # Cache miss - fetch from IMAS and cache it
+            value = IMAS.get_time_array(pfcoil.current, :data, time0)
+            cache_current!(coil, time0, value)
+        end
     elseif field == :resistance
         value = getfield(pfcoil, field)
     elseif field == :turns
@@ -213,7 +285,10 @@ end
 function Base.setproperty!(coil::GS_IMAS_pf_active__coil, field::Symbol, value::Real)
     pfcoil = getfield(coil, :imas)
     if field == :current_per_turn
-        return IMAS.set_time_array(pfcoil.current, :data, getfield(coil, :time0), value)
+        time0 = getfield(coil, :time0)
+        # Update cache to reflect the new value
+        cache_current!(coil, time0, value)
+        return IMAS.set_time_array(pfcoil.current, :data, time0, value)
     elseif field ∈ (:r, :z, :width, :height)
         return setfield!(pfcoil.element[1].geometry.rectangle, field, value)
     elseif field == :resistance
@@ -253,15 +328,14 @@ function _dispatch_green(Gfunc::F1, coil::GS_IMAS_pf_active__coil, R::Real, Z::R
         return Gfunc(rc0, zc0, R, Z, scale_factor) * coil.turns
 
     elseif green_model == :quad # high-fidelity
+        # Ensure cache is valid (updates only invalid elements)
+        ensure_valid_elements_cache!(coil)
 
-        if !has_derived_data(coil) 
-            derive_coil_data!(coil)
-        end
-
+        # Compute using cached data
         sum_val = 0.0
         for (k, element) in enumerate(coil.imas.element)
             sum_val += _gfunc(Gfunc, element, R, Z,
-                            coil._derived[k].outline_r, coil._derived[k].outline_z, coil._derived[k].turns_with_sign,
+                            coil._elements_cache[k].outline_r, coil._elements_cache[k].outline_z, coil._elements_cache[k].turns_with_sign,
                             scale_factor; xorder, yorder)
         end
 

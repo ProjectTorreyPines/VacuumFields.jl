@@ -3,27 +3,32 @@ using Test
 
 @testset "IMAS Coil Caching Infrastructure" begin
 
-    @testset "DerivedCoilData struct" begin
-        # Test DerivedCoilData creation
+    @testset "ElementCache struct" begin
+        # Test ElementCache creation
         turns = 100.0
         outline_r = [1.0, 2.0, 2.0, 1.0]
         outline_z = [0.0, 0.0, 1.0, 1.0]
+        geom = (r=1.5, z=0.5, width=1.0, height=1.0)
 
-        derived = VacuumFields.DerivedCoilData{Float64}(turns, outline_r, outline_z)
+        elem_cache = VacuumFields.ElementCache{Float64}(turns, outline_r, outline_z, geom)
 
-        @test derived.turns_with_sign == 100.0
-        @test derived.outline_r == outline_r
-        @test derived.outline_z == outline_z
-        @test length(derived.outline_r) == 4
-        @test length(derived.outline_z) == 4
+        @test elem_cache.turns_with_sign == 100.0
+        @test elem_cache.outline_r == outline_r
+        @test elem_cache.outline_z == outline_z
+        @test elem_cache.source_geometry == geom
+        @test length(elem_cache.outline_r) == 4
+        @test length(elem_cache.outline_z) == 4
 
         # Test with different numeric type
-        derived_f32 = VacuumFields.DerivedCoilData{Float32}(Float32(50.0),
+        geom_f32 = (r=Float32(1.5), z=Float32(0.5), width=Float32(1.0), height=Float32(1.0))
+        elem_cache_f32 = VacuumFields.ElementCache{Float32}(Float32(50.0),
                                                              Float32[1.0, 2.0],
-                                                             Float32[0.0, 1.0])
-        @test derived_f32.turns_with_sign isa Float32
-        @test derived_f32.outline_r isa Vector{Float32}
-        @test derived_f32.outline_z isa Vector{Float32}
+                                                             Float32[0.0, 1.0],
+                                                             geom_f32)
+        @test elem_cache_f32.turns_with_sign isa Float32
+        @test elem_cache_f32.outline_r isa Vector{Float32}
+        @test elem_cache_f32.outline_z isa Vector{Float32}
+        @test elem_cache_f32.source_geometry isa NamedTuple
     end
 
     @testset "CurrentCache struct" begin
@@ -49,25 +54,31 @@ using Test
         @test cache_f32.current_per_turn isa Float32
     end
 
-    @testset "DerivedCoilData vector operations" begin
-        # Test creating a vector of derived data (as used in actual coils)
-        derived_vec = VacuumFields.DerivedCoilData{Float64}[]
+    @testset "ElementCache vector operations" begin
+        # Test creating a vector of element caches (as used in actual coils)
+        elements_cache = VacuumFields.ElementCache{Float64}[]
 
-        push!(derived_vec, VacuumFields.DerivedCoilData{Float64}(
-            100.0, [1.0, 2.0, 2.0, 1.0], [0.0, 0.0, 1.0, 1.0]
+        push!(elements_cache, VacuumFields.ElementCache{Float64}(
+            100.0, [1.0, 2.0, 2.0, 1.0], [0.0, 0.0, 1.0, 1.0],
+            (r=1.5, z=0.5, width=1.0, height=1.0)
         ))
-        push!(derived_vec, VacuumFields.DerivedCoilData{Float64}(
-            200.0, [1.1, 2.1, 2.1, 1.1], [0.1, 0.1, 1.1, 1.1]
+        push!(elements_cache, VacuumFields.ElementCache{Float64}(
+            200.0, [1.1, 2.1, 2.1, 1.1], [0.1, 0.1, 1.1, 1.1],
+            (r=1.6, z=0.6, width=1.0, height=1.0)
         ))
 
-        @test length(derived_vec) == 2
-        @test derived_vec[1].turns_with_sign == 100.0
-        @test derived_vec[2].turns_with_sign == 200.0
+        @test length(elements_cache) == 2
+        @test elements_cache[1].turns_with_sign == 100.0
+        @test elements_cache[2].turns_with_sign == 200.0
 
         # Test accessing cached outline data
-        @test length(derived_vec[1].outline_r) == 4
-        @test derived_vec[1].outline_r[1] == 1.0
-        @test derived_vec[2].outline_z[end] == 1.1
+        @test length(elements_cache[1].outline_r) == 4
+        @test elements_cache[1].outline_r[1] == 1.0
+        @test elements_cache[2].outline_z[end] == 1.1
+
+        # Test source geometry
+        @test elements_cache[1].source_geometry.r == 1.5
+        @test elements_cache[2].source_geometry.width == 1.0
     end
 
     @testset "CurrentCache time matching semantics" begin
@@ -114,21 +125,50 @@ using Test
 
     @testset "Cache helper function signatures" begin
         # Verify that cache management functions exist with correct signatures
-        @test hasmethod(VacuumFields.has_cached_current, (VacuumFields.GS_IMAS_pf_active__coil,))
-        @test hasmethod(VacuumFields.get_cached_current, (VacuumFields.GS_IMAS_pf_active__coil, Real))
-        @test hasmethod(VacuumFields.cache_current!, (VacuumFields.GS_IMAS_pf_active__coil, Real, Real))
-        @test hasmethod(VacuumFields.clear_current_cache!, (VacuumFields.GS_IMAS_pf_active__coil,))
+        # is_cache_valid has three methods via multiple dispatch
+        @test hasmethod(VacuumFields.is_cache_valid, (VacuumFields.ElementCache, Any))
+        @test hasmethod(VacuumFields.is_cache_valid, (Vector{VacuumFields.ElementCache{Float64}}, Any))
+        @test hasmethod(VacuumFields.is_cache_valid, (VacuumFields.CurrentCache, Real))
 
-        @test hasmethod(VacuumFields.has_derived_data, (VacuumFields.GS_IMAS_pf_active__coil,))
-        @test hasmethod(VacuumFields.derive_coil_data!, (VacuumFields.GS_IMAS_pf_active__coil,))
-        @test hasmethod(VacuumFields.clear_derived_data!, (VacuumFields.GS_IMAS_pf_active__coil,))
+        # Cache management functions
+        @test hasmethod(VacuumFields.cache_current!, (VacuumFields.GS_IMAS_pf_active__coil, Real, Real))
+        @test hasmethod(VacuumFields.ensure_valid_elements_cache!, (VacuumFields.GS_IMAS_pf_active__coil,))
+        @test hasmethod(VacuumFields.clear_elements_cache!, (VacuumFields.GS_IMAS_pf_active__coil,))
+    end
+
+    @testset "is_cache_valid behavior" begin
+        # Test is_cache_valid with CurrentCache
+        cache_t1 = VacuumFields.CurrentCache{Float64}(0.5, 1500.0)
+        cache_t2 = VacuumFields.CurrentCache{Float64}(1.0, 2000.0)
+        cache_nan = VacuumFields.CurrentCache{Float64}(NaN, NaN)
+
+        # Test exact time matching semantics
+        @test VacuumFields.is_cache_valid(cache_t1, 0.5)
+        @test !VacuumFields.is_cache_valid(cache_t1, 0.5000001)
+        @test !VacuumFields.is_cache_valid(cache_t2, 0.5)
+
+        # Test NaN cache (invalid)
+        @test !VacuumFields.is_cache_valid(cache_nan, 0.5)
+        @test !VacuumFields.is_cache_valid(cache_nan, NaN)
+
+        # Test is_cache_valid with single ElementCache
+        # Note: We can't easily create a mock element without IMAS structures,
+        # so this demonstrates the function signature exists and will be tested
+        # in integration tests with actual IMAS coils
+        elem_cache = VacuumFields.ElementCache{Float64}(
+            100.0, [1.0, 2.0], [0.0, 1.0],
+            (r=1.5, z=0.5, width=1.0, height=1.0)
+        )
+        # Test that the method exists (actual element validation requires IMAS structures)
+        @test hasmethod(VacuumFields.is_cache_valid, (typeof(elem_cache), Any))
     end
 end
 
 println("\n✓ All cache infrastructure tests passed!")
-println("  - DerivedCoilData struct validated")
+println("  - ElementCache struct validated")
 println("  - CurrentCache struct validated")
 println("  - Type conversion behavior verified")
 println("  - Cache management functions exist")
+println("  - is_cache_valid direct cache validation tested")
 println("\nNote: Integration tests with actual IMAS coils should be added")
 println("      to test files that load IMAS data structures.")
