@@ -12,7 +12,7 @@
 Check if a single ElementCache is still valid for the given element.
 Returns false if geometry or turns_with_sign changed.
 """
-@inline function is_cache_valid(ec::ElementCache, element::IMAS.pf_active__coil___element)
+@inline function is_cache_valid(ec::ElementCache{T}, element::IMAS.pf_active__coil___element{T}) where {T<:Real}
     rect = getfield(getfield(element, :geometry), :rectangle)
 
     # Compare geometry fields
@@ -61,7 +61,7 @@ end
 
 Update ElementCache in-place from element data. Minimizes allocation by reusing vectors.
 """
-@inline function update_cache!(cache::ElementCache{T}, element::IMAS.pf_active__coil___element) where {T}
+@inline function update_cache!(cache::ElementCache{T}, element::IMAS.pf_active__coil___element{T}) where {T<:Real}
     rect = getfield(getfield(element, :geometry), :rectangle)
     ol = IMAS.outline(element)
 

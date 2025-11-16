@@ -109,7 +109,7 @@ function GS_IMAS_pf_active__coil(
 end
 
 function IMAS_pf_active__coils(dd::IMAS.dd{D}; green_model::Symbol=:quad, zero_currents::Bool=false) where {D<:Real}
-    coils = GS_IMAS_pf_active__coil{D,D}[]
+    coils = GS_IMAS_pf_active__coil{D,D,D,D}[]
     for coil in dd.pf_active.coil
         if zero_currents
             IMAS.@ddtime(coil.current.data = 0.0)   # zero currents for all coils
@@ -181,43 +181,89 @@ end
 
 Calculates coil green function at given R and Z coordinate
 """
-function Green(coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
-    return _dispatch_green(Green, coil, R, Z)
+function Green(coil::GS_IMAS_pf_active__coil{T,T,T,T}, R::T, Z::T; kwargs...) where {T<:Real}
+    return _dispatch_to_gfunc(Green, coil, R, Z; kwargs...)::T
 end
 
-function dG_dR(coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
-    return _dispatch_green(dG_dR, coil, R, Z)
+function dG_dR(coil::GS_IMAS_pf_active__coil{T,T,T,T}, R::T, Z::T; kwargs...) where {T<:Real}
+    return _dispatch_to_gfunc(dG_dR, coil, R, Z; kwargs...)
 end
 
-function dG_dZ(coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Real=1.0; kwargs...)
-    return _dispatch_green(dG_dZ, coil, R, Z)
+function dG_dZ(coil::GS_IMAS_pf_active__coil{T,T,T,T}, R::T, Z::T; kwargs...) where {T<:Real}
+    return _dispatch_to_gfunc(dG_dZ, coil, R, Z; kwargs...)
 end
 
-function _dispatch_green(Gfunc::F1, coil::GS_IMAS_pf_active__coil, R::Real, Z::Real, scale_factor::Real=1.0; xorder::Int=3, yorder::Int=3) where {F1<:Function}
+function _dispatch_to_gfunc(Gfunc::F1, coil::GS_IMAS_pf_active__coil{T,T,T,T}, R::T, Z::T; scale_factor::T=one(T), xorder::Int=3, yorder::Int=3) where {F1<:Function, T<:Real}
+    # Ensure cache is valid (updates only invalid elements)
+    ensure_valid_elements_cache!(coil)
+
     green_model = getfield(coil, :green_model)
 
     if green_model == :point # low-fidelity
-        oute = IMAS.outline(coil.imas.element[1])
-        rc0, zc0 = IMAS.centroid(oute.r, oute.z)
+        cec = coil._elements_cache[1]
+        rc0, zc0 = IMAS.centroid(cec.outline_r, cec.outline_z)
         return Gfunc(rc0, zc0, R, Z, scale_factor) * coil.turns
 
     elseif green_model == :quad # high-fidelity
-        # Ensure cache is valid (updates only invalid elements)
-        ensure_valid_elements_cache!(coil)
-
-        # Compute using cached data
         sum_val = 0.0
-        for (k, element) in enumerate(coil.imas.element)
-            sum_val += _gfunc(Gfunc, element, R, Z,
-                            coil._elements_cache[k].outline_r, coil._elements_cache[k].outline_z, coil._elements_cache[k].turns_with_sign,
-                            scale_factor; xorder, yorder)
+        @inbounds for k in eachindex(coil.imas.element)
+            sum_val += _gfunc(Gfunc, R, Z,
+                        coil._elements_cache[k].outline_r, coil._elements_cache[k].outline_z, coil._elements_cache[k].turns_with_sign,
+                        scale_factor, xorder, yorder)
         end
-
         return sum_val
     else
         error("$(typeof(coil)) green_model is `$(green_model)` but it can only be `:point` or `:quad`")
-
     end
+end
+
+
+# current_per_turn for GS_IMAS_pf_active__coil, which try to use cached one if it's valid
+@inline function current_per_turn(coil::GS_IMAS_pf_active__coil{T}) where {T<:Real}
+    time0 = getfield(coil, :time0)
+    cache = getfield(coil, :_current_cache)
+    if is_cache_valid(cache, time0)
+        return cache.current_per_turn::T
+    else
+        value = T(IMAS.get_time_array(coil.imas.current, :data, time0))::T
+        cache_current!(coil, time0, value)
+        return value::T
+    end
+end
+
+function _pfunc!(Gfunc::F, result::AbstractVector{T}, coils::AbstractVector{<:GS_IMAS_pf_active__coil}, R::T, Z::T, Bp_fac::T) where {F<:Function, T<:Real}
+    for (i, coil) in enumerate(coils)
+        coil_current_per_turn = current_per_turn(coil)::T
+
+        if iszero(coil_current_per_turn)
+            result[i] = zero(T)
+        else
+            result[i] = μ₀ * Bp_fac * Gfunc(coil, R, Z) * coil_current_per_turn
+        end
+    end
+    return result
+end
+
+function _pfunc!(Gfunc::Function, result::AbstractVector{T}, coils::AbstractVector{<:GS_IMAS_pf_active__coil}, R::T, Z::T;
+            COCOS::MXHEquilibrium.COCOS=MXHcocos11, Bp_fac::T=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp) where {T<:Real}
+    return _pfunc!(Gfunc, result, coils, R, Z, Bp_fac)
+end
+
+
+function _gfunc(Gfunc::F, R0::T, Z0::T, outline_r::Vector{T}, outline_z::Vector{T}, turns_with_sign::T, scale_factor::T, xorder::Int, yorder::Int) where {F<:Function, T<:Real}
+    @assert xorder <= N_gl
+    @assert yorder <= N_gl
+
+    sum_val = 0.0
+    for i in 1:xorder
+        for j in 1:yorder
+            R, Z = RZq(gξ_pa[i, xorder], gξ_pa[j, yorder], outline_r, outline_z)
+            J = Jacobian(gξ_pa[i, xorder], gξ_pa[j, yorder], outline_r, outline_z)
+            sum_val += J * Gfunc(R, Z, R0, Z0, scale_factor) * gw_pa[i, xorder] * gw_pa[j, yorder]
+        end
+    end
+
+    return sum_val * turns_with_sign / area(outline_r, outline_z)
 end
 
 
