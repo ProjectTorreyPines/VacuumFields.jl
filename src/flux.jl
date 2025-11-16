@@ -27,18 +27,26 @@ end
     return -trapz(image.Lb, Vb)
 end
 
-@inline ψ!(result, source, R::Real, Z::Real; kwargs...)  = _pfunc!(Green, result, source, R, Z; kwargs...)
-@inline dψ_dR!(result, source, R::Real, Z::Real; kwargs...) = _pfunc!(dG_dR, result, source, R, Z; kwargs...)
-@inline dψ_dZ!(result, source, R::Real, Z::Real; kwargs...) = _pfunc!(dG_dZ, result, source, R, Z; kwargs...)
-@inline d2ψ_dZ2!(result, source, R::Real, Z::Real; kwargs...) = _pfunc!(d2G_dZ2, result, source, R, Z; kwargs...)
+
+# in-place versions
+@inline ψ!(result::AbstractVector{T}, source, R::T, Z::T; kwargs...) where {T<:Real}  = _pfunc!(Green, result, source, R, Z; kwargs...)
+@inline dψ_dR!(result::AbstractVector{T}, source, R::T, Z::T; kwargs...) where {T<:Real} = _pfunc!(dG_dR, result, source, R, Z; kwargs...)
+@inline dψ_dZ!(result::AbstractVector{T}, source, R::T, Z::T; kwargs...) where {T<:Real} = _pfunc!(dG_dZ, result, source, R, Z; kwargs...)
+@inline d2ψ_dZ2!(result::AbstractVector{T}, source, R::T, Z::T; kwargs...) where {T<:Real} = _pfunc!(d2G_dZ2, result, source, R, Z; kwargs...)
+
+# Faster in-place versions without kwargs
+@inline ψ!(result::AbstractVector{T}, source, R::T, Z::T, Bp_fac::T) where {T<:Real} = _pfunc!(Green, result, source, R, Z, Bp_fac)
+@inline dψ_dR!(result::AbstractVector{T}, source, R::T, Z::T, Bp_fac::T) where {T<:Real} = _pfunc!(dG_dR, result, source, R, Z, Bp_fac)
+@inline dψ_dZ!(result::AbstractVector{T}, source, R::T, Z::T, Bp_fac::T) where {T<:Real} = _pfunc!(dG_dZ, result, source, R, Z, Bp_fac)
+@inline d2ψ_dZ2!(result::AbstractVector{T}, source, R::T, Z::T, Bp_fac::T) where {T<:Real} = _pfunc!(d2G_dZ2, result, source, R, Z, Bp_fac)
 
 """Loop over coils and write ψ values into pre-allocated result array"""
-function _pfunc!(Gfunc, result::AbstractVector, coils::AbstractVector{<:Union{AbstractSingleCoil, IMAScoil}}, R::Real, Z::Real;
-            COCOS::MXHEquilibrium.COCOS=MXHcocos11, Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp)
+function _pfunc!(Gfunc, result::AbstractVector{T}, coils::AbstractVector{<:Union{AbstractSingleCoil, IMAScoil}}, R::Real, Z::Real;
+            COCOS::MXHEquilibrium.COCOS=MXHcocos11, Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp) where {T<:Real}
     for (i, coil) in enumerate(coils)
-        coil_current_per_turn = current_per_turn(coil)
-        if coil_current_per_turn == 0.0
-            result[i] = 0.0
+        coil_current_per_turn = current_per_turn(coil)::T
+        if coil_current_per_turn == zero(T) 
+            result[i] = zero(T)
         else
             result[i] = μ₀ * Bp_fac * Gfunc(coil, R, Z) * coil_current_per_turn
         end
@@ -46,8 +54,38 @@ function _pfunc!(Gfunc, result::AbstractVector, coils::AbstractVector{<:Union{Ab
     return result
 end
 
+"""Loop over coils and write ψ values into pre-allocated result array"""
+# function _pfunc!(Gfunc, result::AbstractVector{T}, coils::AbstractVector{<:Union{AbstractSingleCoil, IMAScoil}}, R::Real, Z::Real, Bp_fac::Real) where {T<:Real}
+function _pfunc!(Gfunc, result::AbstractVector{T}, coils::AbstractVector{<:Union{AbstractSingleCoil, IMAScoil}}, R::T, Z::T, Bp_fac::T) where {T<:Real}
+    
+    for (i, coil) in enumerate(coils)
+        coil_current_per_turn = current_per_turn(coil)::T
+        if coil_current_per_turn == zero(T) 
+            result[i] = zero(T)
+        else
+            result[i] = μ₀ * Bp_fac * Gfunc(coil, R, Z) * coil_current_per_turn
+        end
+    end
+    return result
+end
+
+
 """Loop over MultiCoils and write ψ values into pre-allocated result array"""
-@inline function _pfunc!(Gfunc, result::AbstractVector, mcoils::AbstractVector{<:MultiCoil}, R::Real, Z::Real;
+@inline function _pfunc!(Gfunc::Function, result::AbstractVector, mcoils::AbstractVector{<:MultiCoil}, R::Real, Z::Real, Bp_fac::Real; COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11))
+    for (i, mcoil) in enumerate(mcoils)
+        coil_current_per_turn = current_per_turn(mcoil)
+        if coil_current_per_turn == 0.0
+            result[i] = 0.0
+        else
+            result[i] = sum(_pfunc(Gfunc, coil, R, Z; COCOS, Bp_fac, coil_current_per_turn) * mcoil.orientation[k] for (k, coil) in enumerate(mcoil.coils))
+        end
+    end
+    return result
+end
+
+
+"""Loop over MultiCoils and write ψ values into pre-allocated result array"""
+@inline function _pfunc!(Gfunc::Function, result::AbstractVector, mcoils::AbstractVector{<:MultiCoil}, R::Real, Z::Real;
                         COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp)
     for (i, mcoil) in enumerate(mcoils)
         coil_current_per_turn = current_per_turn(mcoil)
@@ -61,7 +99,7 @@ end
 end
 
 """Loop over images and write ψ values into pre-allocated result array"""
-@inline function _pfunc!(Gfunc, result::AbstractVector, images::AbstractVector{<:Image}, R::Real, Z::Real)
+@inline function _pfunc!(Gfunc::Function, result::AbstractVector, images::AbstractVector{<:Image}, R::Real, Z::Real)
     for (i, image) in enumerate(images)
         Vb = (k, xx) -> image.dψdn_R[k] * Gfunc(image.Rb[k], image.Zb[k], R, Z)
         result[i] = -trapz(image.Lb, Vb)
