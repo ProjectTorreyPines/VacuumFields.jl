@@ -919,11 +919,8 @@ function define_A(coils::AbstractVector{<:AbstractCoil};
                 ψ!(ψc2, coils, r2, z2; Bp_fac)
             end
 
-            A[k, :] .= ψc1 .- ψc2
+            @. A[k, :] = sqrt(cp.weight)*(ψc1 - ψc2)
 
-            # weighting
-            w = sqrt(cp.weight)
-            A[k, :] .*= w
 
             # store values
             r1_old, z1_old, r2_old, z2_old = r1, z1, r2, z2
