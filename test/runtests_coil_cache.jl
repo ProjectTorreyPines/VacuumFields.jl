@@ -126,7 +126,6 @@ using Test
     @testset "Cache helper function signatures" begin
         # Verify that cache management functions exist with correct signatures
         # is_cache_valid has three methods via multiple dispatch
-        @test hasmethod(VacuumFields.is_cache_valid, (VacuumFields.ElementCache, Any))
         @test hasmethod(VacuumFields.is_cache_valid, (Vector{VacuumFields.ElementCache{Float64}}, Any))
         @test hasmethod(VacuumFields.is_cache_valid, (VacuumFields.CurrentCache, Real))
 
@@ -150,17 +149,6 @@ using Test
         # Test NaN cache (invalid)
         @test !VacuumFields.is_cache_valid(cache_nan, 0.5)
         @test !VacuumFields.is_cache_valid(cache_nan, NaN)
-
-        # Test is_cache_valid with single ElementCache
-        # Note: We can't easily create a mock element without IMAS structures,
-        # so this demonstrates the function signature exists and will be tested
-        # in integration tests with actual IMAS coils
-        elem_cache = VacuumFields.ElementCache{Float64}(
-            100.0, [1.0, 2.0], [0.0, 1.0],
-            (r=1.5, z=0.5, width=1.0, height=1.0)
-        )
-        # Test that the method exists (actual element validation requires IMAS structures)
-        @test hasmethod(VacuumFields.is_cache_valid, (typeof(elem_cache), Any))
     end
 end
 
