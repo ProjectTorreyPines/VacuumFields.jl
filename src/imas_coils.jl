@@ -182,18 +182,18 @@ end
 Calculates coil green function at given R and Z coordinate
 """
 function Green(coil::GS_IMAS_pf_active__coil{T,T,T,T}, R::T, Z::T; kwargs...) where {T<:Real}
-    return _dispatch_to_gfunc(Green, coil, R, Z; kwargs...)::T
+    return _compute_with_cache(Green, coil, R, Z; kwargs...)::T
 end
 
 function dG_dR(coil::GS_IMAS_pf_active__coil{T,T,T,T}, R::T, Z::T; kwargs...) where {T<:Real}
-    return _dispatch_to_gfunc(dG_dR, coil, R, Z; kwargs...)
+    return _compute_with_cache(dG_dR, coil, R, Z; kwargs...)
 end
 
 function dG_dZ(coil::GS_IMAS_pf_active__coil{T,T,T,T}, R::T, Z::T; kwargs...) where {T<:Real}
-    return _dispatch_to_gfunc(dG_dZ, coil, R, Z; kwargs...)
+    return _compute_with_cache(dG_dZ, coil, R, Z; kwargs...)
 end
 
-function _dispatch_to_gfunc(Gfunc::F1, coil::GS_IMAS_pf_active__coil{T,T,T,T}, R::T, Z::T; scale_factor::T=one(T), xorder::Int=3, yorder::Int=3) where {F1<:Function, T<:Real}
+function _compute_with_cache(Gfunc::F1, coil::GS_IMAS_pf_active__coil{T,T,T,T}, R::T, Z::T; scale_factor::T=one(T), xorder::Int=3, yorder::Int=3) where {F1<:Function, T<:Real}
     # Ensure cache is valid (updates only invalid elements)
     ensure_valid_elements_cache!(coil)
 
