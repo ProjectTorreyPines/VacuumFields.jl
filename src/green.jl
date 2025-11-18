@@ -96,14 +96,19 @@ end
 end
 
 # Green(X, Y, R, Z)
-# @inline function Green(X::Real, Y::Real, R::Real, Z::Real, scale_factor::Real=1.0)
-@inline function Green(X::T, Y::T, R::T, Z::T, scale_factor::T=one(T)) where {T<:Real}
+# Hotter path (no scale_factor)
+@inline function Green(X::T, Y::T, R::T, Z::T) where {T<:Real}
+    D, m = D_m(X, Y, R, Z)
+    Km, Em = ellipke(m)
+    return _Green(D, m, Km, Em)
+end
+@inline function Green(X::T, Y::T, R::T, Z::T, scale_factor::T) where {T<:Real}
     D, m = D_m(X, Y, R, Z)
     Km, Em = ellipke(m)
     return scale_factor * _Green(D, m, Km, Em)
 end
 
-_Green(D::T, m::T, Km::T, Em::T) where {T<:Real} = inv4π * (T(2.0) * Em - (T(2.0) - m) * Km) * sqrt(D)
+_Green(D::T, m::T, Km::T, Em::T) where {T<:Real} = inv4π * (2.0* Em - (2.0 - m) * Km) * sqrt(D)
 
 
 # Derivative of Green(X, Y, R, Z) with respect to R
