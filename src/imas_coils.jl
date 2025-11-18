@@ -205,13 +205,21 @@ function _dispatch_to_gfunc(Gfunc::F1, coil::GS_IMAS_pf_active__coil{T,T,T,T}, R
         return Gfunc(rc0, zc0, R, Z, scale_factor) * coil.turns
 
     elseif green_model == :quad # high-fidelity
-        sum_val = 0.0
-        @inbounds for k in eachindex(coil.imas.element)
-            sum_val += _gfunc(Gfunc, R, Z,
-                        coil._elements_cache[k].outline_r, coil._elements_cache[k].outline_z, coil._elements_cache[k].turns_with_sign,
-                        scale_factor, xorder, yorder)
+
+        _integrand = @inbounds k -> begin
+            _gfunc(Gfunc, R, Z,
+                coil._elements_cache[k].outline_r,
+                coil._elements_cache[k].outline_z,
+                coil._elements_cache[k].turns_with_sign,
+                scale_factor, xorder, yorder)     
         end
-        return sum_val
+
+        if length(coil.imas.element) == 1
+            return _integrand(1)
+        else
+            return sum(_integrand(k) for k in eachindex(coil.imas.element))
+        end
+
     else
         error("$(typeof(coil)) green_model is `$(green_model)` but it can only be `:point` or `:quad`")
     end
@@ -254,14 +262,13 @@ function _gfunc(Gfunc::F, R0::T, Z0::T, outline_r::Vector{T}, outline_z::Vector{
     @assert xorder <= N_gl
     @assert yorder <= N_gl
 
-    sum_val = 0.0
-    for i in 1:xorder
-        for j in 1:yorder
-            R, Z = RZq(gξ_pa[i, xorder], gξ_pa[j, yorder], outline_r, outline_z)
-            J = Jacobian(gξ_pa[i, xorder], gξ_pa[j, yorder], outline_r, outline_z)
-            sum_val += J * Gfunc(R, Z, R0, Z0, scale_factor) * gw_pa[i, xorder] * gw_pa[j, yorder]
-        end
+    _integrand = @inbounds (i, j) -> begin
+        R, Z = RZq(gξ_pa[i, xorder], gξ_pa[j, yorder], outline_r, outline_z)
+        J = Jacobian(gξ_pa[i, xorder], gξ_pa[j, yorder], outline_r, outline_z)
+        return J * Gfunc(R, Z, R0, Z0, scale_factor) * gw_pa[i, xorder] * gw_pa[j, yorder]
     end
+
+    sum_val = sum(_integrand(i, j) for i in 1:xorder, j in 1:yorder)
 
     return sum_val * turns_with_sign / area(outline_r, outline_z)
 end
