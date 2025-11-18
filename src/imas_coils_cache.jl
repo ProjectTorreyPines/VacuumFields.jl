@@ -48,6 +48,11 @@ end
 @inline function _create_element_cache(element, ::Type{T}) where {T}
     rect = getfield(getfield(element, :geometry), :rectangle)
     ol = IMAS.outline(element)
+
+    if ismissing(element, :turns_with_sign) 
+        error("Element is missing 'turns_with_sign' field required for caching.")
+    end
+
     return ElementCache{T}(
         getfield(element, :turns_with_sign),
         ol.r,
