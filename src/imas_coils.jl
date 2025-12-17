@@ -35,39 +35,28 @@ mutable struct GS_IMAS_pf_active__coil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: A
     green_model::Symbol
     _elements_cache::Vector{ElementCache{T1}}
     _current_cache::CurrentCache{T1}
+end
 
-    # Inner constructor (default initialization)
-    function GS_IMAS_pf_active__coil{T1,T2,T3,T4}(
-        imas::IMAS.pf_active__coil{T1},
-        tech::IMAS.build__pf_active__technology{T1},
-        time0::Float64,
-        green_model::Symbol) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real}
-        empty_cache = ElementCache{T1}[]
-        invalid_current = CurrentCache{T1}(T1(NaN), T1(NaN))
-        new{T1,T2,T3,T4}(imas, tech, time0, green_model, empty_cache, invalid_current)
-    end
+# Outer constructor: 4-arg version with default empty caches (backward compatible)
+function GS_IMAS_pf_active__coil{T1,T2,T3,T4}(
+    imas::IMAS.pf_active__coil{T1},
+    tech::IMAS.build__pf_active__technology{T1},
+    time0::Float64,
+    green_model::Symbol) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real}
+    empty_cache = ElementCache{T1}[]
+    invalid_current = CurrentCache{T1}(T1(NaN), T1(NaN))
+    return GS_IMAS_pf_active__coil{T1,T2,T3,T4}(imas, tech, time0, green_model, empty_cache, invalid_current)
+end
 
-    # Inner constructor (with element cache)
-    function GS_IMAS_pf_active__coil{T1,T2,T3,T4}(
-        imas::IMAS.pf_active__coil{T1},
-        tech::IMAS.build__pf_active__technology{T1},
-        time0::Float64,
-        green_model::Symbol,
-        elements_cache::Vector{ElementCache{T1}}) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real}
-        invalid_current = CurrentCache{T1}(T1(NaN), T1(NaN))
-        new{T1,T2,T3,T4}(imas, tech, time0, green_model, elements_cache, invalid_current)
-    end
-
-    # Inner constructor (with element cache and current cache)
-    function GS_IMAS_pf_active__coil{T1,T2,T3,T4}(
-        imas::IMAS.pf_active__coil{T1},
-        tech::IMAS.build__pf_active__technology{T1},
-        time0::Float64,
-        green_model::Symbol,
-        elements_cache::Vector{ElementCache{T1}},
-        current_cache::CurrentCache{T1}) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real}
-        new{T1,T2,T3,T4}(imas, tech, time0, green_model, elements_cache, current_cache)
-    end
+# Outer constructor: 5-arg version with default current cache
+function GS_IMAS_pf_active__coil{T1,T2,T3,T4}(
+    imas::IMAS.pf_active__coil{T1},
+    tech::IMAS.build__pf_active__technology{T1},
+    time0::Float64,
+    green_model::Symbol,
+    elements_cache::Vector{ElementCache{T1}}) where {T1<:Real,T2<:Real,T3<:Real,T4<:Real}
+    invalid_current = CurrentCache{T1}(T1(NaN), T1(NaN))
+    return GS_IMAS_pf_active__coil{T1,T2,T3,T4}(imas, tech, time0, green_model, elements_cache, invalid_current)
 end
 
 # Cache management functions (element and current cache validation/updates)
