@@ -72,7 +72,7 @@ end
 
 # Point-to-point Green's functions
 
-@inline function D_m(X::T, Y::T, R::T, Z::T) where {T<:Real}
+@inline function D_m(X::Real, Y::Real, R::Real, Z::Real)
     D = (X + R)^2 + (Y - Z)^2
     m = 4.0 * X * R / D # this is k^2
     return D, m
@@ -80,22 +80,22 @@ end
 
 # Green(X, Y, R, Z)
 # Hotter path (no scale_factor)
-@inline function Green(X::T, Y::T, R::T, Z::T) where {T<:Real}
+@inline function Green(X::Real, Y::Real, R::Real, Z::Real)
     D, m = D_m(X, Y, R, Z)
     Km, Em = ellipke(m)
     return _Green(D, m, Km, Em)
 end
-@inline function Green(X::T, Y::T, R::T, Z::T, scale_factor::T) where {T<:Real}
+@inline function Green(X::Real, Y::Real, R::Real, Z::Real, scale_factor::Real)
     D, m = D_m(X, Y, R, Z)
     Km, Em = ellipke(m)
     return scale_factor * _Green(D, m, Km, Em)
 end
 
-_Green(D::T, m::T, Km::T, Em::T) where {T<:Real} = inv4π * (2.0* Em - (2.0 - m) * Km) * sqrt(D)
+_Green(D::Real, m::Real, Km::Real, Em::Real) = inv4π * (2.0* Em - (2.0 - m) * Km) * sqrt(D)
 
 
 # Derivative of Green(X, Y, R, Z) with respect to R
-function dG_dR(X::T, Y::T, R::T, Z::T, scale_factor::T=1.0) where {T<:Real}
+function dG_dR(X::Real, Y::Real, R::Real, Z::Real, scale_factor::Real=1.0)
     D, m = D_m(X, Y, R, Z)
     Km, Em = ellipke(m)
     dKm = D_ellipk(m, Km, Em)
@@ -112,7 +112,7 @@ end
 
 
 # Derivative of Green(X, Y, R, Z) with respect to Z
-function dG_dZ(X::T, Y::T, R::T, Z::T, scale_factor::T=1.0) where {T<:Real}
+function dG_dZ(X::Real, Y::Real, R::Real, Z::Real, scale_factor::Real=1.0)
     D, m = D_m(X, Y, R, Z)
     Km, Em = ellipke(m)
     dKm = D_ellipk(m, Km, Em)
@@ -125,14 +125,14 @@ function dG_dZ(X::T, Y::T, R::T, Z::T, scale_factor::T=1.0) where {T<:Real}
     return scale_factor * _dG_dZ(G, D, DZ_D, m, mZ, Km, dKm, dEm)
 end
 
-function _dG_dZ(G::T, D::T, DZ_D::T, m::T, mZ::T, Km::T, dKm::T, dEm::T) where {T<:Real}
+function _dG_dZ(G::Real, D::Real, DZ_D::Real, m::Real, mZ::Real, Km::Real, dKm::Real, dEm::Real)
     GZ = 0.5 * DZ_D * G
     GZ += inv4π * mZ * _α(m, Km, dKm, dEm) * sqrt(D)
     return GZ
 end
 
 # elliptic integral functions used in dG_dR, dG_dZ & d2G_dZ2
-function α(X::T, Y::T, R::T, Z::T) where {T<:Real}
+function α(X::Real, Y::Real, R::Real, Z::Real)
     _, m = D_m(X, Y, R, Z)
     Km, Em = ellipke(m)
     dKm = D_ellipk(m, Km, Em)
@@ -143,7 +143,7 @@ _α(m, Km, dKm, dEm) = 2 * dEm - (2.0 - m) * dKm + Km
 
 
 # Second derivative of Green(X, Y, R, Z) with respect to Z
-function d2G_dZ2(X::T, Y::T, R::T, Z::T, scale_factor::T=1.0) where {T<:Real}
+function d2G_dZ2(X::Real, Y::Real, R::Real, Z::Real, scale_factor::Real=1.0)
     D, m = D_m(X, Y, R, Z)
     Km, Em = ellipke(m)
     dKm = D_ellipk(m, Km, Em)
@@ -171,7 +171,7 @@ function d2G_dZ2(X::T, Y::T, R::T, Z::T, scale_factor::T=1.0) where {T<:Real}
 end
 
 # elliptic integral functions used in d2G_dZ2
-function dα_dZ(X::T, Y::T, R::T, Z::T) where {T<:Real}
+function dα_dZ(X::Real, Y::Real, R::Real, Z::Real)
     D, m = D_m(X, Y, R, Z)
     Km, Em = ellipke(m)
     dKm = D_ellipk(m, Km, Em)
