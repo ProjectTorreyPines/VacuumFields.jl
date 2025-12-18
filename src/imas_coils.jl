@@ -28,6 +28,27 @@ struct CurrentCache{T<:Real}
     current_per_turn::T
 end
 
+"""
+    GS_IMAS_pf_active__coil{T1,T2,T3,T4} <: AbstractSingleCoil{T1,T2,T3,T4}
+
+Wrapper around `IMAS.pf_active__coil` with element geometry and current caching
+for improved performance in Green's function computations.
+
+# Cache Synchronization Warning
+When modifying `current_per_turn`, **always** use one of these methods:
+- `coil.current_per_turn = value` (via `setproperty!`)
+- `set_current_per_turn!(coil, value)`
+
+**Never** directly modify `coil.imas.current.data` as this will desync the internal cache.
+
+# Fields
+- `imas`: The underlying `IMAS.pf_active__coil` data
+- `tech`: Coil technology parameters from `IMAS.build__pf_active__technology`
+- `time0`: Reference time for current evaluation
+- `green_model`: `:point` (fast, low-fidelity) or `:quad` (accurate, high-fidelity)
+- `_elements_cache`: Cached element geometry (internal)
+- `_current_cache`: Cached current value at `time0` (internal)
+"""
 mutable struct GS_IMAS_pf_active__coil{T1<:Real,T2<:Real,T3<:Real,T4<:Real} <: AbstractSingleCoil{T1,T2,T3,T4}
     imas::IMAS.pf_active__coil{T1}
     tech::IMAS.build__pf_active__technology{T1}
