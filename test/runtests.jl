@@ -46,5 +46,8 @@ function load_par(params)
     return R, Z, ΔR, ΔZ, θ₁, θ₂
 end
 
+# Include test files
 include("runtests_basic.jl")
 include("runtests_ellipke.jl")
+include("runtests_inplace.jl")
+include("runtests_coil_cache.jl")
