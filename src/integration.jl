@@ -103,7 +103,7 @@ end
 
 # parameterized R, Z coordinates of quadrilateral
 RZq(x::Real, y::Real, C::QuadCoil) = RZq(x, y, C.R, C.Z)
-function RZq(x::Real, y::Real, R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
+function RZq(x::T, y::T, R::AbstractVector{T}, Z::AbstractVector{T}) where {T<:Real}
     @assert length(R) == length(Z) == 4
     mx = 1.0 - x
     px = 1.0 + x
@@ -120,7 +120,7 @@ end
 
 # integrate over a Quadrilateral
 Jacobian(x::Real, y::Real, C::QuadCoil) = Jacobian(x, y, C.R, C.Z)
-function Jacobian(x::Real, y::Real, R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
+function Jacobian(x::T, y::T, R::AbstractVector{T}, Z::AbstractVector{T}) where {T<:Real}
     @assert length(R) == length(Z) == 4
 
     a = -R[1] + R[2] + R[3] - R[4]

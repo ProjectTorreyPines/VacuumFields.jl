@@ -180,7 +180,7 @@ end
     θ = range(0, 2π, 19)[1:end-1]
     Rs = 1.5 .+ 0.25 * cos.(θ)
     Zs = 0.5 * sin.(θ)
-    
+
     # 18 control points total
     flux_cps = [FluxControlPoint(Rs[3k+1], Zs[3k+1], 1.0 * k) for k in 0:3] # 4 flux control points
     saddle_cps = [SaddleControlPoint(Rs[3k+2], Zs[3k+2]) for k in 0:2:4] # 3 saddle control points (2 constaints each)
