@@ -859,7 +859,7 @@ function define_A(coils::AbstractVector{<:AbstractCoil};
 
         # Build matrix relating coil Green's functions to boundary points
         # Call in-place version to reduce allocations
-        ψ!((@views A[i, :]), coils, r, z, Bp_fac)
+        ψ!(@view(A[i, :]), coils, r, z, Bp_fac)
 
         # weighting
         w = sqrt(cp.weight)
@@ -876,10 +876,10 @@ function define_A(coils::AbstractVector{<:AbstractCoil};
 
         # Build matrix relating coil Green's functions to boundary points
         # Call in-place version to reduce allocations
-        dψ_dR!((@views A[ir, :]), coils, r, z, Bp_fac)
+        dψ_dR!(@view(A[ir, :]), coils, r, z, Bp_fac)
 
         # Call in-place version to reduce allocations
-        dψ_dZ!((@views A[iz, :]), coils, r, z, Bp_fac)
+        dψ_dZ!(@view(A[iz, :]), coils, r, z, Bp_fac)
 
         # weighting
         w = sqrt(cp.weight)

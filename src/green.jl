@@ -91,7 +91,7 @@ end
     return scale_factor * _Green(D, m, Km, Em)
 end
 
-_Green(D::Real, m::Real, Km::Real, Em::Real) = inv4π * (2.0* Em - (2.0 - m) * Km) * sqrt(D)
+_Green(D::Real, m::Real, Km::Real, Em::Real) = inv4π * (2.0 * Em - (2.0 - m) * Km) * sqrt(D)
 
 
 # Derivative of Green(X, Y, R, Z) with respect to R
