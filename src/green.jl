@@ -44,7 +44,7 @@ end
 
 # Function for circuits
 @inline function _gfunc(Pfunc, series::SeriesCircuit, R::Real, Z::Real, scale_factor::Real=1.0;
-    COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp)
+    COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Real=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp)
     Ic = series.current_per_turn
     try
         update_coil_currents!(series, 1.0)

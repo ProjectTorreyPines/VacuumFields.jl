@@ -225,7 +225,7 @@ end
         field_cps::Vector{<:FieldControlPoint}=FieldControlPoint{Float64}[],
         ψbound::Real=0.0,
         fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-        λ_regularize::Float64=0.0,
+        λ_regularize::Real=0.0,
         Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1],
         cocos=MXHEquilibrium.cocos(EQ),
         A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
@@ -248,7 +248,7 @@ function find_coil_currents!(
     field_cps::Vector{<:FieldControlPoint}=FieldControlPoint{Float64}[],
     ψbound::Real=0.0,
     fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    λ_regularize::Float64=0.0,
+    λ_regularize::Real=0.0,
     Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1],
     cocos=MXHEquilibrium.cocos(EQ),
     A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
@@ -268,7 +268,7 @@ end
         field_cps::Vector{<:FieldControlPoint}=FieldControlPoint{Float64}[],
         ψbound::Real=0.0,
         fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-        λ_regularize::Float64=0.0,
+        λ_regularize::Real=0.0,
         Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1],
         cocos=MXHEquilibrium.cocos(EQ),
         A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
@@ -292,7 +292,7 @@ function find_coil_currents!(
     field_cps::Vector{<:FieldControlPoint}=FieldControlPoint{Float64}[],
     ψbound::Real=0.0,
     fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    λ_regularize::Float64=0.0,
+    λ_regularize::Real=0.0,
     Sb::MXHEquilibrium.Boundary=plasma_boundary_psi_w_fallback(EQ)[1],
     cocos=MXHEquilibrium.cocos(EQ),
     A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
@@ -319,7 +319,7 @@ end
         field_cps::Vector{<:FieldControlPoint}=FieldControlPoint{Float64}[],
         ψbound::Real=0.0,
         fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-        λ_regularize::Float64=0.0,
+        λ_regularize::Real=0.0,
         cocos=MXHEquilibrium.cocos(11),
         A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
         b_offset::AbstractVector{<:Real}=Float64[])
@@ -340,7 +340,7 @@ function find_coil_currents!(
     iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
     field_cps::Vector{<:FieldControlPoint}=FieldControlPoint{Float64}[],
     fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    λ_regularize::Float64=0.0,
+    λ_regularize::Real=0.0,
     cocos=MXHEquilibrium.cocos(11),
     A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
     b_offset::AbstractVector{<:Real}=Float64[])
@@ -364,7 +364,7 @@ end
         iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
         field_cps::Vector{<:FieldControlPoint}=FieldControlPoint{Float64}[],
         fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-        λ_regularize::Float64=0.0,
+        λ_regularize::Real=0.0,
         cocos=MXHEquilibrium.cocos(11),
         A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
         b_offset::AbstractVector{<:Real}=Float64[])
@@ -387,7 +387,7 @@ function find_coil_currents!(
     iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
     field_cps::Vector{<:FieldControlPoint}=FieldControlPoint{Float64}[],
     fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    λ_regularize::Float64=0.0,
+    λ_regularize::Real=0.0,
     cocos=MXHEquilibrium.cocos(11),
     A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
     b_offset::AbstractVector{<:Real}=Float64[])
@@ -413,7 +413,7 @@ end
         field_cps::Vector{<:FieldControlPoint}=FieldControlPoint{Float64}[],
         ψbound::Real=0.0,
         fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-        λ_regularize::Float64=0.0,
+        λ_regularize::Real=0.0,
         cocos=MXHEquilibrium.cocos(11),
         Sb=nothing,
         A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
@@ -436,7 +436,7 @@ function find_coil_currents!(
     field_cps::Vector{<:FieldControlPoint}=FieldControlPoint{Float64}[],
     ψbound::Real=0.0,
     fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    λ_regularize::Float64=0.0,
+    λ_regularize::Real=0.0,
     cocos=MXHEquilibrium.cocos(11),
     Sb=nothing,
     A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
@@ -456,7 +456,7 @@ end
         field_cps::Vector{<:FieldControlPoint}=FieldControlPoint{Float64}[],
         ψbound::Real=0.0,
         fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-        λ_regularize::Float64=0.0,
+        λ_regularize::Real=0.0,
         cocos=MXHEquilibrium.cocos(11),
         Sb=nothing,
         A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
@@ -480,7 +480,7 @@ function find_coil_currents!(
     field_cps::Vector{<:FieldControlPoint}=FieldControlPoint{Float64}[],
     ψbound::Real=0.0,
     fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    λ_regularize::Float64=0.0,
+    λ_regularize::Real=0.0,
     cocos=MXHEquilibrium.cocos(11),
     Sb=nothing,
     A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
@@ -497,7 +497,7 @@ end
         iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
         field_cps::Vector{<:FieldControlPoint}=FieldControlPoint{Float64}[],
         fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-        λ_regularize::Float64=0.0,
+        λ_regularize::Real=0.0,
         cocos=MXHEquilibrium.cocos(11),
         A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
         b_offset::AbstractVector{<:Real}=Float64[])
@@ -517,13 +517,13 @@ function find_coil_currents!(
     iso_cps::Vector{<:IsoControlPoint}=IsoControlPoint{Float64}[],
     field_cps::Vector{<:FieldControlPoint}=FieldControlPoint{Float64}[],
     fixed_coils::AbstractVector{<:AbstractCoil}=PointCoil{Float64,Float64}[],
-    λ_regularize::Float64=0.0,
+    λ_regularize::Real=0.0,
     cocos=MXHEquilibrium.cocos(11),
     A::AbstractMatrix{<:Real}=define_A(coils; flux_cps, saddle_cps, iso_cps, field_cps, cocos),
     b_offset::AbstractVector{<:Real}=Float64[])
 
     N = length(flux_cps) + 2 * length(saddle_cps) + length(iso_cps) + length(field_cps)
-    b = zeros(N)
+    b = zeros(promote_type(eltype(A), _control_eltype(flux_cps, saddle_cps, iso_cps, field_cps)), N)
     if isempty(b_offset)
         # initialize b with zero flux
         offset_b!(b; flux_cps, saddle_cps, iso_cps, field_cps, fixed_coils, cocos)
@@ -561,7 +561,7 @@ end
 function find_coil_currents!(coils::AbstractVector{<:AbstractCoil},
                              A::AbstractMatrix{<:Real},
                              b::AbstractVector{<:Real};
-                             λ_regularize::Float64=0.0)
+                             λ_regularize::Real=0.0)
 
     @assert size(A) == (length(b), length(coils))
     if λ_regularize < 0
@@ -830,6 +830,10 @@ function weight_b!(b::AbstractVector{<:Real};
     end
 end
 
+# element type of the control matrices: that of the control points (Float64 unless they carry e.g. dual numbers)
+_control_eltype(cps::AbstractVector{<:AbstractControlPoint{T}}...) where {T} = promote_type(Float64, T)
+_control_eltype(cps::AbstractVector{<:AbstractControlPoint}...) = promote_type(Float64, (eltype(c).parameters[1] for c in cps)...)
+
 function define_A(coils::AbstractVector{<:AbstractCoil};
     flux_cps::Vector{<:FluxControlPoint}=FluxControlPoint{Float64}[],
     saddle_cps::Vector{<:SaddleControlPoint}=SaddleControlPoint{Float64}[],
@@ -843,7 +847,7 @@ function define_A(coils::AbstractVector{<:AbstractCoil};
     Nfield = length(field_cps)
     N = Nflux + 2 * Nsaddle + Niso + Nfield
 
-    A = zeros(N, length(coils))
+    A = zeros(_control_eltype(flux_cps, saddle_cps, iso_cps, field_cps), N, length(coils))
 
     Bp_fac = cocos.sigma_Bp * (2π)^cocos.exp_Bp
 
