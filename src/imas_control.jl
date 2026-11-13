@@ -111,10 +111,10 @@ end
 function magnetic_control_points(
     mags::IMAS.magnetics{T};
     reference_flux_loop_index::Int=1,
-    flux_loop_weight::T=1.0,
-    flux_loop_weights::AbstractVector{T}=T[],
-    magnetic_probe_weight::T=1.0,
-    magnetic_probe_weights::AbstractVector{T}=T[]) where {T<:Real}
+    flux_loop_weight::Real=1.0,
+    flux_loop_weights::AbstractVector{<:Real}=T[],
+    magnetic_probe_weight::Real=1.0,
+    magnetic_probe_weights::AbstractVector{<:Real}=T[]) where {T<:Real}
 
     field_cps = FieldControlPoint{T}[]
     flux_cps = FluxControlPoint{T}[]
