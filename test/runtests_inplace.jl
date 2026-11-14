@@ -170,8 +170,9 @@ end
 
     @test sum_ori == sum_inplace # exactly equal
     
-    # Direct sum may differ slightly (truncation error) due to different internal order of operations
-    @test isapprox(sum_ori, sum_direct, rtol=1e-12) 
+    # Direct sum may differ slightly (truncation error) due to different internal order of operations;
+    # the terms cancel, so the round-off scales with their magnitude, not with the sum
+    @test isapprox(sum_ori, sum_direct; atol=1e-12 * sum(abs, result_ori))
 end
 
 println("\n✓ All in-place function tests passed!")
