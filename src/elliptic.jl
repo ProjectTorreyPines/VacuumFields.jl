@@ -420,7 +420,7 @@ See also: [`ellipk_nonneg`](@ref), [`ellipe_nonneg`](@ref), [`ellipke`](@ref)
     end
 
     # Compute index once
-    idx = unsafe_trunc(Int, x * 10)
+    idx = _table_index(x * 10)
 
     # Binary tree structure: First split at idx < 4
     if idx < 4  # Tables 2-5 (0.0 <= x < 0.4)
@@ -690,3 +690,8 @@ See also: [`ellipke_nonneg`](@ref), [`ellipk`](@ref), [`ellipe`](@ref)
         return (Km, Em)
     end
 end
+
+# index of the lookup table used by `ellipke_nonneg`: the unchecked truncation for floats,
+# the generic one for other reals (e.g. dual numbers, which truncate their value)
+@inline _table_index(x::AbstractFloat) = unsafe_trunc(Int, x)
+@inline _table_index(x::Real) = trunc(Int, x)
