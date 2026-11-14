@@ -7,13 +7,13 @@
 
 # coil flux
 @inline function _pfunc(Gfunc, coil::Union{AbstractSingleCoil, IMAScoil}, R::Real, Z::Real;
-                        COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp,
+                        COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Real=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp,
                         coil_current_per_turn::Real=current_per_turn(coil))
     return coil_current_per_turn == 0.0 ? coil_current_per_turn : μ₀ * Bp_fac * Gfunc(coil, R, Z) * coil_current_per_turn
 end
 
 @inline function _pfunc(Gfunc, mcoil::MultiCoil, R::Real, Z::Real;
-                        COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp,
+                        COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Real=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp,
                         coil_current_per_turn::Real=current_per_turn(mcoil))
     if coil_current_per_turn == 0.0
         return coil_current_per_turn
@@ -35,14 +35,14 @@ end
 @inline d2ψ_dZ2!(result::AbstractVector{T}, source, R::T, Z::T; kwargs...) where {T<:Real} = _pfunc!(d2G_dZ2, result, source, R, Z; kwargs...)
 
 # Faster in-place versions without kwargs
-@inline ψ!(result::AbstractVector{T}, source, R::T, Z::T, Bp_fac::T) where {T<:Real} = _pfunc!(Green, result, source, R, Z, Bp_fac)
-@inline dψ_dR!(result::AbstractVector{T}, source, R::T, Z::T, Bp_fac::T) where {T<:Real} = _pfunc!(dG_dR, result, source, R, Z, Bp_fac)
-@inline dψ_dZ!(result::AbstractVector{T}, source, R::T, Z::T, Bp_fac::T) where {T<:Real} = _pfunc!(dG_dZ, result, source, R, Z, Bp_fac)
-@inline d2ψ_dZ2!(result::AbstractVector{T}, source, R::T, Z::T, Bp_fac::T) where {T<:Real} = _pfunc!(d2G_dZ2, result, source, R, Z, Bp_fac)
+@inline ψ!(result::AbstractVector{T}, source, R::T, Z::T, Bp_fac::Real) where {T<:Real} = _pfunc!(Green, result, source, R, Z, Bp_fac)
+@inline dψ_dR!(result::AbstractVector{T}, source, R::T, Z::T, Bp_fac::Real) where {T<:Real} = _pfunc!(dG_dR, result, source, R, Z, Bp_fac)
+@inline dψ_dZ!(result::AbstractVector{T}, source, R::T, Z::T, Bp_fac::Real) where {T<:Real} = _pfunc!(dG_dZ, result, source, R, Z, Bp_fac)
+@inline d2ψ_dZ2!(result::AbstractVector{T}, source, R::T, Z::T, Bp_fac::Real) where {T<:Real} = _pfunc!(d2G_dZ2, result, source, R, Z, Bp_fac)
 
 """Loop over coils and write ψ values into pre-allocated result array"""
 function _pfunc!(Gfunc, result::AbstractVector{T}, coils::AbstractVector{<:Union{AbstractSingleCoil, IMAScoil}}, R::Real, Z::Real;
-            COCOS::MXHEquilibrium.COCOS=MXHcocos11, Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp) where {T<:Real}
+            COCOS::MXHEquilibrium.COCOS=MXHcocos11, Bp_fac::Real=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp) where {T<:Real}
     for (i, coil) in enumerate(coils)
         coil_current_per_turn = current_per_turn(coil)::T
         if coil_current_per_turn == zero(T) 
@@ -56,7 +56,7 @@ end
 
 """Loop over coils and write ψ values into pre-allocated result array"""
 # function _pfunc!(Gfunc, result::AbstractVector{T}, coils::AbstractVector{<:Union{AbstractSingleCoil, IMAScoil}}, R::Real, Z::Real, Bp_fac::Real) where {T<:Real}
-function _pfunc!(Gfunc, result::AbstractVector{T}, coils::AbstractVector{<:Union{AbstractSingleCoil, IMAScoil}}, R::T, Z::T, Bp_fac::T) where {T<:Real}
+function _pfunc!(Gfunc, result::AbstractVector{T}, coils::AbstractVector{<:Union{AbstractSingleCoil, IMAScoil}}, R::T, Z::T, Bp_fac::Real) where {T<:Real}
     
     for (i, coil) in enumerate(coils)
         coil_current_per_turn = current_per_turn(coil)::T
@@ -86,7 +86,7 @@ end
 
 """Loop over MultiCoils and write ψ values into pre-allocated result array"""
 @inline function _pfunc!(Gfunc::Function, result::AbstractVector, mcoils::AbstractVector{<:MultiCoil}, R::Real, Z::Real;
-                        COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp)
+                        COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11), Bp_fac::Real=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp)
     for (i, mcoil) in enumerate(mcoils)
         coil_current_per_turn = current_per_turn(mcoil)
         if coil_current_per_turn == 0.0
@@ -118,13 +118,13 @@ end
     flux_on_grid(Gtable::Array{<:Real, 3}, Rs::AbstractVector{T1}, Zs::AbstractVector{T2},
                  coils::Vector{<:Union{AbstractCoil, IMAScoil, IMASloop, IMASelement}};
                  COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
-                 Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp)
+                 Bp_fac::Real=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp)
 Calculate the magnetic flux on a (`Rs`, `Zs`) grid with Green's function table `Gtable` for the given coils and grid points.
 """
 function flux_on_grid(Gtable::Array{T1, 3}, Rs::AbstractVector{T2}, Zs::AbstractVector{T3},
                       coils::Vector{<:Union{AbstractCoil, IMAScoil, IMASloop, IMASelement}};
                       COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
-                      Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp) where {T1 <: Real, T2 <: Real, T3 <: Real}
+                      Bp_fac::Real=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp) where {T1 <: Real, T2 <: Real, T3 <: Real}
     Nr, Nz, _ = size(Gtable)
     Ψ = zeros(promote_type(T1, T2, T3), Nr, Nz)
     flux_on_grid!(Ψ, Gtable, Rs, Zs, coils; COCOS, Bp_fac)
@@ -134,7 +134,7 @@ end
 function flux_on_grid!(Ψ::Matrix{T}, Gtable::Array{<:Real, 3}, Rs::AbstractVector{<:Real}, Zs::AbstractVector{<:Real},
                        coils::Vector{<:Union{AbstractCoil, IMAScoil, IMASloop, IMASelement}};
                        COCOS::MXHEquilibrium.COCOS=MXHEquilibrium.cocos(11),
-                       Bp_fac::Float64=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp) where {T <: Real}
+                       Bp_fac::Real=COCOS.sigma_Bp * (2π)^COCOS.exp_Bp) where {T <: Real}
     fill!(Ψ, zero(T))
     fac = Bp_fac * μ₀
     for k in eachindex(coils)

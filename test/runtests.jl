@@ -51,3 +51,5 @@ include("runtests_basic.jl")
 include("runtests_ellipke.jl")
 include("runtests_inplace.jl")
 include("runtests_coil_cache.jl")
+
+include("runtests_dual.jl")

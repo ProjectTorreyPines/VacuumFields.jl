@@ -107,14 +107,14 @@ elements(coil::Union{IMAScoil,IMASloop}) = Iterators.filter(!isempty, coil.eleme
 # N.B.: Not sure about sign with turns and such
 function current_per_turn(coil::IMAScoil)
     if ismissing(coil.current, :data)
-        return 0.0
+        return zero(eltype(coil))
     end
     return IMAS.@ddtime(coil.current.data)
 end
 
 function current_per_turn(loop::IMASloop)
     if ismissing(loop, :current)
-        return 0.0
+        return zero(eltype(loop))
     end
     return IMAS.@ddtime(loop.current)
 end

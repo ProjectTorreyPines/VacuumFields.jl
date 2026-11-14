@@ -11,9 +11,9 @@ function Image(Rb, Zb, Lb, dψdn_R)
     return Image(Rb, Zb, Lb, dψdn_R, Vb)
 end
 
-function cumlength(R::T, Z::T) where {T<:AbstractVector{Float64}}
-    # Length along boundary
-    L = Array{Float64,1}(undef, length(R))
+function cumlength(R::AbstractVector{<:Real}, Z::AbstractVector{<:Real})
+    # Length along boundary (number type follows the inputs, e.g. ForwardDiff duals)
+    L = Vector{promote_type(Float64, eltype(R), eltype(Z))}(undef, length(R))
     @inbounds L[1] = 0
     for i in eachindex(R)[2:end]
         @inbounds L[i] = L[i-1] + sqrt((R[i] - R[i-1])^2 + (Z[i] - Z[i-1])^2)
